@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>Yaşayan Defter • Brain Engine 10.0</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/css/style.css">
+
+</head>
+
+<body>
+
+<div class="app">
+
+<header class="header">
+<div class="brand">
+<div class="logo">🧠</div>
+<div>
+<h1>Yaşayan Defter</h1>
+<p>Brain Engine 10.0 • Internet Research + Memory + Learning</p>
+
+<div class="brain-core">
+
+    <div class="ring ring1"></div>
+    <div class="ring ring2"></div>
+    <div class="ring ring3"></div>
+
+    </div>
+</div>
+</div>
+
+<div class="status">
+<span class="status-dot"></span>
+<span id="statusText">Sistem hazırlanıyor...</span>
+</div>
+</header>
+
+<section class="hero">
+
+<div class="hero-bg">
+    <canvas id="universe"></canvas>
+    <div id="starfield"></div>
+    <div class="orb"></div>
+    <div class="orb-ring ring1"></div>
+    <div class="orb-ring ring2"></div>
+
+<div class="brain-engine">
+
+    <div class="core"></div>
+
+    <div class="ring ring-a">
+        <span class="node"></span>
+    </div>
+
+    <div class="ring ring-b">
+        <span class="node"></span>
+    </div>
+
+    <div class="ring ring-c">
+        <span class="node"></span>
+    </div>
+
+</div>
+    <div class="stars"></div>
+</div>
+
+<div class="hero-content">
+
+    <div class="engine-badge">
+    </div>
+
+<h2 class="hero-title">
+    Yaşayan
+    <span>Defter</span>
+</h2>
+
+<p class="hero-subtitle">
+    Bilgiyi sadece arama.<br>
+    <strong>Anla • Öğren • Hatırla</strong>
+</p>
+
+<div class="hero-live">
+
+    <div class="live-item">
+        🕒
+        <span id="liveClock">00:00:00</span>
+    </div>
+
+    <div class="live-item">
+        📅
+        <span id="liveDate">31 Temmuz 2026</span>
+    </div>
+
+    <div class="live-item">
+        <span class="live-dot"></span>
+        Brain Engine Aktif
+    </div>
+
+</div>
+
+<div class="hero-search">
+
+    <input
+        id="questionInput"
+        type="text"
+        placeholder="Bana herhangi bir şey sor... (Örn: Mars, Yapay Zeka, Türkiye)" />
+
+    <button
+        id="searchButton"
+        onclick="researchTopic()">
+        🚀 Araştır
+    </button>
+
+</div>
+<div class="hero-dashboard">
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">🧠</div>
+        <div class="dashboard-number">
+            <span class="status-dot"></span>
+            ONLINE
+   </div>
+        <div class="dashboard-text">
+            Brain Engine
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">📚</div>
+        <div class="dashboard-number">
+            <span id="sourceCounter">0</span>K+
+        </div>
+        <div class="dashboard-text">
+            Bilgi Kaynağı
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">🖼️</div>
+        <div class="dashboard-number">
+            <span id="imageCounter">0</span>M+
+        </div>
+        <div class="dashboard-text">
+            Görsel Arşivi
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">⚡</div>
+        <div class="dashboard-number">
+            <span id="speedCounter">0</span> sn
+        </div>
+        <div class="dashboard-text">
+            Ortalama Araştırma
+        </div>
+    </div>
+
+</div>
+   <div id="loading" class="loading">
+
+    <div class="brain-loading">
+
+        <div class="brain-icon">🧠</div>
+
+        <h2 id="loadingTitle">Brain Engine 10.0</h2>
+
+        <p id="loadingText">
+            Araştırma hazırlanıyor...
+        </p>
+
+        <div class="brain-progress">
+            <div id="brainProgressBar"></div>
+        </div>
+
+        <div id="brainPercent">
+            0%
+        </div>
+
+    </div>
+
+</div>
+  
+</div>
+
+</section>
+
+<div id="errorBox" class="error-box"></div>
+
+<main id="results">
+
+<section class="section">
+
+<div class="topic-header">
+
+<div class="topic-main">
+
+<div id="topicCategory" class="topic-kicker">
+Araştırma
+</div>
+
+<h2 id="topicTitle" class="topic-title">—</h2>
+
+<p id="topicQuestion" class="topic-question">—</p>
+<div class="hero-info">
+
+    <div class="hero-chip">
+        🧠 <span id="heroCategory">Genel Bilgi</span>
+    </div>
+
+    <div class="hero-chip">
+        📚 <span id="heroSources">0</span> Kaynak
+    </div>
+
+    <div class="hero-chip">
+        🖼️ <span id="heroImages">0</span> Görsel
+    </div>
+
+    <div class="hero-chip">
+        💡 <span id="heroFacts">0</span> Temel Bilgi
+    </div>
+
+</div>
+
+<div class="hero-summary">
+
+    <p id="heroSummary">
+        Araştırma özeti hazırlanıyor...
+    </p>
+
+</div>
+
+</div>
+
+<div id="topicImageBox" class="topic-image">
+<span>🖼️ Görsel hazırlanıyor...</span>
+</div>
+
+</div>
+
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🔎 Yaşayan Defter ne anladı?</h3>
+<div class="section-subtitle">
+Sorunu anlamlandırıp araştırmayı buna göre şekillendiriyor.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="analysis-grid">
+
+<div class="analysis-card">
+<div class="analysis-label">Soru tipi</div>
+<div id="analysisType" class="analysis-value">—</div>
+</div>
+
+<div class="analysis-card">
+<div class="analysis-label">Ana konu</div>
+<div id="analysisSubject" class="analysis-value">—</div>
+</div>
+
+<div class="analysis-card">
+<div class="analysis-label">Niyet</div>
+<div id="analysisIntent" class="analysis-value">—</div>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="progress-wrap">
+
+<div class="progress-top">
+<div class="progress-title">🧠 Öğrenme yolculuğun</div>
+<div id="progressPercent" class="progress-percent">0%</div>
+</div>
+
+<div class="progress-bar">
+<div id="progressFill" class="progress-fill"></div>
+</div>
+
+<div class="learning-actions">
+
+<button id="stepSummary" class="action-btn" onclick="completeStep('summary')">
+✨ Özeti okudum
+</button>
+
+<button id="stepFacts" class="action-btn" onclick="completeStep('facts')">
+🧠 Bilgileri öğrendim
+</button>
+
+<button id="stepQuiz" class="action-btn" onclick="completeStep('quiz')">
+🎯 Quiz çözeceğim
+</button>
+
+<button id="stepSave" class="action-btn" onclick="saveCurrentTopic()">
+📖 Defterime ekle
+</button>
+
+</div>
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">✨ Yaşayan Defter Özeti</h3>
+<div class="section-subtitle">Araştırmadan çıkarılan ana fikir.</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="summary-box">
+<p id="summaryText">—</p>
+</div>
+
+<div style="margin-top:12px">
+<button class="voice-btn" onclick="completeStep('summary')">
+✓ Özeti tamamladım
+</button>
+</div>
+
+</div>
+</section>
+
+<!-- ========================= -->
+<!-- YAŞAYAN DEFTER ÖĞRETİYOR -->
+<!-- ========================= -->
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">👨‍🏫 Yaşayan Defter Öğretiyor</h3>
+<div class="section-subtitle">
+Araştırılan konuyu herkesin anlayabileceği şekilde açıklar.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="summary-box">
+
+<h4>📚 Basit Anlatım</h4>
+<p id="teacherSimple">—</p>
+
+<hr>
+
+<h4>🧠 Detaylı Açıklama</h4>
+<p id="teacherDetailed">—</p>
+
+<hr>
+
+<h4>💡 Gerçek Hayattan Benzetme</h4>
+<p id="teacherAnalogy">—</p>
+
+<hr>
+
+<h4>🎯 Örnekler</h4>
+<div id="teacherExamples"></div>
+
+</div>
+
+</div>
+
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🧠 Hafıza Bağlantısı</h3><div class="section-subtitle">
+Yaşayan Defter bu konuyu geçmiş öğrenmelerinle ilişkilendiriyor.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div id="memoryContainer" class="memory-grid"></div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🔊 Yaşayan Defter Sesli Anlatım</h3>
+<div class="section-subtitle">Öğrendiklerini dinleyerek tekrar et.</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="voice-panel">
+
+<div id="voiceStatus" class="voice-status">Hazır</div>
+
+<div class="voice-controls">
+
+<button class="voice-btn primary" onclick="speakSummary()">🔊 Dinle</button> <button class="voice-btn" onclick="pauseVoice()">⏸️ Duraklat</button> <button class="voice-btn" onclick="resumeVoice()">▶️ Devam</button> <button class="voice-btn" onclick="stopVoice()">⏹️ Durdur</button>
+
+<div class="speed">
+<span>⚡ Okuma hızı</span>
+
+<select id="voiceSpeed" onchange="changeVoiceSpeed()">
+<option value=".75">Yavaş</option>
+<option value="1" selected>Normal</option>
+<option value="1.25">Hızlı</option>
+<option value="1.5">Çok hızlı</option>
+</select>
+
+</div>
+
+</div>
+</div>
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🧠 Temel Bilgiler</h3>
+<div class="section-subtitle">Konunun temel taşları.</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div id="factsContainer" class="facts"></div>
+
+<div style="margin-top:14px">
+<button class="voice-btn" onclick="speakFacts()">🔊 Temel bilgileri dinle</button>
+<button class="voice-btn" onclick="completeStep('facts')">✓ Öğrendim</button>
+<button class="voice-btn" onclick="stopVoice()">⏹️ Durdur</button>
+</div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">💡 Biliyor muydun?</h3>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="interesting">
+<p id="interestingText">—</p>
+</div>
+
+<div style="margin-top:12px">
+<button class="voice-btn" onclick="speakInteresting()">🔊 Bunu da anlat</button>
+</div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🖼️ Konuyu Görselleştir</h3>
+<div class="section-subtitle">
+Wikimedia Commons üzerinden konuyla ilişkili görseller.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div id="imagesContainer" class="image-grid"></div>
+
+</div>
+</section>
+<section class="section">
+
+    <div class="section-head">
+        <div>
+            <h3 class="section-title">🃏 Çalışma Kartları</h3>
+            <div class="section-subtitle">
+                Konuyu hızlı tekrar etmek için hazırlanan kartlar.
+            </div>
+        </div>
+    </div>
+
+    <div class="section-body">
+
+        <div id="flashcards" class="flashcards-grid"></div>
+
+    </div>
+
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🎯 Mini Quiz</h3>
+<div class="section-subtitle">Öğrendiklerini şimdi test et.</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="quiz">
+
+<div id="quizQuestion" class="quiz-question">—</div>
+
+<div id="quizOptions" class="quiz-options"></div>
+
+<div id="quizResult" class="quiz-result"></div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">🧩 Bundan sonra ne öğrenebilirsin?</h3>
+<div class="section-subtitle">
+Takip soruları ve konudan devam edebileceğin başlıklar.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div id="followContainer" class="follow-grid"></div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<section class="card">
+    <h2>🧠 Bilgi Haritası</h2>
+
+    <p class="muted">
+        Bu konuyla ilişkili başlıklara tıklayarak öğrenmeye devam edebilirsin.
+    </p>
+
+    <div id="knowledgeMap" class="knowledge-map"></div>
+</section>
+<h3 class="section-title">🧭 İlişkili Konular</h3>
+<div class="section-subtitle">
+Bu konudan devam edebileceğin başlıklar.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div id="relatedContainer" class="related-grid"></div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+<div>
+<h3 class="section-title">📖 Defter</h3>
+<div class="section-subtitle">
+Öğrendiğin konuları burada saklayabilirsin.
+</div>
+</div>
+</div>
+
+<div class="section-body">
+
+<div class="notebook">
+
+<div>
+<h3>Bu konuyu defterinde sakla</h3>
+
+<p>
+Araştırma sonucu bu tarayıcıda yerel olarak saklanır.
+</p>
+</div>
+
+<button id="saveTopicButton" class="save-btn" onclick="saveCurrentTopic()">
+📖 Bu konuyu kaydet
+</button>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+
+<div>
+<h3 class="section-title">📚 Defterim</h3>
+
+<div class="section-subtitle">
+Daha önce kaydettiğin öğrenme yolculukları.
+</div>
+
+</div>
+
+<button class="action-btn" onclick="toggleNotebook()">
+📚 Defterimi aç
+</button>
+
+</div>
+
+<div id="notebookList" class="section-body notebook-list"></div>
+
+</section>
+
+<section class="section">
+
+<div class="section-head">
+
+<div>
+<h3 class="section-title">📈 Öğrenme İstatistikleri</h3>
+<div class="section-subtitle">
+Yaşayan Defter hafızasının ve araştırma motorunun durumu.
+</div>
+</div>
+
+</div>
+
+<div class="section-body">
+
+<div id="researchStats" class="analysis-grid"></div>
+
+</div>
+</section>
+
+<section class="section">
+
+<div class="section-head">
+
+<div>
+<h3 class="section-title">📚 Kaynaklar</h3>
+<div class="section-subtitle">
+Araştırmada kullanılan kaynaklara ulaş.
+</div>
+</div>
+
+</div>
+
+<div class="section-body">
+
+<div id="sourcesContainer" class="source-list"></div>
+
+</div>
+</section>
+
+</main>
+
+<footer class="footer">
+Yaşayan Defter • Brain Engine 10.0 •
+Internet Research • Context Search • Learning Memory
+</footer>
+
+</div>
+
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/effects.js"></script>
+<script src="assets/js/app.js"></script>
+
+</body>
+</html>
