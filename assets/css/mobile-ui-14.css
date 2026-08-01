@@ -1,9 +1,13 @@
-/* ===================================================
-   YAŞAYAN DEFTER MOBILE UI 14.0
-   PART 1 - HERO
-=================================================== */
+/* ==========================================================
+   YAŞAYAN DEFTER
+   MOBILE UI 14.0 CLEAN
+========================================================== */
 
 @media screen and (max-width:768px){
+
+/* ==========================
+   RESET
+========================== */
 
 *{
     box-sizing:border-box;
@@ -14,208 +18,14 @@ body{
     overflow-x:hidden;
 }
 
-.hero{
-
-    padding:24px 18px 40px;
-    min-height:auto;
-
-}
-
-.hero-content{
-
-    width:100%;
-    max-width:100%;
-    margin:auto;
-    text-align:center;
-
-}
-
-.hero-title{
-
-    font-size:38px;
-    line-height:1.15;
-    font-weight:800;
-    margin-bottom:14px;
-
-}
-
-.hero-title span{
-
-    display:block;
-    color:#63d8ff;
-
-}
-
-.hero-subtitle{
-
-    font-size:17px;
-    line-height:1.6;
-    opacity:.9;
-    margin-bottom:22px;
-
-}
-
-/* ---------- Live ---------- */
-
-.hero-live{
-
-    display:flex;
-    flex-wrap:wrap;
-    justify-content:center;
-    gap:10px;
-    margin:22px 0;
-
-}
-
-.live-item{
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    gap:8px;
-
-    padding:10px 15px;
-
-    border-radius:30px;
-
-    background:rgba(255,255,255,.06);
-
-    border:1px solid rgba(255,255,255,.08);
-
-    font-size:13px;
-
-}
-
-/* ---------- Search ---------- */
-
-.hero-search{
-
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-    margin-top:20px;
-
-}
-
-.hero-search input{
-
-    width:100%;
-    height:58px;
-
-    border-radius:18px;
-
-    padding:0 18px;
-
-    font-size:16px;
-
-}
-
-.hero-search button{
-
-    width:100%;
-    height:58px;
-
-    border-radius:18px;
-
-    font-size:18px;
-
-    font-weight:700;
-
-}
-
-/* ---------- Dashboard ---------- */
-
-.hero-dashboard{
-
-    display:grid;
-
-    grid-template-columns:repeat(2,1fr);
-
-    gap:14px;
-
-    margin-top:24px;
-
-}
-
-.dashboard-card{
-
-    min-height:145px;
-
-    padding:18px;
-
-    display:flex;
-
-    flex-direction:column;
-
-    justify-content:center;
-
-    align-items:center;
-
-}
-
-.dashboard-icon{
-
-    font-size:28px;
-
-    margin-bottom:10px;
-
-}
-
-.dashboard-number{
-
-    font-size:24px;
-
-    font-weight:800;
-
-}
-
-.dashboard-text{
-
-    margin-top:8px;
-
-    font-size:13px;
-
-    text-align:center;
-
-}
-
-}
-
-/* =====================================================
-   YAŞAYAN DEFTER MOBILE UI 14.0
-   Hero + Dashboard
-===================================================== */
-
-@media screen and (max-width:768px){
-
-/* =====================
-   GENEL
-===================== */
-
-body{
-
-    overflow-x:hidden;
-
-}
-
-*{
-
-    box-sizing:border-box;
-
-}
-
 img{
-
     max-width:100%;
-
     height:auto;
-
 }
 
-/* =====================
+/* ==========================
    HERO
-===================== */
+========================== */
 
 .hero{
 
@@ -228,31 +38,27 @@ img{
 .hero-content{
 
     width:100%;
-
     max-width:100%;
-
     margin:auto;
-
     text-align:center;
 
 }
 
-/* =====================
+/* ==========================
    BRAIN ENGINE
-===================== */
+========================== */
 
 .brain-engine{
 
     transform:scale(.72);
 
-    margin:0 auto 20px;
+    margin:0 auto 24px;
 
 }
 
 .brain-core{
 
     width:170px;
-
     height:170px;
 
 }
@@ -260,7 +66,6 @@ img{
 .brain-center{
 
     width:82px;
-
     height:82px;
 
     font-size:40px;
@@ -270,7 +75,6 @@ img{
 .ring1{
 
     width:105px;
-
     height:105px;
 
 }
@@ -278,7 +82,6 @@ img{
 .ring2{
 
     width:145px;
-
     height:145px;
 
 }
@@ -286,14 +89,13 @@ img{
 .ring3{
 
     width:185px;
-
     height:185px;
 
 }
 
-/* =====================
-   BAŞLIK
-===================== */
+/* ==========================
+   TITLE
+========================== */
 
 .hero-title,
 .hero h1,
@@ -307,13 +109,17 @@ img{
 
 }
 
+.hero-title span{
+
+    display:block;
+
+}
+
 .hero-subtitle{
 
     font-size:17px;
 
     line-height:1.6;
-
-    opacity:.92;
 
     margin-bottom:22px;
 
@@ -327,21 +133,19 @@ img{
 
     margin:18px auto;
 
-    max-width:100%;
-
 }
 
-/* =====================
-   SAAT
-===================== */
+/* ==========================
+   LIVE INFO
+========================== */
 
 .hero-live{
 
     display:flex;
 
-    flex-wrap:wrap;
-
     justify-content:center;
+
+    flex-wrap:wrap;
 
     gap:10px;
 
@@ -351,15 +155,23 @@ img{
 
 .live-item{
 
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    gap:8px;
+
     padding:10px 16px;
 
     font-size:13px;
 
 }
 
-/* =====================
-   ARAMA
-===================== */
+/* ==========================
+   SEARCH
+========================== */
 
 .hero-search{
 
@@ -379,11 +191,11 @@ img{
 
     height:58px;
 
-    border-radius:18px;
+    padding:0 18px;
 
     font-size:17px;
 
-    padding:0 18px;
+    border-radius:18px;
 
 }
 
@@ -393,17 +205,17 @@ img{
 
     height:58px;
 
-    border-radius:18px;
-
-    font-size:19px;
+    font-size:18px;
 
     font-weight:700;
 
+    border-radius:18px;
+
 }
 
-/* =====================
+/* ==========================
    DASHBOARD
-===================== */
+========================== */
 
 .hero-dashboard{
 
@@ -449,8 +261,6 @@ img{
 
     font-weight:800;
 
-    line-height:1.2;
-
 }
 
 .dashboard-text{
@@ -463,9 +273,9 @@ img{
 
 }
 
-/* =====================
-   CHIP
-===================== */
+/* ==========================
+   HERO CHIP
+========================== */
 
 .hero-info{
 
@@ -473,9 +283,9 @@ img{
 
     flex-wrap:wrap;
 
-    justify-content:center;
-
     gap:10px;
+
+    justify-content:center;
 
 }
 
@@ -487,9 +297,9 @@ img{
 
 }
 
-/* =====================
-   LOGO
-===================== */
+/* ==========================
+   HEADER
+========================== */
 
 .logo{
 
@@ -499,10 +309,6 @@ img{
 
 }
 
-/* =====================
-   HEADER
-===================== */
-
 .brand h1{
 
     font-size:26px;
@@ -510,6 +316,1015 @@ img{
 }
 
 .brand p{
+
+    font-size:13px;
+
+}
+
+}
+
+/* ==========================================================
+   MOBILE UI 14.0
+   PART 2
+   Results • Sections • Topic • Summary
+========================================================== */
+
+@media screen and (max-width:768px){
+
+/* ==========================
+   RESULTS
+========================== */
+
+#results{
+
+    margin-top:20px;
+
+}
+
+/* ==========================
+   SECTION
+========================== */
+
+.section{
+
+    margin:16px 0;
+
+    border-radius:20px;
+
+}
+
+.section-head{
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+    gap:10px;
+
+    padding:18px;
+
+}
+
+.section-body{
+
+    padding:18px;
+
+}
+
+.section-title{
+
+    font-size:20px;
+
+    line-height:1.3;
+
+}
+
+.section-subtitle{
+
+    font-size:13px;
+
+    line-height:1.6;
+
+}
+
+/* ==========================
+   TOPIC HEADER
+========================== */
+
+.topic-header{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:18px;
+
+}
+
+.topic-main{
+
+    width:100%;
+
+}
+
+.topic-title{
+
+    font-size:30px;
+
+    line-height:1.2;
+
+    word-break:break-word;
+
+}
+
+.topic-question{
+
+    font-size:15px;
+
+    line-height:1.7;
+
+}
+
+.topic-image{
+
+    min-height:220px;
+
+    border-radius:18px;
+
+}
+
+.topic-image img{
+
+    width:100%;
+
+    height:220px;
+
+    object-fit:cover;
+
+}
+
+/* ==========================
+   HERO SUMMARY
+========================== */
+
+.hero-summary{
+
+    margin-top:18px;
+
+    padding:18px;
+
+    border-radius:18px;
+
+}
+
+.hero-summary p{
+
+    font-size:15px;
+
+    line-height:1.8;
+
+}
+
+/* ==========================
+   HERO CHIP
+========================== */
+
+.hero-info{
+
+    display:grid;
+
+    grid-template-columns:1fr 1fr;
+
+    gap:10px;
+
+}
+
+.hero-chip{
+
+    width:100%;
+
+    padding:10px;
+
+    justify-content:center;
+
+    text-align:center;
+
+    font-size:13px;
+
+}
+
+/* ==========================
+   ANALYSIS
+========================== */
+
+.analysis-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:12px;
+
+}
+
+.analysis-card{
+
+    padding:18px;
+
+}
+
+.analysis-label{
+
+    font-size:12px;
+
+}
+
+.analysis-value{
+
+    font-size:16px;
+
+}
+
+/* ==========================
+   PROGRESS
+========================== */
+
+.progress-wrap{
+
+    padding:18px;
+
+}
+
+.progress-top{
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+    gap:10px;
+
+}
+
+.progress-title{
+
+    font-size:16px;
+
+}
+
+.progress-percent{
+
+    font-size:18px;
+
+}
+
+.learning-actions{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:12px;
+
+}
+
+.action-btn{
+
+    width:100%;
+
+    justify-content:center;
+
+}
+
+/* ==========================
+   SUMMARY BOX
+========================== */
+
+.summary-box{
+
+    padding:18px;
+
+}
+
+.summary-box h4{
+
+    font-size:16px;
+
+}
+
+.summary-box p{
+
+    font-size:15px;
+
+    line-height:1.8;
+
+}
+
+}
+
+/* ==========================================================
+   MOBILE UI 14.0
+   PART 3
+   Facts • Memory • Images • Flashcards • Quiz • Notebook
+========================================================== */
+
+@media screen and (max-width:768px){
+
+/* ==========================
+   FACTS
+========================== */
+
+.facts{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:14px;
+
+}
+
+.fact{
+
+    padding:18px;
+
+}
+
+.fact h4{
+
+    font-size:16px;
+
+}
+
+.fact p{
+
+    font-size:15px;
+
+    line-height:1.8;
+
+}
+
+/* ==========================
+   MEMORY
+========================== */
+
+.memory-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:14px;
+
+}
+
+.memory-card{
+
+    padding:18px;
+
+}
+
+.memory-card strong{
+
+    font-size:16px;
+
+}
+
+/* ==========================
+   VOICE
+========================== */
+
+.voice-panel{
+
+    padding:18px;
+
+}
+
+.voice-controls{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:12px;
+
+}
+
+.voice-btn{
+
+    width:100%;
+
+}
+
+.speed{
+
+    margin:0;
+
+    width:100%;
+
+}
+
+.speed select{
+
+    width:100%;
+
+}
+
+/* ==========================
+   IMAGES
+========================== */
+
+.image-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:16px;
+
+}
+
+.image-card{
+
+    border-radius:18px;
+
+}
+
+.image-card img{
+
+    height:220px;
+
+}
+
+.image-caption{
+
+    font-size:14px;
+
+}
+
+/* ==========================
+   FLASHCARDS
+========================== */
+
+.flashcards-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:16px;
+
+}
+
+.flashcard{
+
+    padding:18px;
+
+}
+
+.flashcard-question{
+
+    font-size:17px;
+
+}
+
+.flashcard-answer{
+
+    font-size:15px;
+
+}
+
+/* ==========================
+   QUIZ
+========================== */
+
+.quiz{
+
+    padding:18px;
+
+}
+
+.quiz-question{
+
+    font-size:18px;
+
+    line-height:1.5;
+
+}
+
+.quiz-options{
+
+    gap:12px;
+
+}
+
+.quiz-option{
+
+    padding:15px;
+
+    font-size:15px;
+
+}
+
+.quiz-result{
+
+    font-size:15px;
+
+}
+
+/* ==========================
+   NOTEBOOK
+========================== */
+
+.notebook{
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:stretch;
+
+    gap:18px;
+
+}
+
+.save-btn{
+
+    width:100%;
+
+}
+
+/* ==========================
+   NOTEBOOK LIST
+========================== */
+
+.saved-item{
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+    gap:12px;
+
+}
+
+.delete-save{
+
+    width:100%;
+
+}
+
+/* ==========================
+   FOLLOW
+========================== */
+
+.follow-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:14px;
+
+}
+
+.follow-btn{
+
+    padding:18px;
+
+}
+
+/* ==========================
+   RELATED
+========================== */
+
+.related-grid{
+
+    display:grid;
+
+    grid-template-columns:1fr;
+
+    gap:14px;
+
+}
+
+.related-btn{
+
+    padding:18px;
+
+}
+
+/* ==========================
+   KNOWLEDGE MAP
+========================== */
+
+.knowledge-map{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    justify-content:center;
+
+    gap:10px;
+
+}
+
+.map-node{
+
+    width:100%;
+
+    text-align:center;
+
+}
+
+/* ==========================
+   SOURCES
+========================== */
+
+.source-item{
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+    gap:10px;
+
+}
+
+.source-link{
+
+    word-break:break-word;
+
+}
+
+}
+
+/* ==========================================================
+   MOBILE UI 14.0
+   PART 4
+   Small Phones • Final Responsive • Footer
+========================================================== */
+
+/* ==========================================================
+   SMALL TABLETS
+========================================================== */
+
+@media screen and (max-width:600px){
+
+.hero-title{
+
+    font-size:34px;
+
+}
+
+.hero-subtitle{
+
+    font-size:16px;
+
+}
+
+.hero-dashboard{
+
+    grid-template-columns:1fr;
+
+}
+
+.hero-info{
+
+    grid-template-columns:1fr;
+
+}
+
+.dashboard-card{
+
+    min-height:135px;
+
+}
+
+.topic-title{
+
+    font-size:28px;
+
+}
+
+.image-card img{
+
+    height:200px;
+
+}
+
+}
+
+
+/* ==========================================================
+   SMALL PHONES
+========================================================== */
+
+@media screen and (max-width:480px){
+
+html{
+
+    font-size:15px;
+
+}
+
+.hero{
+
+    padding:20px 14px 30px;
+
+}
+
+.hero-title{
+
+    font-size:30px;
+
+    line-height:1.2;
+
+}
+
+.hero-subtitle{
+
+    font-size:15px;
+
+}
+
+.hero-live{
+
+    gap:8px;
+
+}
+
+.live-item{
+
+    width:100%;
+
+    justify-content:center;
+
+}
+
+.hero-search input{
+
+    height:54px;
+
+    font-size:15px;
+
+}
+
+.hero-search button{
+
+    height:54px;
+
+    font-size:17px;
+
+}
+
+.dashboard-card{
+
+    padding:16px;
+
+    min-height:125px;
+
+}
+
+.dashboard-icon{
+
+    font-size:26px;
+
+}
+
+.dashboard-number{
+
+    font-size:22px;
+
+}
+
+.dashboard-text{
+
+    font-size:12px;
+
+}
+
+.section{
+
+    border-radius:18px;
+
+}
+
+.section-head{
+
+    padding:16px;
+
+}
+
+.section-body{
+
+    padding:16px;
+
+}
+
+.section-title{
+
+    font-size:18px;
+
+}
+
+.summary-box{
+
+    padding:16px;
+
+}
+
+.summary-box h4{
+
+    font-size:15px;
+
+}
+
+.summary-box p{
+
+    font-size:14px;
+
+}
+
+.topic-title{
+
+    font-size:24px;
+
+}
+
+.topic-question{
+
+    font-size:14px;
+
+}
+
+.topic-image{
+
+    min-height:180px;
+
+}
+
+.topic-image img{
+
+    height:180px;
+
+}
+
+.image-card img{
+
+    height:180px;
+
+}
+
+.flashcard{
+
+    padding:16px;
+
+}
+
+.quiz{
+
+    padding:16px;
+
+}
+
+.quiz-question{
+
+    font-size:16px;
+
+}
+
+.voice-btn,
+
+.action-btn,
+
+.save-btn{
+
+    font-size:15px;
+
+}
+
+}
+
+
+/* ==========================================================
+   EXTRA SMALL DEVICES
+========================================================== */
+
+@media screen and (max-width:360px){
+
+.hero-title{
+
+    font-size:26px;
+
+}
+
+.hero-subtitle{
+
+    font-size:14px;
+
+}
+
+.dashboard-number{
+
+    font-size:20px;
+
+}
+
+.dashboard-text{
+
+    font-size:11px;
+
+}
+
+.topic-title{
+
+    font-size:22px;
+
+}
+
+.section-title{
+
+    font-size:17px;
+
+}
+
+.hero-search input,
+
+.hero-search button{
+
+    height:50px;
+
+    font-size:14px;
+
+}
+
+.logo{
+
+    width:56px;
+
+    height:56px;
+
+}
+
+}
+
+
+/* ==========================================================
+   LANDSCAPE PHONES
+========================================================== */
+
+@media screen and (max-height:500px) and (orientation:landscape){
+
+.hero{
+
+    padding:18px;
+
+}
+
+.hero-dashboard{
+
+    grid-template-columns:repeat(2,1fr);
+
+}
+
+.hero-live{
+
+    margin:14px 0;
+
+}
+
+}
+
+
+/* ==========================================================
+   FINAL FIXES
+========================================================== */
+
+@media screen and (max-width:768px){
+
+body{
+
+    overflow-x:hidden;
+
+}
+
+img{
+
+    max-width:100%;
+
+}
+
+button,
+input,
+select{
+
+    max-width:100%;
+
+}
+
+.topic-image,
+.image-card,
+.summary-box,
+.voice-panel,
+.flashcard,
+.quiz{
+
+    overflow:hidden;
+
+}
+
+.footer{
+
+    text-align:center;
+
+    padding:24px 16px 36px;
 
     font-size:13px;
 
