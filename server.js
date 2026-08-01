@@ -6,7 +6,21 @@ const teacher = require("./brain/teacher");
 const map = require("./brain/map");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+const CONFIG = require("./brain/config");
+const Analyzer = require("./brain/analyzer");
+const Images = require("./brain/images");
+const Wikipedia = require("./brain/wikipedia");
+const Network = require("./brain/network");
+
+const {
+
+    VERSION,
+
+    ENGINE_NAME
+
+} = CONFIG;
 
 /*
 =========================================================
@@ -32,9 +46,6 @@ const PORT = 3000;
  • Türkçe soru bağlamı
 =========================================================
 */
-
-const VERSION = "10.0";
-const ENGINE_NAME = "Brain Engine 10.0";
 
 const UA =
   "YasayanDefter/10.0 (Educational Research Engine)";
@@ -3858,240 +3869,121 @@ app.get(
    API — ANALYZE
 ======================================================== */
 
-app.get(
-  "/api/analyze",
-  (
-    req,
-    res
-  ) => {
+app.get("/api/analyze", (req, res) => {
 
-    const query =
-      cleanText(
-        req.query.q
-      );
+    const query = Analyzer.cleanText(req.query.q);
 
     if (!query) {
 
-      return res
-        .status(400)
-        .json({
+        return res.status(400).json({
 
-          ok:
-            false,
+            ok: false,
 
-          error:
-            "Analiz konusu boş."
+            error: "Analiz konusu boş."
+
         });
+
     }
 
     try {
 
-      const analysis =
-        analyzeQuestion(
-          query
-        );
+        const analysis = Analyzer.analyzeQuestion(query);
 
-      res.json({
+        res.json({
 
-        ok:
-          true,
+            ok: true,
 
-        version:
-          VERSION,
+            version: VERSION,
 
-        engine:
-          ENGINE_NAME,
+            engine: ENGINE_NAME,
 
-        analysis
-      });
+            analysis
+
+        });
 
     }
 
     catch (error) {
 
-      res
-        .status(500)
-        .json({
+        res.status(500).json({
 
-          ok:
-            false,
+            ok: false,
 
-          error:
-            "Soru analiz edilemedi.",
+            error: "Soru analiz edilemedi.",
 
-          detail:
-            error.message
+            detail: error.message
+
         });
+
     }
-  }
-);
+
+});
 
 /* ========================================================
    API — IMAGES
 ======================================================== */
 
-app.get(
-  "/api/images",
-  async (
-    req,
-    res
-  ) => {
+app.get("/api/images", async (req, res) => {
 
-    const query =
-      cleanText(
-        req.query.q
-      );
+    const query = Analyzer.cleanText(req.query.q);
 
     if (!query) {
 
-      return res
-        .status(400)
-        .json({
+        return res.status(400).json({
 
-          ok:
-            false,
+            ok: false,
 
-          error:
-            "Görsel konusu gerekli."
+            error: "Görsel konusu gerekli."
+
         });
+
     }
 
     try {
 
-      const analysis =
-        analyzeQuestion(
-          query
+        const analysis = Analyzer.analyzeQuestion(query);
+
+        const images = await Images.searchImagesForQuestion(
+
+            analysis
+
         );
 
-      const images =
-        await searchImagesForQuestion(
-          analysis
-        );
+        res.json({
 
-      res.json({
+            ok: true,
 
-        ok:
-          true,
+            version: VERSION,
 
-        version:
-          VERSION,
+            engine: ENGINE_NAME,
 
-        engine:
-          ENGINE_NAME,
+            query,
 
-        query,
+            topic: analysis.topic,
 
-        topic:
-          analysis.topic,
+            images,
 
-        images,
+            count: images.length
 
-        count:
-          images.length
-
-      });
+        });
 
     }
 
     catch (error) {
 
-      res
-        .status(500)
-        .json({
+        res.status(500).json({
 
-          ok:
-            false,
+            ok: false,
 
-          error:
-            "Görseller alınamadı.",
+            error: "Görseller alınamadı.",
 
-          detail:
-            error.message
+            detail: error.message
+
         });
-    }
-  }
-);
-
-/* ========================================================
-   API — MEMORY SAVE
-======================================================== */
-
-app.post(
-  "/api/memory/save",
-  (
-    req,
-    res
-  ) => {
-
-    try {
-
-      const result =
-        req.body;
-
-      if (
-        !result ||
-        !(
-          result.query ||
-          result.title ||
-          result.analysis?.topic
-        )
-      ) {
-
-        return res
-          .status(400)
-          .json({
-
-            ok:
-              false,
-
-            error:
-              "Kaydedilecek araştırma verisi bulunamadı."
-          });
-      }
-
-      const entry =
-        saveResearchToMemory(
-          result
-        );
-
-      res.json({
-
-        ok:
-          true,
-
-        message:
-          "Araştırma Yaşayan Defter hafızasına kaydedildi.",
-
-        memory:
-          entry
-
-      });
 
     }
 
-    catch (error) {
-
-      console.error(
-        "HAFIZA HATASI:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-
-          ok:
-            false,
-
-          error:
-            "Araştırma hafızaya kaydedilemedi.",
-
-          detail:
-            error.message
-        });
-    }
-  }
-);
+});
 
 /* ========================================================
    API — MEMORY LIST

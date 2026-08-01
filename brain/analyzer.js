@@ -6,26 +6,16 @@
 =========================================================
 */
 
-function cleanText(value) {
-    return String(value || "")
-        .replace(/\s+/g, " ")
-        .trim();
-}
+const Helpers =
+    typeof require !== "undefined"
+        ? require("./helpers")
+        : window.Helpers;
 
-function normalize(value) {
-    return cleanText(value)
-        .toLocaleLowerCase("tr-TR")
-        .replace(/â/g, "a")
-        .replace(/î/g, "i")
-        .replace(/û/g, "u");
-}
-
-function tokenize(text) {
-    return normalize(text)
-        .replace(/[?!.:,;()[\]{}"'“”‘’/\\-]+/g, " ")
-        .split(/\s+/)
-        .filter(Boolean);
-}
+const {
+    cleanText,
+    normalize,
+    tokenize
+} = Helpers;
 
 /* =========================================================
    STOP WORDS
@@ -48,7 +38,16 @@ const STOP_WORDS = new Set([
     "öğret",
     "ogret",
     "bilgi",
-    "ver"
+    "ver",
+    "hakkında",
+    "hakkinda",
+    "konusunda",
+    "konusu",
+    "olan",
+    "olarak",
+    "gibi",
+    "çok",
+    "daha"
 ]);
 
 /* =========================================================
@@ -81,7 +80,30 @@ function detectQuestionType(text){
         type:"genel",
         intent:"bilgi"
     };
+
 }
+
+/* =========================================================
+   TOPIC RULES
+========================================================= */
+
+const TOPIC_RULES = [
+
+    { pattern:/\bkara delik\b/i, topic:"Kara Delik" },
+
+    { pattern:/\byapay zeka\b/i, topic:"Yapay Zeka" },
+
+    { pattern:/\bmakine öğrenmesi\b/i, topic:"Makine Öğrenmesi" },
+
+    { pattern:/\bgüneş sistemi\b/i, topic:"Güneş Sistemi" },
+
+    { pattern:/\bdna\b/i, topic:"DNA" },
+
+    { pattern:/\bmars\b/i, topic:"Mars" },
+
+    { pattern:/\batatürk\b/i, topic:"Mustafa Kemal Atatürk" }
+
+];
 
 /* =========================================================
    TOPIC EXTRACTION
@@ -89,14 +111,24 @@ function detectQuestionType(text){
 
 function extractTopic(text){
 
+    for(const rule of TOPIC_RULES){
+
+        if(rule.pattern.test(text))
+            return rule.topic;
+
+    }
+
     const words = tokenize(text);
 
     const keywords = words.filter(word =>
+
         word.length > 2 &&
         !STOP_WORDS.has(word)
+
     );
 
     return keywords.slice(0,5).join(" ");
+
 }
 
 /* =========================================================
@@ -110,39 +142,50 @@ function detectDomain(topic){
     const domains = {
 
         Astronomi:[
-            "uzay","gezegen","galaksi","evren",
-            "kara delik","mars","güneş","ay","yıldız"
+            "uzay","gezegen","galaksi",
+            "evren","kara delik",
+            "mars","güneş","ay","yıldız"
         ],
 
         Biyoloji:[
-            "dna","hücre","gen","protein",
-            "insan","hayvan","bitki","evrim"
+            "dna","hücre","gen",
+            "protein","insan",
+            "hayvan","bitki","evrim"
         ],
 
         Kimya:[
-            "atom","molekül","asit","baz",
+            "atom","molekül",
+            "asit","baz",
             "kimya","element"
         ],
 
         Fizik:[
-            "enerji","kuvvet","hareket",
-            "ışık","elektrik","manyetik"
+            "enerji","kuvvet",
+            "hareket","ışık",
+            "elektrik","manyetik"
         ],
 
         Tarih:[
-            "osmanlı","atatürk","roma",
-            "hitit","savaş","cumhuriyet"
+            "osmanlı","atatürk",
+            "roma","hitit",
+            "savaş","cumhuriyet"
         ],
 
         Teknoloji:[
-            "bilgisayar","yazılım",
-            "algoritma","internet",
-            "robot","yapay zeka"
+            "bilgisayar",
+            "yazılım",
+            "algoritma",
+            "internet",
+            "robot",
+            "yapay zeka"
         ],
 
         Sağlık:[
-            "hastalık","tedavi",
-            "doktor","ilaç","vitamin"
+            "hastalık",
+            "tedavi",
+            "doktor",
+            "ilaç",
+            "vitamin"
         ]
 
     };
@@ -151,15 +194,15 @@ function detectDomain(topic){
 
         for(const word of domains[domain]){
 
-            if(t.includes(normalize(word))){
+            if(t.includes(normalize(word)))
                 return domain;
-            }
 
         }
 
     }
 
     return "Genel Bilgi";
+
 }
 
 /* =========================================================
@@ -168,16 +211,21 @@ function detectDomain(topic){
 
 function extractKeywords(text){
 
-    const words = tokenize(text);
+    return [
 
-    return [...new Set(
+        ...new Set(
 
-        words.filter(word =>
-            word.length > 2 &&
-            !STOP_WORDS.has(word)
+            tokenize(text).filter(word=>
+
+                word.length>2 &&
+
+                !STOP_WORDS.has(word)
+
+            )
+
         )
 
-    )].slice(0,10);
+    ].slice(0,10);
 
 }
 
@@ -189,19 +237,21 @@ function detectDifficulty(question){
 
     const count = tokenize(question).length;
 
-    if(count <= 5) return "Kolay";
-    if(count <= 12) return "Orta";
+    if(count<=5) return "Kolay";
+
+    if(count<=12) return "Orta";
 
     return "İleri";
+
 }
 
 /* =========================================================
    RELATED TOPICS
 ========================================================= */
 
-function buildRelatedTopics(domain, topic){
+function buildRelatedTopics(domain,topic){
 
-    const map = {
+    const map={
 
         Astronomi:[
             "Galaksi",
@@ -253,8 +303,10 @@ function buildRelatedTopics(domain, topic){
 
     const list = map[domain] || [];
 
-    return list.filter(item =>
-        normalize(item) !== normalize(topic)
+    return list.filter(item=>
+
+        normalize(item)!==normalize(topic)
+
     );
 
 }
@@ -263,38 +315,43 @@ function buildRelatedTopics(domain, topic){
    RESEARCH PLAN
 ========================================================= */
 
-function buildResearchPlan(type, topic){
+function buildResearchPlan(type,topic){
 
     switch(type){
 
         case "nasıl":
-            return [
-                topic + " nedir",
-                topic + " nasıl oluşur",
-                topic + " çalışma mekanizması",
-                topic + " bilimsel açıklama"
+
+            return[
+                topic+" nedir",
+                topic+" nasıl oluşur",
+                topic+" çalışma mekanizması",
+                topic+" bilimsel açıklama"
             ];
 
         case "neden":
-            return [
-                topic + " neden olur",
-                topic + " nedenleri",
-                topic + " bilimsel araştırmalar"
+
+            return[
+                topic+" neden olur",
+                topic+" nedenleri",
+                topic+" bilimsel araştırmalar"
             ];
 
         case "kim":
-            return [
-                topic + " biyografi",
-                topic + " hayatı",
-                topic + " çalışmaları"
+
+            return[
+                topic+" biyografi",
+                topic+" hayatı",
+                topic+" çalışmaları"
             ];
 
         default:
-            return [
+
+            return[
                 topic,
-                topic + " nedir",
-                topic + " hakkında"
+                topic+" nedir",
+                topic+" hakkında"
             ];
+
     }
 
 }
@@ -315,19 +372,19 @@ function analyzeQuestion(question){
 
     const difficulty = detectDifficulty(question);
 
-    const relatedTopics = buildRelatedTopics(domain, topic);
+    const relatedTopics = buildRelatedTopics(domain,topic);
 
-    const researchPlan = buildResearchPlan(info.type, topic);
+    const researchPlan = buildResearchPlan(info.type,topic);
 
-    return {
+    return{
 
-        originalQuestion: cleanText(question),
+        originalQuestion:cleanText(question),
 
-        normalizedQuestion: normalize(question),
+        normalizedQuestion:normalize(question),
 
-        type: info.type,
+        type:info.type,
 
-        intent: info.intent,
+        intent:info.intent,
 
         topic,
 
@@ -346,28 +403,45 @@ function analyzeQuestion(question){
 }
 
 /* =========================================================
-   EXPORTS
+   EXPORT
 ========================================================= */
 
-module.exports = {
-
-    cleanText,
-    normalize,
-    tokenize,
+const Analyzer={
 
     STOP_WORDS,
 
     detectQuestionType,
 
     extractTopic,
+
     detectDomain,
+
     extractKeywords,
 
     detectDifficulty,
 
     buildRelatedTopics,
+
     buildResearchPlan,
 
-    analyzeQuestion
+    analyzeQuestion,
+
+    cleanText,
+
+    normalize,
+
+    tokenize
 
 };
+
+if(typeof module!=="undefined"){
+
+    module.exports=Analyzer;
+
+}
+
+if(typeof window!=="undefined"){
+
+    window.Analyzer=Analyzer;
+
+}
