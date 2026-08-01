@@ -4834,9 +4834,9 @@ app.use(
    SERVER
 ======================================================== */
 
-app.listen(
-  PORT,
-  () => {
+if (require.main === module) {
+
+  app.listen(PORT, () => {
 
     console.log(
       "=========================================="
@@ -4962,5 +4962,9 @@ app.listen(
     console.log(
       "🧠 Brain Engine 10.0 hazır."
     );
-  }
-);
+
+  });
+
+}
+
+module.exports = app;
