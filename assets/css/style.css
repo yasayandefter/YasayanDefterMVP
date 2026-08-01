@@ -1896,4 +1896,483 @@ transform:scale(1.12);
 }
 }
 
+/* ==========================================================
+   YAŞAYAN DEFTER
+   MOBILE RESPONSIVE FIX v1.0
+   BUNU CSS DOSYASININ EN ALTINA EKLE
+========================================================== */
 
+@media screen and (max-width:768px){
+
+html{
+    overflow-x:hidden;
+}
+
+body{
+    overflow-x:hidden;
+}
+
+.app{
+    width:100%;
+    padding:14px;
+}
+
+/* HEADER */
+
+.header{
+
+    flex-direction:column;
+
+    align-items:center;
+
+    text-align:center;
+
+    gap:16px;
+
+}
+
+.brand{
+
+    justify-content:center;
+
+    text-align:center;
+
+}
+
+.logo{
+
+    width:70px;
+
+    height:70px;
+
+    font-size:34px;
+
+}
+
+.brand h1{
+
+    font-size:26px;
+
+}
+
+.brand p{
+
+    font-size:14px;
+
+}
+
+.status{
+
+    width:100%;
+
+    justify-content:center;
+
+}
+
+/* HERO */
+
+.hero{
+
+    min-height:auto;
+
+    padding:35px 18px 30px;
+
+    border-radius:24px;
+
+}
+
+.hero-content{
+
+    width:100%;
+
+}
+
+.hero-title{
+
+    font-size:42px !important;
+
+    line-height:1.15;
+
+    letter-spacing:-1px;
+
+}
+
+.hero h2{
+
+    font-size:42px !important;
+
+    line-height:1.15;
+
+}
+
+.hero-subtitle{
+
+    font-size:16px;
+
+    line-height:1.8;
+
+    margin-bottom:25px;
+
+}
+
+.hero-text{
+
+    font-size:15px;
+
+}
+
+/* SEARCH */
+
+.hero-search{
+
+    flex-direction:column;
+
+    width:100%;
+
+    gap:15px;
+
+}
+
+.hero-search input{
+
+    width:100%;
+
+    padding:18px;
+
+    font-size:17px;
+
+}
+
+.hero-search button{
+
+    width:100%;
+
+    height:58px;
+
+    font-size:18px;
+
+}
+
+.search-box{
+
+    flex-direction:column;
+
+    width:100%;
+
+    padding:12px;
+
+}
+
+.search-box input{
+
+    width:100%;
+
+}
+
+.search-button{
+
+    width:100%;
+
+    height:55px;
+
+}
+
+/* QUICK TOPICS */
+
+.quick-topics{
+
+    justify-content:center;
+
+}
+
+.quick-topic{
+
+    font-size:13px;
+
+}
+
+/* DASHBOARD */
+
+.hero-dashboard{
+
+    grid-template-columns:1fr;
+
+    gap:18px;
+
+}
+
+.dashboard-card{
+
+    padding:22px;
+
+}
+
+/* BRAIN */
+
+.brain-core{
+
+    width:220px;
+
+    height:220px;
+
+}
+
+.brain-engine{
+
+    transform:scale(.75);
+
+}
+
+/* ANALYSIS */
+
+.analysis-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+/* FACTS */
+
+.facts{
+
+    grid-template-columns:1fr;
+
+}
+
+/* IMAGES */
+
+.image-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+.image-card img{
+
+    height:220px;
+
+}
+
+/* RELATED */
+
+.related-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+/* MEMORY */
+
+.memory-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+/* FOLLOW */
+
+.follow-grid{
+
+    grid-template-columns:1fr;
+
+}
+
+/* HEADER RESULT */
+
+.topic-header{
+
+    grid-template-columns:1fr;
+
+}
+
+.topic-title{
+
+    font-size:32px;
+
+}
+
+.topic-image{
+
+    min-height:220px;
+
+}
+
+/* NOTEBOOK */
+
+.notebook{
+
+    flex-direction:column;
+
+    align-items:flex-start;
+
+}
+
+.save-btn{
+
+    width:100%;
+
+}
+
+/* VOICE */
+
+.voice-controls{
+
+    flex-direction:column;
+
+}
+
+.voice-btn{
+
+    width:100%;
+
+}
+
+.speed{
+
+    margin:0;
+
+    width:100%;
+
+}
+
+/* SECTION */
+
+.section{
+
+    border-radius:20px;
+
+}
+
+.section-head{
+
+    padding:18px;
+
+}
+
+.section-body{
+
+    padding:18px;
+
+}
+
+/* SUMMARY */
+
+.summary-box{
+
+    padding:18px;
+
+}
+
+.summary-box p{
+
+    font-size:15px;
+
+}
+
+/* QUIZ */
+
+.quiz{
+
+    padding:18px;
+
+}
+
+.quiz-question{
+
+    font-size:18px;
+
+}
+
+/* FLASHCARD */
+
+.flashcard{
+
+    padding:18px;
+
+}
+
+.flashcard-question{
+
+    font-size:17px;
+
+}
+
+.flashcard-answer{
+
+    font-size:15px;
+
+}
+
+/* FOOTER */
+
+.footer{
+
+    font-size:12px;
+
+    padding-bottom:30px;
+
+}
+
+}
+
+/* EXTRA SMALL PHONES */
+
+@media screen and (max-width:480px){
+
+.hero-title{
+
+    font-size:34px !important;
+
+}
+
+.hero h2{
+
+    font-size:34px !important;
+
+}
+
+.brand h1{
+
+    font-size:22px;
+
+}
+
+.dashboard-number{
+
+    font-size:26px;
+
+}
+
+.topic-title{
+
+    font-size:28px;
+
+}
+
+.hero-subtitle{
+
+    font-size:15px;
+
+}
+
+.hero-search input{
+
+    font-size:16px;
+
+}
+
+.hero-search button{
+
+    font-size:16px;
+
+}
+
+.logo{
+
+    width:60px;
+
+    height:60px;
+
+}
+
+}
