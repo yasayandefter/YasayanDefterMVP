@@ -1460,17 +1460,14 @@ scale(1.08);
 
 }
 /* =====================================
-   PREMIUM DASHBOARD
+   PREMIUM DASHBOARD 2.0
 ===================================== */
 
 .hero-dashboard{
 
     display:grid;
-
     grid-template-columns:repeat(4,1fr);
-
     gap:22px;
-
     margin-top:28px;
 
 }
@@ -1478,10 +1475,16 @@ scale(1.08);
 .dashboard-card{
 
     position:relative;
-
     overflow:hidden;
 
-    padding:28px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+
+    min-height:180px;
+    padding:24px;
 
     border-radius:24px;
 
@@ -1497,14 +1500,18 @@ scale(1.08);
 
     transition:.35s;
 
+    opacity:0;
+    transform:translateY(30px);
+    animation:cardIn .8s ease forwards;
+
+    will-change:transform,opacity;
+
 }
 
 .dashboard-card::before{
 
     content:"";
-
     position:absolute;
-
     inset:0;
 
     background:
@@ -1515,7 +1522,6 @@ scale(1.08);
             rgba(38,217,255,.12));
 
     opacity:0;
-
     transition:.35s;
 
 }
@@ -1540,225 +1546,125 @@ scale(1.08);
 
 .dashboard-icon{
 
-    font-size:34px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
 
-    margin-bottom:18px;
+    font-size:34px;
+    margin-bottom:14px;
 
 }
 
 .dashboard-number{
 
-    font-size:30px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
 
+    min-height:38px;
+
+    font-size:28px;
     font-weight:800;
 
-    color:white;
+    color:#ffffff;
+
+    text-align:center;
+    line-height:1.2;
 
 }
 
 .dashboard-text{
 
-    margin-top:8px;
+    margin-top:10px;
 
-    color:#aebbd2;
+    text-align:center;
 
-}
+    color:#b9c4d6;
 
-@media(max-width:900px){
-
-.hero-dashboard{
-
-grid-template-columns:repeat(2,1fr);
+    font-size:14px;
+    line-height:1.5;
 
 }
 
-}
-
-@media(max-width:600px){
-
-.hero-dashboard{
-
-grid-template-columns:1fr;
-
-}
-
-}
-.hero-search button{
-
-position:relative;
-
-overflow:hidden;
-
-}
-
-.hero-search button::after{
-
-content:"";
-
-position:absolute;
-
-top:-40%;
-
-left:-80%;
-
-width:60%;
-
-height:180%;
-
-background:
-
-linear-gradient(
-90deg,
-transparent,
-rgba(255,255,255,.55),
-transparent);
-
-transform:rotate(20deg);
-
-transition:1s;
-
-}
-
-.hero-search button:hover::after{
-
-left:150%;
-
-}
-.hero-search input{
-
-transition:.35s;
-
-}
-
-.hero-search input:focus{
-
-border-color:#4fdcff;
-
-box-shadow:
-0 0 25px rgba(79,220,255,.35),
-0 0 60px rgba(124,92,255,.18);
-
-}
-@keyframes lightMove{
-
-0%{
-
-transform:
-translateX(-15%)
-translateY(-10%)
-rotate(0deg);
-
-}
-
-50%{
-
-transform:
-translateX(10%)
-translateY(8%)
-rotate(180deg);
-
-}
-
-100%{
-
-transform:
-translateX(-15%)
-translateY(-10%)
-rotate(360deg);
-
-}
-
-}
-.dashboard-card{
-
-opacity:0;
-
-transform:translateY(30px);
-
-animation:cardIn .8s ease forwards;
-
-will-change:transform,opacity;
-
-}
 .dashboard-card:nth-child(2){
 
-animation-delay:.15s;
+    animation-delay:.15s;
 
 }
 
 .dashboard-card:nth-child(3){
 
-animation-delay:.3s;
+    animation-delay:.30s;
 
 }
 
 .dashboard-card:nth-child(4){
 
-animation-delay:.45s;
+    animation-delay:.45s;
 
 }
 
 @keyframes cardIn{
 
-to{
+    to{
 
-opacity:1;
+        opacity:1;
+        transform:translateY(0);
 
-transform:translateY(0);
+    }
+
+}
+
+/* Tablet */
+
+@media(max-width:900px){
+
+.hero-dashboard{
+
+    grid-template-columns:repeat(2,1fr);
 
 }
 
 }
-.status-dot{
 
-display:inline-block;
+/* Telefon */
 
-width:10px;
+@media(max-width:600px){
 
-height:10px;
+.hero-dashboard{
 
-margin-right:8px;
-
-border-radius:50%;
-
-background:#32ff7e;
-
-box-shadow:
-
-0 0 12px #32ff7e,
-0 0 25px #32ff7e;
-
-animation:pulseDot 1.4s infinite;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
 
 }
 
-@keyframes pulseDot{
+.dashboard-card{
 
-0%{
-
-transform:scale(1);
-
-opacity:1;
+    min-height:140px;
+    padding:18px;
 
 }
 
-50%{
+.dashboard-icon{
 
-transform:scale(1.6);
-
-opacity:.4;
+    font-size:28px;
 
 }
 
-100%{
+.dashboard-number{
 
-transform:scale(1);
+    font-size:22px;
 
-opacity:1;
+}
+
+.dashboard-text{
+
+    font-size:12px;
 
 }
 
 }
+
 /* =====================================
    LIVE STATUS
 ===================================== */
