@@ -79,14 +79,32 @@
     </div>
 
 <h2 class="hero-title">
-    Yaşayan
-    <span>Defter</span>
+    Yaşayan <span>Defter</span>
 </h2>
 
 <p class="hero-subtitle">
+    Yapay zekâ kullanmadan çalışan yeni nesil araştırma ve öğrenme platformu.
+</p>
+
+<p class="hero-description">
     Bilgiyi sadece arama.<br>
     <strong>Anla • Öğren • Hatırla</strong>
 </p>
+
+<div class="hero-search">
+
+    <input
+        id="questionInput"
+        type="text"
+        placeholder="Bugün ne öğrenmek istiyorsun?" />
+
+    <button
+        id="searchButton"
+        onclick="researchTopic()">
+        🔍 Ara
+    </button>
+
+</div>
 
 <div class="hero-live">
 
@@ -142,27 +160,58 @@
         <div class="dashboard-text">
             Bilgi Kaynağı
         </div>
+ <div class="hero-dashboard">
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">🧠</div>
+
+        <div class="dashboard-number">
+            <span class="status-dot"></span>
+            ONLINE
+        </div>
+
+        <div class="dashboard-text">
+            Brain
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="dashboard-icon">📚</div>
+
+        <div class="dashboard-number">
+            <span id="sourceCounter">0</span>K+
+        </div>
+
+        <div class="dashboard-text">
+            Kaynak
+        </div>
     </div>
 
     <div class="dashboard-card">
         <div class="dashboard-icon">🖼️</div>
+
         <div class="dashboard-number">
             <span id="imageCounter">0</span>M+
         </div>
+
         <div class="dashboard-text">
-            Görsel Arşivi
+            Görsel
         </div>
     </div>
 
     <div class="dashboard-card">
         <div class="dashboard-icon">⚡</div>
+
         <div class="dashboard-number">
             <span id="speedCounter">0</span> sn
         </div>
+
         <div class="dashboard-text">
-            Ortalama Araştırma
+            Hız
         </div>
     </div>
+
+</div>
 
 </div>
    <div id="loading" class="loading">
