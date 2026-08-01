@@ -1,3 +1,187 @@
+/* ===================================================
+   YAŞAYAN DEFTER MOBILE UI 14.0
+   PART 1 - HERO
+=================================================== */
+
+@media screen and (max-width:768px){
+
+*{
+    box-sizing:border-box;
+}
+
+html,
+body{
+    overflow-x:hidden;
+}
+
+.hero{
+
+    padding:24px 18px 40px;
+    min-height:auto;
+
+}
+
+.hero-content{
+
+    width:100%;
+    max-width:100%;
+    margin:auto;
+    text-align:center;
+
+}
+
+.hero-title{
+
+    font-size:38px;
+    line-height:1.15;
+    font-weight:800;
+    margin-bottom:14px;
+
+}
+
+.hero-title span{
+
+    display:block;
+    color:#63d8ff;
+
+}
+
+.hero-subtitle{
+
+    font-size:17px;
+    line-height:1.6;
+    opacity:.9;
+    margin-bottom:22px;
+
+}
+
+/* ---------- Live ---------- */
+
+.hero-live{
+
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:10px;
+    margin:22px 0;
+
+}
+
+.live-item{
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    gap:8px;
+
+    padding:10px 15px;
+
+    border-radius:30px;
+
+    background:rgba(255,255,255,.06);
+
+    border:1px solid rgba(255,255,255,.08);
+
+    font-size:13px;
+
+}
+
+/* ---------- Search ---------- */
+
+.hero-search{
+
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    margin-top:20px;
+
+}
+
+.hero-search input{
+
+    width:100%;
+    height:58px;
+
+    border-radius:18px;
+
+    padding:0 18px;
+
+    font-size:16px;
+
+}
+
+.hero-search button{
+
+    width:100%;
+    height:58px;
+
+    border-radius:18px;
+
+    font-size:18px;
+
+    font-weight:700;
+
+}
+
+/* ---------- Dashboard ---------- */
+
+.hero-dashboard{
+
+    display:grid;
+
+    grid-template-columns:repeat(2,1fr);
+
+    gap:14px;
+
+    margin-top:24px;
+
+}
+
+.dashboard-card{
+
+    min-height:145px;
+
+    padding:18px;
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:center;
+
+    align-items:center;
+
+}
+
+.dashboard-icon{
+
+    font-size:28px;
+
+    margin-bottom:10px;
+
+}
+
+.dashboard-number{
+
+    font-size:24px;
+
+    font-weight:800;
+
+}
+
+.dashboard-text{
+
+    margin-top:8px;
+
+    font-size:13px;
+
+    text-align:center;
+
+}
+
+}
+
 /* =====================================================
    YAŞAYAN DEFTER MOBILE UI 14.0
    Hero + Dashboard
