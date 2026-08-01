@@ -1,0 +1,334 @@
+/* =====================================================
+   YAŞAYAN DEFTER MOBILE UI 14.0
+   Hero + Dashboard
+===================================================== */
+
+@media screen and (max-width:768px){
+
+/* =====================
+   GENEL
+===================== */
+
+body{
+
+    overflow-x:hidden;
+
+}
+
+*{
+
+    box-sizing:border-box;
+
+}
+
+img{
+
+    max-width:100%;
+
+    height:auto;
+
+}
+
+/* =====================
+   HERO
+===================== */
+
+.hero{
+
+    min-height:auto;
+
+    padding:24px 18px 40px;
+
+}
+
+.hero-content{
+
+    width:100%;
+
+    max-width:100%;
+
+    margin:auto;
+
+    text-align:center;
+
+}
+
+/* =====================
+   BRAIN ENGINE
+===================== */
+
+.brain-engine{
+
+    transform:scale(.72);
+
+    margin:0 auto 20px;
+
+}
+
+.brain-core{
+
+    width:170px;
+
+    height:170px;
+
+}
+
+.brain-center{
+
+    width:82px;
+
+    height:82px;
+
+    font-size:40px;
+
+}
+
+.ring1{
+
+    width:105px;
+
+    height:105px;
+
+}
+
+.ring2{
+
+    width:145px;
+
+    height:145px;
+
+}
+
+.ring3{
+
+    width:185px;
+
+    height:185px;
+
+}
+
+/* =====================
+   BAŞLIK
+===================== */
+
+.hero-title,
+.hero h1,
+.hero h2{
+
+    font-size:38px;
+
+    line-height:1.15;
+
+    margin-bottom:16px;
+
+}
+
+.hero-subtitle{
+
+    font-size:17px;
+
+    line-height:1.6;
+
+    opacity:.92;
+
+    margin-bottom:22px;
+
+}
+
+.hero-description{
+
+    font-size:15px;
+
+    line-height:1.7;
+
+    margin:18px auto;
+
+    max-width:100%;
+
+}
+
+/* =====================
+   SAAT
+===================== */
+
+.hero-live{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    justify-content:center;
+
+    gap:10px;
+
+    margin:22px 0;
+
+}
+
+.live-item{
+
+    padding:10px 16px;
+
+    font-size:13px;
+
+}
+
+/* =====================
+   ARAMA
+===================== */
+
+.hero-search{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:14px;
+
+    margin-top:20px;
+
+}
+
+.hero-search input{
+
+    width:100%;
+
+    height:58px;
+
+    border-radius:18px;
+
+    font-size:17px;
+
+    padding:0 18px;
+
+}
+
+.hero-search button{
+
+    width:100%;
+
+    height:58px;
+
+    border-radius:18px;
+
+    font-size:19px;
+
+    font-weight:700;
+
+}
+
+/* =====================
+   DASHBOARD
+===================== */
+
+.hero-dashboard{
+
+    display:grid;
+
+    grid-template-columns:repeat(2,1fr);
+
+    gap:14px;
+
+    margin-top:24px;
+
+}
+
+.dashboard-card{
+
+    min-height:150px;
+
+    padding:18px;
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:center;
+
+    align-items:center;
+
+    text-align:center;
+
+}
+
+.dashboard-icon{
+
+    font-size:30px;
+
+    margin-bottom:12px;
+
+}
+
+.dashboard-number{
+
+    font-size:24px;
+
+    font-weight:800;
+
+    line-height:1.2;
+
+}
+
+.dashboard-text{
+
+    margin-top:8px;
+
+    font-size:13px;
+
+    line-height:1.4;
+
+}
+
+/* =====================
+   CHIP
+===================== */
+
+.hero-info{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    justify-content:center;
+
+    gap:10px;
+
+}
+
+.hero-chip{
+
+    width:100%;
+
+    justify-content:center;
+
+}
+
+/* =====================
+   LOGO
+===================== */
+
+.logo{
+
+    width:70px;
+
+    height:70px;
+
+}
+
+/* =====================
+   HEADER
+===================== */
+
+.brand h1{
+
+    font-size:26px;
+
+}
+
+.brand p{
+
+    font-size:13px;
+
+}
+
+}
