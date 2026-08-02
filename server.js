@@ -13,6 +13,7 @@ const Analyzer = require("./brain/analyzer");
 const Images = require("./brain/images");
 const Wikipedia = require("./brain/wikipedia");
 const Network = require("./brain/network");
+const Research = require("./brain/research");
 
 const {
 
@@ -3010,13 +3011,18 @@ async function research(
       analysis
     );
 
+console.log("Network:", Network);
+console.log("searchWeb tipi:", typeof Network.searchWeb);
+
 let webResult = null;
 
 try {
 
-    webResult = await searchWeb(
-        analysis.topic
-    );
+    webResult = await Network.searchWeb(
+    analysis.topic
+);
+
+console.log("Web sonucu:", webResult);
 
 } catch (error) {
 

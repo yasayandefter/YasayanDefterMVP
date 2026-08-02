@@ -1,240 +1,306 @@
-(function(){
+"use strict";
 
-const field = document.getElementById("starfield");
+/* ==========================================================
+   YAŞAYAN DEFTER
+   EFFECTS.JS 14 PROFESSIONAL
+   PART 1
+========================================================== */
 
-if(!field) return;
+const Effects = {
 
-for(let i=0;i<180;i++){
+    initialized: false,
 
-    const star=document.createElement("div");
+    canvas: null,
 
-    star.className="star";
+    ctx: null,
 
-    if(Math.random()>.85){
+    particles: [],
 
-        star.classList.add("big");
+    mouse: {
+        x: 0,
+        y: 0
+    },
+
+    hero: null
+
+};
+
+
+/* ==========================================================
+   DOM
+========================================================== */
+
+function $(id){
+
+    return document.getElementById(id);
+
+}
+
+
+/* ==========================================================
+   START
+========================================================== */
+
+function initializeEffects(){
+
+    if(Effects.initialized){
+
+        return;
 
     }
 
-    star.style.left=Math.random()*100+"%";
-    star.style.top=Math.random()*100+"%";
+    Effects.initialized = true;
 
-    const size=Math.random()*2+1;
+    console.log("✨ Effects Engine Başlatıldı");
 
-    star.style.width=size+"px";
-    star.style.height=size+"px";
+    initializeClock();
 
-    star.style.animationDuration=
-        (Math.random()*6+2)+"s";
+    initializeCounters();
 
-    star.style.animationDelay=
-        (Math.random()*4)+"s";
+    initializeMouse();
 
-    field.appendChild(star);
+    initializeStars();
 
-}
+    initializeParticles();
 
-})();
-// ===========================
-// BILGI EVRENI
-// ===========================
-
-const canvas = document.getElementById("universe");
-
-if(canvas){
-
-const ctx = canvas.getContext("2d");
-
-function resize(){
-
-    canvas.width=canvas.offsetWidth;
-    canvas.height=canvas.offsetHeight;
+    initializeParallax();
 
 }
 
-resize();
 
-window.addEventListener("resize",resize);
+/* ==========================================================
+   CLOCK
+========================================================== */
 
-const particles=[];
+function initializeClock(){
 
-for(let i=0;i<55;i++){
+    updateClock();
 
-    particles.push({
+    setInterval(updateClock,1000);
 
-        x:Math.random()*canvas.width,
+}
 
-        y:Math.random()*canvas.height,
 
-        vx:(Math.random()-.5)*0.4,
+/* ==========================================================
+   COUNTERS
+========================================================== */
 
-        vy:(Math.random()-.5)*0.4
+function initializeCounters(){
+
+    animateCounter("sourceCounter",120);
+
+    animateCounter("imageCounter",1.0);
+
+    animateCounter("speedCounter",0.8);
+
+}
+
+
+/* ==========================================================
+   MOUSE
+========================================================== */
+
+function initializeMouse(){
+
+    document.addEventListener("mousemove",(e)=>{
+
+        Effects.mouse.x=e.clientX;
+
+        Effects.mouse.y=e.clientY;
 
     });
 
 }
 
-function draw(){
-
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    for(const p of particles){
-
-        p.x+=p.vx;
-
-        p.y+=p.vy;
-
-        if(p.x<0||p.x>canvas.width)p.vx*=-1;
-
-        if(p.y<0||p.y>canvas.height)p.vy*=-1;
-
-        ctx.beginPath();
-
-        ctx.arc(p.x,p.y,2,0,Math.PI*2);
-
-        ctx.fillStyle="#7ffcff";
-
-        ctx.fill();
-
-    }
-
-    for(let i=0;i<particles.length;i++){
-
-        for(let j=i+1;j<particles.length;j++){
-
-            const a=particles[i];
-
-            const b=particles[j];
-
-            const dx=a.x-b.x;
-
-            const dy=a.y-b.y;
-
-            const d=Math.sqrt(dx*dx+dy*dy);
-
-            if(d<140){
-
-                ctx.strokeStyle=`rgba(127,252,255,${1-d/140})`;
-
-                ctx.beginPath();
-
-                ctx.moveTo(a.x,a.y);
-
-                ctx.lineTo(b.x,b.y);
-
-                ctx.stroke();
-
-            }
-
-        }
-
-    }
-
-    requestAnimationFrame(draw);
-
-}
-
-draw();
-
-}
-/* ==========================================
-   HERO 3D PARALLAX
-========================================== */
-
-const hero = document.querySelector(".hero");
-
-if(hero){
-
-document.addEventListener("mousemove",(e)=>{
-
-    const x = (e.clientX/window.innerWidth-.5)*20;
-
-    const y = (e.clientY/window.innerHeight-.5)*20;
-
-    hero.style.transform=
-    `
-        perspective(1200px)
-        rotateX(${-y}deg)
-        rotateY(${x}deg)
-    `;
-
-});
-
-document.addEventListener("mouseleave",()=>{
-
-    hero.style.transform=
-    `
-        perspective(1200px)
-        rotateX(0deg)
-        rotateY(0deg)
-    `;
-
-});
-
-}
-/* ==========================================
-   LIVE DASHBOARD COUNTERS
-========================================== */
-
-animateCounter("sourceCounter",120);
-
-animateCounter("imageCounter",1);
-
-animateCounter("speedCounter",0.8);
-
-function animateCounter(id,target){
-
-const el=document.getElementById(id);
-
-if(!el) return;
-
-let value=0;
-
-const interval=setInterval(()=>{
-
-value+=target/40;
-
-if(value>=target){
-
-value=target;
-
-clearInterval(interval);
-
-}
-
-el.innerText=
-target<2
-?value.toFixed(1)
-:Math.floor(value);
-
-},25);
-
-}
-/* ==========================================
-   LIVE CLOCK
-========================================== */
-
-const clock=document.getElementById("liveClock");
-const date=document.getElementById("liveDate");
+/* ==========================================================
+   CLOCK
+========================================================== */
 
 function updateClock(){
 
-if(!clock||!date) return;
+    const clock = $("liveClock");
+    const date = $("liveDate");
 
-const now=new Date();
+    if(!clock || !date){
+        return;
+    }
 
-clock.innerText=now.toLocaleTimeString("tr-TR");
+    const now = new Date();
 
-date.innerText=now.toLocaleDateString("tr-TR",{
+    clock.textContent = now.toLocaleTimeString("tr-TR");
 
-day:"numeric",
-month:"long",
-year:"numeric"
+    date.textContent = now.toLocaleDateString("tr-TR",{
 
-});
+        day:"numeric",
+        month:"long",
+        year:"numeric"
+
+    });
 
 }
 
-updateClock();
 
-setInterval(updateClock,1000);
+/* ==========================================================
+   COUNTERS
+========================================================== */
+
+function animateCounter(id,target){
+
+    const element = $(id);
+
+    if(!element){
+        return;
+    }
+
+    let value = 0;
+
+    const isDecimal = target % 1 !== 0;
+
+    const step = target / 60;
+
+    const timer = setInterval(()=>{
+
+        value += step;
+
+        if(value >= target){
+
+            value = target;
+
+            clearInterval(timer);
+
+        }
+
+        if(isDecimal){
+
+            element.textContent = value.toFixed(1);
+
+        }else{
+
+            element.textContent = Math.floor(value);
+
+        }
+
+    },20);
+
+}
+
+
+/* ==========================================================
+   STARFIELD
+========================================================== */
+
+function initializeStars(){
+
+    const starfield = $("starfield");
+
+    if(!starfield){
+        return;
+    }
+
+    starfield.innerHTML = "";
+
+    for(let i=0;i<120;i++){
+
+        const star = document.createElement("span");
+
+        star.className = "star";
+
+        star.style.left = Math.random()*100 + "%";
+
+        star.style.top = Math.random()*100 + "%";
+
+        star.style.animationDelay =
+            (Math.random()*6) + "s";
+
+        star.style.animationDuration =
+            (4 + Math.random()*6) + "s";
+
+        starfield.appendChild(star);
+
+    }
+
+}
+
+/* ==========================================================
+   PARTICLES
+========================================================== */
+
+function initializeParticles(){
+
+    const hero = document.querySelector(".hero-bg");
+
+    if(!hero){
+        return;
+    }
+
+    const container = document.createElement("div");
+
+    container.className = "particles";
+
+    hero.appendChild(container);
+
+    for(let i=0;i<35;i++){
+
+        const particle = document.createElement("span");
+
+        particle.className = "particle";
+
+        particle.style.left = Math.random()*100 + "%";
+
+        particle.style.top = Math.random()*100 + "%";
+
+        particle.style.animationDelay =
+            (Math.random()*8) + "s";
+
+        particle.style.animationDuration =
+            (8 + Math.random()*8) + "s";
+
+        particle.style.opacity =
+            (0.2 + Math.random()*0.6);
+
+        container.appendChild(particle);
+
+    }
+
+}
+
+
+/* ==========================================================
+   PARALLAX
+========================================================== */
+
+function initializeParallax(){
+
+    const hero = document.querySelector(".hero");
+
+    if(!hero){
+        return;
+    }
+
+    document.addEventListener("mousemove",(e)=>{
+
+        const x =
+            (e.clientX/window.innerWidth-.5)*8;
+
+        const y =
+            (e.clientY/window.innerHeight-.5)*8;
+
+        hero.style.transform =
+
+        `perspective(1200px)
+         rotateX(${-y}deg)
+         rotateY(${x}deg)`;
+
+    });
+
+    document.addEventListener("mouseleave",()=>{
+
+        hero.style.transform =
+
+        `perspective(1200px)
+         rotateX(0deg)
+         rotateY(0deg)`;
+
+    });
+
+}

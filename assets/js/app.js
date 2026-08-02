@@ -29,10 +29,19 @@ $("questionInput").value = topic;
 researchTopic();
 }
 
-$("questionInput").addEventListener("keydown",function(event){
-if(event.key === "Enter") researchTopic();
-});
+const questionInput = $("questionInput");
 
+if (questionInput) {
+
+    questionInput.addEventListener("keydown", function (event) {
+
+        if (event.key === "Enter") {
+            researchTopic();
+        }
+
+    });
+
+}
 /* =========================================================
    API
 ========================================================= */
@@ -68,168 +77,266 @@ return data;
    RESEARCH
 ========================================================= */
 
-async function researchTopic(){
+async function researchTopic() {
 
-const question = $("questionInput").value.trim();
+    const input = $("questionInput");
 
-if(!question){
-showError("✨ Önce bana bir konu veya soru yaz.");
-return;
-}
+    const question = input
+        ? input.value.trim()
+        : "";
 
-hideError();
-showLoading(true);
-
-$("results").classList.remove("visible");
-$("searchButton").disabled = true;
-
-$("statusText").textContent = "Brain Engine 10.0 araştırıyor...";
-
-resetLearning();
-
-const loadingMessages = [
-
-"🧠 Brain Engine soruyu analiz ediyor...",
-
-"🔍 Konunun bağlamı çözümleniyor...",
-
-"🌍 Güvenilir bilgi kaynakları taranıyor...",
-
-"🖼️ Görseller hazırlanıyor...",
-
-"🧠 Hafızadaki bilgiler eşleştiriliyor...",
-
-"📚 Öğretici içerik oluşturuluyor...",
-
-"🗺️ Bilgi haritası hazırlanıyor...",
-
-"🎯 Mini quiz oluşturuluyor...",
-
-"✨ Son dokunuşlar yapılıyor..."
-
-];
-let index = 0;
-let progress = 0;
-
-const timer = setInterval(() => {
-
-    $("loadingText").textContent =
-        loadingMessages[index % loadingMessages.length];
-
-    progress += 16;
-
-    if (progress > 100) {
-        progress = 100;
+    if (!question) {
+        showError("✨ Önce bana bir konu veya soru yaz.");
+        return;
     }
 
-    $("brainProgressBar").style.width =
-        progress + "%";
+    hideError();
+    showLoading(true);
 
-    $("brainPercent").textContent =
-        progress + "%";
+    const results = $("results");
+    const searchButton = $("searchButton");
+    const statusText = $("statusText");
+    const loadingText = $("loadingText");
+    const progressBar = $("brainProgressBar");
+    const brainPercent = $("brainPercent");
 
-    index++;
+    if (results) {
 
-}, 700);
-try{
+       results.classList.add("hidden");
+       results.classList.remove("visible");
 
-/*
-Önce araştırma endpoint'i.
-Bu endpoint Brain Engine 10.0'ın ana çıktısını verir.
-*/
+    }
 
-const data = await getJSON(
-API + "/api/research?q=" +
-encodeURIComponent(question)
-);
+    if (searchButton) {
+        searchButton.disabled = true;
+    }
 
-currentResearch = data;
+    if (statusText) {
+        statusText.textContent =
+            "Brain Engine araştırıyor...";
+    }
 
-/*
-Analiz endpoint'ini ayrıca çağırıyoruz.
-Böylece frontend research cevabında analysis
-olmasa bile Brain Engine 10.0 analizi çalışır.
-*/
+    resetLearning();
 
-try{
+    const loadingMessages = [
 
-const analysisData = await getJSON(
-API + "/api/analyze?q=" +
-encodeURIComponent(question)
-);
+        "🧠 Brain Engine soruyu analiz ediyor...",
+        "🔍 Konunun bağlamı çözümleniyor...",
+        "🌍 Güvenilir bilgi kaynakları taranıyor...",
+        "🖼️ Görseller hazırlanıyor...",
+        "🧠 Hafızadaki bilgiler eşleştiriliyor...",
+        "📚 Öğretici içerik oluşturuluyor...",
+        "🗺️ Bilgi haritası hazırlanıyor...",
+        "🎯 Mini quiz oluşturuluyor...",
+        "✨ Son dokunuşlar yapılıyor..."
 
-currentAnalysis =
-analysisData.analysis ||
-analysisData;
+    ];
 
-}catch(error){
+    let index = 0;
+    let progress = 0;
 
-console.warn("Analyze endpoint:",error);
+    const timer = setInterval(() => {
 
-currentAnalysis =
-data.analysis ||
-{};
+        if (loadingText) {
+            loadingText.textContent =
+                loadingMessages[index % loadingMessages.length];
+        }
 
-}
-$("brainProgressBar").style.width = "100%";
-$("brainPercent").textContent = "100%";
-$("loadingText").textContent = "✅ Araştırma tamamlandı.";
+        progress += 16;
 
-await new Promise(resolve => setTimeout(resolve, 500));
+        if (progress > 100) {
+            progress = 100;
+        }
 
+        if (progressBar) {
+            progressBar.style.width =
+                progress + "%";
+        }
 
-renderResearch(data);
+        if (brainPercent) {
+            brainPercent.textContent =
+                progress + "%";
+        }
 
-await loadMemory(question,data);
+        index++;
 
-$("results").classList.add("visible");
+    }, 700);
 
-const sections = document.querySelectorAll("#results .section");
+    try {
 
-sections.forEach(section => section.classList.remove("show"));
+        console.log("🚀 researchTopic başladı");
 
-sections.forEach((section, index) => {
+        const data = await getJSON(
 
-    setTimeout(() => {
+            API +
+            "/api/research?q=" +
+            encodeURIComponent(question)
 
-        section.classList.add("show");
+        );
 
-    }, index * 180);
+        console.log("✅ RESEARCH DATA:", data);
 
-});
+        currentResearch = data;
 
-$("statusText").textContent =
-"Brain Engine 10.0 hazır";
+        try {
 
-window.scrollTo({
-top:$("results").offsetTop - 20,
-behavior:"smooth"
-});
+            const analysisData = await getJSON(
 
-}catch(error){
+                API +
+                "/api/analyze?q=" +
+                encodeURIComponent(question)
 
-console.error(error);
+            );
 
-showError(
-"⚠️ Araştırma sırasında bir sorun oluştu: " +
-error.message
-);
+            console.log(
+                "✅ ANALYZE DATA:",
+                analysisData
+            );
 
-$("statusText").textContent =
-"Bağlantı sorunu";
+            currentAnalysis =
+                analysisData.analysis ||
+                analysisData;
 
-} finally {
+        }
+        catch (error) {
 
-    clearInterval(timer);
+            console.warn(
+                "Analyze endpoint:",
+                error
+            );
 
-    $("brainProgressBar").style.width = "0%";
-    $("brainPercent").textContent = "0%";
+            currentAnalysis =
+                data.analysis || {};
 
-    showLoading(false);
+        }
 
-    $("searchButton").disabled = false;
+        if (progressBar) {
+            progressBar.style.width = "100%";
+        }
 
-}
+        if (brainPercent) {
+            brainPercent.textContent = "100%";
+        }
+
+        if (loadingText) {
+            loadingText.textContent =
+                "✅ Araştırma tamamlandı.";
+        }
+
+        await new Promise(resolve =>
+            setTimeout(resolve, 500)
+        );
+
+        console.log(
+            "🧠 renderResearch başlıyor..."
+        );
+
+        renderResearch(data);
+
+        console.log(
+            "✅ renderResearch tamamlandı."
+        );
+
+        /*
+        ŞİMDİLİK KAPALI
+        Önce araştırmanın tamamen
+        çalıştığını doğrulayalım.
+        */
+
+        // await loadMemory(question, data);
+
+        if (results) {
+
+           results.classList.remove("hidden");
+           results.classList.add("visible");
+
+        }
+        console.log(
+            "✅ Results görünür yapıldı."
+        );
+
+        const sections =
+            document.querySelectorAll(
+                "#results .section"
+            );
+
+        sections.forEach(section =>
+            section.classList.remove("show")
+        );
+
+        sections.forEach((section, index) => {
+
+            setTimeout(() => {
+
+                section.classList.add("show");
+
+            }, index * 180);
+
+        });
+
+        if (statusText) {
+            statusText.textContent =
+                "Brain Engine hazır";
+        }
+
+        if (results) {
+
+            window.scrollTo({
+
+                top:
+                    results.offsetTop - 20,
+
+                behavior:
+                    "smooth"
+
+            });
+
+        }
+
+    }
+    catch (error) {
+
+        console.error(
+            "❌ researchTopic Hatası:",
+            error
+        );
+
+        showError(
+
+            "⚠️ Araştırma sırasında bir sorun oluştu:\n\n" +
+
+            error.message
+
+        );
+
+        if (statusText) {
+
+            statusText.textContent =
+                "Bağlantı sorunu";
+
+        }
+
+    }
+    finally {
+
+        clearInterval(timer);
+
+        if (progressBar) {
+            progressBar.style.width = "0%";
+        }
+
+        if (brainPercent) {
+            brainPercent.textContent = "0%";
+        }
+
+        showLoading(false);
+
+        if (searchButton) {
+            searchButton.disabled = false;
+        }
+
+    }
+
 }
 
 /* =========================================================
@@ -237,6 +344,49 @@ $("statusText").textContent =
 ========================================================= */
 
 function renderResearch(data){
+
+ const required = [
+        "topicTitle",
+        "topicQuestion",
+        "topicCategory",
+        "analysisType",
+        "analysisSubject",
+        "analysisIntent",
+        "summaryText",
+        "heroSummary",
+        "heroCategory",
+        "heroSources",
+        "heroImages",
+        "heroFacts",
+        "teacherSimple",
+        "teacherDetailed",
+        "teacherAnalogy",
+        "teacherExamples",
+        "factsContainer",
+        "interestingText",
+        "topicImageBox",
+        "imagesContainer",
+        "quizQuestion",
+        "quizOptions",
+        "quizResult",
+        "relatedContainer",
+        "followContainer",
+        "researchStats",
+        "sourcesContainer",
+        "knowledgeMap"
+    ];
+
+    for(const id of required){
+
+        if(!$(id)){
+            console.error("Eksik HTML id:", id);
+
+        }
+
+    }
+
+    if(!$("topicTitle")) return;
+    if(!$("summaryText")) return;
 
 const analysis =
 currentAnalysis ||
@@ -300,7 +450,13 @@ summary = createFallbackSummary(data);
 
 typeWriter($("summaryText"), summary);
 
-$("heroSummary").textContent = summary;
+const heroSummary = $("heroSummary");
+
+if (heroSummary) {
+
+    heroSummary.textContent = summary;
+
+}
 
 $("heroCategory").textContent =
     analysis.subject ||
@@ -316,20 +472,31 @@ $("heroImages").textContent =
 $("heroFacts").textContent =
     brain.facts?.length || 0;
 
-typeWriter(
-    $("teacherSimple"),
-    ai.lesson?.simple ||
-    createSimpleLesson(
-        $("topicTitle").textContent
-    )
-);
+const teacherSimple = $("teacherSimple");
 
-$("teacherDetailed").textContent =
-    ai.lesson?.detailed ||
-    createDetailedLesson(
-        $("topicTitle").textContent,
-        summary
+if (teacherSimple) {
+
+    typeWriter(
+        teacherSimple,
+        ai.lesson?.simple ||
+        createSimpleLesson(
+            $("topicTitle").textContent
+        )
     );
+
+}
+const teacherDetailed = $("teacherDetailed");
+
+if (teacherDetailed) {
+
+    teacherDetailed.textContent =
+        ai.lesson?.detailed ||
+        createDetailedLesson(
+            $("topicTitle").textContent,
+            summary
+        );
+
+}
 
 $("teacherAnalogy").textContent =
     ai.lesson?.analogy ||
@@ -339,23 +506,27 @@ $("teacherAnalogy").textContent =
 
 const examplesBox = $("teacherExamples");
 
-examplesBox.innerHTML = "";
+if (examplesBox) {
 
-if (Array.isArray(ai.lesson?.examples)) {
+    examplesBox.innerHTML = "";
 
-    ai.lesson.examples.forEach(example => {
+    if (Array.isArray(ai.lesson?.examples)) {
 
-        const div = document.createElement("div");
-        div.className = "fact-card";
-        div.textContent = "• " + example;
+        ai.lesson.examples.forEach(example => {
 
-        examplesBox.appendChild(div);
+            const div = document.createElement("div");
+            div.className = "fact-card";
+            div.textContent = "• " + example;
 
-    });
+            examplesBox.appendChild(div);
 
-} else {
+        });
 
-    examplesBox.innerHTML = "<p>Örnek bulunamadı.</p>";
+    } else {
+
+        examplesBox.innerHTML = "<p>Örnek bulunamadı.</p>";
+
+    }
 
 }
 
@@ -370,13 +541,24 @@ Array.isArray(ai.facts) && ai.facts.length
 
 renderFacts(facts,data);
 
-$("interestingText").textContent =
-safeText(ai.interesting) ||
-safeText(brain.interesting) ||
-safeText(data.interesting) ||
-getInterestingFact(
-    $("topicTitle").textContent
-);
+const interestingBox = $("interestingText");
+
+if(interestingBox){
+
+   const interestingText = $("interestingText");
+
+if (interestingText) {
+
+    interestingText.textContent =
+        safeText(ai.interesting) ||
+        safeText(brain.interesting) ||
+        safeText(data.interesting) ||
+        getInterestingFact(
+            $("topicTitle").textContent
+        );
+   }
+}
+
 const interestingFacts={
 
 "yapay zeka":[
@@ -1360,52 +1542,51 @@ topic + " hakkında hangi bilimsel bilgiler biliniyor?"
 
 function renderFollowUps(items){
 
-const container = $("followContainer");
+    const container = $("followContainer");
 
-container.innerHTML = "";
+    if(!container){
+        return;
+    }
 
-if(!Array.isArray(items) || !items.length){
+    container.innerHTML = "";
 
-container.innerHTML =
-'<div class="fact" style="grid-column:1/-1">' +
-'<h4>Takip sorusu hazırlanıyor</h4>' +
-'<p>Bu konudan devam ederek yeni bir soru sorabilirsin.</p>' +
-'</div>';
+    if(!Array.isArray(items) || !items.length){
 
-return;
+        container.innerHTML =
+        '<div class="fact" style="grid-column:1/-1">' +
+        '<h4>Takip sorusu hazırlanıyor</h4>' +
+        '<p>Bu konudan devam ederek yeni bir soru sorabilirsin.</p>' +
+        '</div>';
 
-}
+        return;
 
-items.slice(0,8).forEach(item=>{
+    }
 
-const title =
-typeof item === "string"
-? item
-: item.question ||
-item.title ||
-item.text ||
-"";
+    items.forEach(item=>{
 
-if(!title) return;
+        const button = document.createElement("button");
 
-const button =
-document.createElement("button");
+        button.className = "follow-btn";
 
-button.className = "follow-btn";
+        button.textContent = item;
 
-button.innerHTML =
-"🧩 " + escapeHTML(title);
+        button.onclick = () => {
 
-button.onclick = ()=>{
+            const input = $("q");
 
-$("questionInput").value = title;
-researchTopic();
+            if(input){
 
-};
+                input.value = item;
 
-container.appendChild(button);
+            }
 
-});
+            researchTopic();
+
+        };
+
+        container.appendChild(button);
+
+    });
 
 }
 
@@ -2415,10 +2596,11 @@ renderNotebook();
 
 function renderNotebook(){
 
-const box = $("notebookList");
+    const box = $("notebookList");
 
-const saved = getSavedTopics();
+    if(!box) return;
 
+    const saved = getSavedTopics();
 if(!saved.length){
 
 box.innerHTML =
@@ -2509,11 +2691,14 @@ researchTopic();
 
 function showLoading(show){
 
-$("loading")
-.classList.toggle("active",show);
+    const loading = $("loading");
+
+    if(!loading) return;
+
+    loading.classList.toggle("active", show);
+    loading.classList.toggle("hidden", !show);
 
 }
-
 function showError(message){
 
 $("errorBox").textContent = message;
@@ -2586,17 +2771,34 @@ $("statusText").textContent =
 }
 
 /* =========================================================
-   START
+   APPLICATION INITIALIZER
 ========================================================= */
 
-renderNotebook();
-checkStatus();
+function initializeApp() {
+
+    renderNotebook();
+
+    checkStatus();
+
+    if (typeof updateClock === "function") {
+        updateClock();
+    }
+
+    if (typeof animateCounter === "function") {
+        animateCounter("sourceCounter",120);
+        animateCounter("imageCounter",1);
+        animateCounter("speedCounter",0.8);
+    }
+
+    console.log("🧠 Yaşayan Defter 13 Professional Hazır");
+
+}
+
 /* =========================================================
    PREMIUM BUTTON EFFECT
 ========================================================= */
 
-const searchButton = document.querySelector(".search-button");
-
+const searchButton = document.getElementById("searchButton");
 if(searchButton){
 
     searchButton.addEventListener("mouseenter",()=>{

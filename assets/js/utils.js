@@ -1,7 +1,14 @@
 function $(id){
-    return document.getElementById(id);
-}
 
+    const element = document.getElementById(id);
+
+    if(!element){
+        console.warn("HTML elementi bulunamadı:", id);
+    }
+
+    return element;
+
+}
 function safeText(value){
     if(value === null || value === undefined) return "";
     return String(value).trim();

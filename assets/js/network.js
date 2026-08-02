@@ -176,93 +176,20 @@ async function retry(task, retries = 3) {
 }
 
 /* =========================================================
-   SEARCH WEB
-========================================================= */
-
-async function searchWeb(query){
-
-    query = String(query || "").trim();
-
-    if(!query){
-
-        return {
-
-            articles:[]
-
-        };
-
-    }
-
-    try{
-
-        const url =
-            "https://tr.wikipedia.org/w/api.php" +
-            "?action=query" +
-            "&generator=search" +
-            "&gsrsearch=" +
-            encodeURIComponent(query) +
-            "&gsrnamespace=0" +
-            "&gsrlimit=5" +
-            "&prop=extracts|info" +
-            "&exintro=1" +
-            "&explaintext=1" +
-            "&exchars=1200" +
-            "&inprop=url" +
-            "&format=json" +
-            "&origin=*";
-
-        const data = await fetchJSON(url);
-
-        const pages =
-            Object.values(
-                data.query?.pages || {}
-            );
-
-        return{
-
-            articles:pages.map(page=>({
-
-                title:page.title,
-
-                summary:page.extract,
-
-                url:page.fullurl || ""
-
-            }))
-
-        };
-
-    }
-
-    catch(error){
-
-        console.warn(
-            "searchWeb:",
-            error.message
-        );
-
-        return{
-
-            articles:[]
-
-        };
-
-    }
-
-}
-
-/* =========================================================
    EXPORT
 ========================================================= */
 
-const Network={
+const Network = {
 
     fetchJSON,
+
     fetchText,
+
     imageExists,
+
     delay,
-    retry,
-    searchWeb
+
+    retry
 
 };
 
