@@ -126,6 +126,11 @@
     </footer>
 </div>
 
+<div class="engine-transition-overlay" id="engineTransitionOverlay" aria-hidden="true">
+    <div class="engine-transition-mark">YD</div>
+    <p>Brain Engine hazırlanıyor</p>
+</div>
+
 <div class="app engine-workspace" id="brainEngineWorkspace">
 
 <header class="header">
@@ -1579,6 +1584,30 @@ document.addEventListener("DOMContentLoaded", function () {
             revealItems.forEach((item) => item.classList.add("is-visible"));
         }
     }
+
+    const transitionOverlay = document.getElementById("engineTransitionOverlay");
+    const engineWorkspace = document.getElementById("brainEngineWorkspace");
+    const engineLinks = document.querySelectorAll('a[href="#brainEngineWorkspace"]');
+    engineLinks.forEach((link) => {
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            if (transitionOverlay) {
+                transitionOverlay.classList.add("is-active");
+            }
+            window.setTimeout(() => {
+                if (engineWorkspace) {
+                    engineWorkspace.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+                if (transitionOverlay) {
+                    window.setTimeout(() => transitionOverlay.classList.remove("is-active"), 260);
+                }
+                const input = document.getElementById("questionInput");
+                if (input) {
+                    window.setTimeout(() => input.focus({ preventScroll: true }), 420);
+                }
+            }, 220);
+        });
+    });
 
 });
 

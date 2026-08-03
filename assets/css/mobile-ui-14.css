@@ -1332,6 +1332,10 @@ select{
 
 }
 
+@media screen and (max-width:700px){
+    .engine-workspace{width:calc(100% - 32px);padding-top:24px}.engine-workspace .header{align-items:flex-start;padding:15px}.engine-workspace .status{padding:8px 10px;font-size:9px}.engine-workspace .status span:last-child{max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.engine-workspace .hero{min-height:0;padding:54px 16px 44px;border-radius:24px}.engine-workspace .hero-title{font-size:42px}.engine-workspace .hero-subtitle{font-size:14px}.engine-workspace #results{margin-top:34px}.engine-workspace #results .section-head,.engine-workspace #results .section-body{padding:19px}.engine-workspace .topic-header{grid-template-columns:1fr}.engine-workspace .topic-title{font-size:34px}.engine-workspace .analysis-grid,.engine-workspace .image-grid,.engine-workspace .memory-grid,.engine-workspace .flashcards-grid{grid-template-columns:1fr}.engine-workspace .footer{padding-bottom:22px}
+}
+
 /* Landing page responsive layer */
 @media screen and (max-width:1024px){
     .landing-header,.landing-main,.landing-footer{width:min(100% - 40px,760px)}
