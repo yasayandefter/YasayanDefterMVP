@@ -1215,65 +1215,127 @@ async function wikipediaSearch(
    ÇOKLU WIKIPEDIA
 ======================================================== */
 
-async function searchWikipediaMultiple(
-  analysis
-) {
+async function searchWikipediaMultiple(analysis = {}) {
 
-console.log("Araştırma sorguları:", analysis.researchQueries);
+  const fallbackTopic =
+    cleanText(
+      analysis.topic ||
+      analysis.subject ||
+      analysis.original ||
+      analysis.query ||
+      ""
+    );
+
+  let researchQueries =
+    Array.isArray(analysis.researchQueries)
+      ? analysis.researchQueries
+      : [];
+
+  researchQueries = researchQueries
+    .map(query => cleanText(query))
+    .filter(Boolean);
+
+  /*
+  Analyzer araştırma sorgusu oluşturmadıysa
+  ana konuyu kullan.
+  */
+
+  if (!researchQueries.length && fallbackTopic) {
+
+    researchQueries = [fallbackTopic];
+
+  }
+
+  /*
+  Aynı sorguları kaldır.
+  */
+
+  researchQueries = [
+    ...new Set(researchQueries)
+  ];
+
+  console.log(
+    "Araştırma sorguları:",
+    researchQueries
+  );
+
+  if (!researchQueries.length) {
+
+    console.warn(
+      "Wikipedia için geçerli araştırma sorgusu bulunamadı."
+    );
+
+    return [];
+
+  }
 
   const settled =
     await Promise.allSettled(
 
-      analysis.researchQueries.map(
-        query =>
-          wikipediaSearch(
-            query,
-            8
-          )
+      researchQueries.map(query =>
+        wikipediaSearch(query, 8)
       )
+
     );
 
   const all = [];
   const seen = new Set();
 
-  for (
-    const result
-    of settled
-  ) {
+  for (const result of settled) {
 
-    if (
-      result.status !==
-      "fulfilled"
-    ) {
+    if (result.status !== "fulfilled") {
+
+      console.warn(
+        "Wikipedia sorgusu başarısız:",
+        result.reason?.message ||
+        result.reason
+      );
+
       continue;
+
     }
 
-    for (
-      const article
-      of result.value
-    ) {
+    const articles =
+      Array.isArray(result.value)
+        ? result.value
+        : [];
+
+    for (const article of articles) {
+
+      if (!article) {
+        continue;
+      }
+
+      const title =
+        cleanText(article.title);
+
+      if (!title) {
+        continue;
+      }
 
       const key =
-        normalize(
-          article.title
-        );
+        normalize(title);
 
-      if (
-        !seen.has(key)
-      ) {
-
-        seen.add(key);
-
-        all.push(
-          article
-        );
+      if (seen.has(key)) {
+        continue;
       }
+
+      seen.add(key);
+
+      all.push(article);
+
     }
+
   }
 
-  return all;
-}
+  console.log(
+    "Wikipedia makale sayısı:",
+    all.length
+  );
 
+  return all;
+
+}
 /* ========================================================
    WIKIMEDIA
 ======================================================== */
@@ -2921,70 +2983,71 @@ function buildBrain(
    HAFIZADAN KONU BUL
 ======================================================== */
 
-function findMemoryTopic(
-  topic
-) {
+function findMemoryTopic(topic) {
 
   const memories =
     readLearningMemory();
 
-  const normalized =
+  const normalizedTopic =
     normalize(topic);
 
-  if (!normalized) {
+  if (!normalizedTopic) {
     return null;
   }
 
-  let exact =
-    memories.find(
-      item =>
-        normalize(
-          item.topic
-        ) ===
-        normalized
+  const exactTopicMatch =
+    memories.find(item =>
+      normalize(item?.topic) ===
+      normalizedTopic
     );
 
-  if (exact) {
-    return exact;
+  if (exactTopicMatch) {
+    return exactTopicMatch;
   }
 
-  exact =
-    memories.find(
-      item =>
-        normalize(
-          item.title
-        ) ===
-        normalized
+  const exactTitleMatch =
+    memories.find(item =>
+      normalize(item?.title) ===
+      normalizedTopic
     );
 
-  if (exact) {
-    return exact;
+  if (exactTitleMatch) {
+    return exactTitleMatch;
   }
 
   return (
-    memories.find(
-      item => {
+    memories.find(item => {
 
-        const searchable =
-          normalize(
-            [
-              item.topic,
-              item.title,
-              ...(item.keywords || [])
-            ].join(" ")
-          );
+      const keywords =
+        Array.isArray(item?.keywords)
+          ? item.keywords
+          : [];
 
-        return (
-          searchable.includes(
-            normalized
-          ) ||
-          normalized.includes(
-            normalize(item.topic)
-          )
+      const searchable =
+        normalize(
+          [
+            item?.topic,
+            item?.title,
+            ...keywords
+          ].join(" ")
         );
-      }
-    ) ||
-    null
+
+      const itemTopic =
+        normalize(item?.topic);
+
+      return (
+        searchable.includes(
+          normalizedTopic
+        ) ||
+        (
+          itemTopic &&
+          normalizedTopic.includes(
+            itemTopic
+          )
+        )
+      );
+
+    }) || null
   );
 }
 
@@ -2992,13 +3055,21 @@ function findMemoryTopic(
    ARAŞTIRMA
 ======================================================== */
 
-async function research(
-  query
-) {
+async function research(query) {
+
+  const cleanQuery =
+    cleanText(query);
+
+  if (!cleanQuery) {
+
+    throw new Error(
+      "Araştırma konusu boş."
+    );
+  }
 
   const analysis =
     analyzeQuestion(
-      query
+      cleanQuery
     );
 
   const memoryMatch =
@@ -3006,61 +3077,233 @@ async function research(
       analysis.topic
     );
 
-  const articles =
-    await searchWikipediaMultiple(
-      analysis
-    );
+  /* --------------------------------------------------------
+     WIKIPEDIA ARAŞTIRMASI
+  -------------------------------------------------------- */
 
-console.log("Network:", Network);
-console.log("searchWeb tipi:", typeof Network.searchWeb);
+  let articles = [];
 
-let webResult = null;
+  try {
 
-try {
+    const wikipediaArticles =
+      await searchWikipediaMultiple(
+        analysis
+      );
 
-    webResult = await Network.searchWeb(
-    analysis.topic
-);
+    articles =
+      Array.isArray(
+        wikipediaArticles
+      )
+        ? wikipediaArticles
+        : [];
 
-console.log("Web sonucu:", webResult);
-
-} catch (error) {
+  }
+  catch (error) {
 
     console.warn(
-        "Web araması başarısız:",
-        error.message
+      "Wikipedia araştırması başarısız:",
+      error.message
     );
 
-}
+    articles = [];
+  }
+
+  /* --------------------------------------------------------
+     WEB ARAŞTIRMASI
+  -------------------------------------------------------- */
+
+  try {
+
+    if (
+      Network &&
+      typeof Network.searchWeb ===
+      "function"
+    ) {
+
+      const webResult =
+        await Network.searchWeb(
+          analysis.topic
+        );
+
+      const webArticles =
+        Array.isArray(
+          webResult?.articles
+        )
+          ? webResult.articles
+          : [];
+
+      const seenTitles =
+        new Set(
+          articles
+            .map(article =>
+              normalize(
+                article?.title
+              )
+            )
+            .filter(Boolean)
+        );
+
+      for (
+        const item
+        of webArticles
+      ) {
+
+        const title =
+          cleanText(
+            item?.title
+          );
+
+        const text =
+          cleanText(
+            item?.text ||
+            item?.summary ||
+            item?.extract
+          );
+
+        if (
+          !title ||
+          !text
+        ) {
+
+          continue;
+        }
+
+        const normalizedTitle =
+          normalize(title);
+
+        if (
+          !normalizedTitle ||
+          seenTitles.has(
+            normalizedTitle
+          )
+        ) {
+
+          continue;
+        }
+
+        seenTitles.add(
+          normalizedTitle
+        );
+
+        articles.push({
+
+          title,
+
+          text,
+
+          image:
+            item?.image ||
+            item?.thumbnail ||
+            "",
+
+          url:
+            item?.url ||
+            "",
+
+          source:
+            item?.source ||
+            "Web"
+
+        });
+      }
+
+      console.log(
+        "Web makale sayısı:",
+        webArticles.length
+      );
+
+      console.log(
+        "Toplam makale sayısı:",
+        articles.length
+      );
+
+    }
+    else {
+
+      console.warn(
+        "Network.searchWeb fonksiyonu bulunamadı."
+      );
+    }
+
+  }
+  catch (error) {
+
+    console.warn(
+      "Web araması başarısız:",
+      error.message
+    );
+  }
+
+  /* --------------------------------------------------------
+     GÖRSEL ARAŞTIRMASI
+  -------------------------------------------------------- */
 
   let images = [];
 
   try {
 
-    images =
+    const imageResults =
       await searchImagesForQuestion(
         analysis
       );
-  }
 
+    images =
+      Array.isArray(
+        imageResults
+      )
+        ? imageResults
+        : [];
+
+  }
   catch (error) {
 
     console.warn(
       "Görseller alınamadı:",
       error.message
     );
+
+    images = [];
   }
 
-  /*
-  --------------------------------------------------------
-   HEM İNTERNET HEM HAFIZA KULLAN
-  --------------------------------------------------------
-  */
+  /* --------------------------------------------------------
+     SADECE HAFIZADAN SONUÇ
+  -------------------------------------------------------- */
 
   if (
     !articles.length &&
     memoryMatch
   ) {
+
+    const memorySummary =
+      cleanText(
+        memoryMatch.summary
+      ) ||
+      "Bu konu Yaşayan Defter hafızasında kayıtlı.";
+
+    const memoryFacts =
+      Array.isArray(
+        memoryMatch.facts
+      )
+        ? memoryMatch.facts
+        : [];
+
+    const memoryImages =
+      Array.isArray(
+        memoryMatch.images
+      )
+        ? memoryMatch.images
+        : [];
+
+    const memoryRelated =
+      Array.isArray(
+        memoryMatch.related
+      )
+        ? memoryMatch.related
+        : [];
+
+    const memoryQuiz =
+      memoryMatch.quiz ||
+      null;
 
     return {
 
@@ -3077,7 +3320,7 @@ console.log("Web sonucu:", webResult);
         true,
 
       query:
-        cleanText(query),
+        cleanQuery,
 
       analysis: {
 
@@ -3100,29 +3343,29 @@ console.log("Web sonucu:", webResult);
 
       title:
         memoryMatch.title ||
-        memoryMatch.topic,
+        memoryMatch.topic ||
+        analysis.topic,
 
       image:
         memoryMatch.image ||
+        memoryImages[0]?.image ||
         "",
 
       text:
-        memoryMatch.summary ||
-        "",
+        memorySummary,
 
       url:
         memoryMatch.url ||
         "",
 
-      articles: [],
+      articles:
+        [],
 
       images:
-        memoryMatch.images ||
-        [],
+        memoryImages,
 
       related:
-        memoryMatch.related ||
-        [],
+        memoryRelated,
 
       brain: {
 
@@ -3131,20 +3374,24 @@ console.log("Web sonucu:", webResult);
           "Genel Bilgi",
 
         summary:
-          memoryMatch.summary ||
-          "Bu konu Yaşayan Defter hafızasında kayıtlı.",
+          memorySummary,
 
         facts:
-          memoryMatch.facts ||
-          [],
+          memoryFacts,
 
         interesting:
           memoryMatch.interesting ||
           "",
 
         quiz:
-          memoryMatch.quiz ||
-          null,
+          memoryQuiz,
+
+        flashcards:
+          Array.isArray(
+            memoryMatch.flashcards
+          )
+            ? memoryMatch.flashcards
+            : [],
 
         questionType:
           analysis.type,
@@ -3163,6 +3410,49 @@ console.log("Web sonucu:", webResult);
 
       },
 
+      ai: {
+
+        summary:
+          memorySummary,
+
+        facts:
+          memoryFacts,
+
+        interesting:
+          memoryMatch.interesting ||
+          "",
+
+        quiz:
+          memoryQuiz,
+
+        lesson:
+          null,
+
+        knowledgeMap:
+          {}
+
+      },
+
+      memoryMatch: {
+
+        topic:
+          memoryMatch.topic,
+
+        learned:
+          memoryMatch.learned,
+
+        timesSearched:
+          memoryMatch.timesSearched
+
+      },
+
+      confidence:
+        calculateConfidence(
+          [],
+          memoryImages,
+          memoryMatch
+        ),
+
       sources: [
         "Yaşayan Defter Hafızası"
       ],
@@ -3171,9 +3461,15 @@ console.log("Web sonucu:", webResult);
         true,
 
       time:
-        new Date().toISOString()
+        new Date()
+          .toISOString()
+
     };
   }
+
+  /* --------------------------------------------------------
+     SONUÇ KONTROLÜ
+  -------------------------------------------------------- */
 
   if (
     !articles.length &&
@@ -3184,6 +3480,10 @@ console.log("Web sonucu:", webResult);
       "Araştırma sonucu bulunamadı."
     );
   }
+
+  /* --------------------------------------------------------
+     ANA MAKALE
+  -------------------------------------------------------- */
 
   const main =
     chooseMainArticle(
@@ -3198,11 +3498,17 @@ console.log("Web sonucu:", webResult);
         "",
 
       image:
+        images[0]?.image ||
         "",
 
       url:
         ""
+
     };
+
+  /* --------------------------------------------------------
+     BRAIN ENGINE
+  -------------------------------------------------------- */
 
   const brain =
     buildBrain(
@@ -3211,24 +3517,53 @@ console.log("Web sonucu:", webResult);
       articles
     );
 
-const lesson = teacher.teach(
-  analysis.topic,
-  brain.summary
-);
+  const lesson =
+    teacher.teach(
+      analysis.topic,
+      brain.summary
+    );
 
-const related = relatedTopics(
-    articles,
-    main.title,
-    analysis
-);
+  const related =
+    relatedTopics(
+      articles,
+      main.title,
+      analysis
+    );
 
-const knowledgeMap = map.buildMap(
-    analysis.topic,
-    related
-);
+  const knowledgeMap =
+    map.buildMap(
+      analysis.topic,
+      related
+    );
+
+  /* --------------------------------------------------------
+     KAYNAKLAR
+  -------------------------------------------------------- */
+
+  const sources =
+    uniqueStrings([
+
+      ...articles.map(
+        article =>
+          article?.source ||
+          "Web"
+      ),
+
+      ...(
+        images.length
+          ? [
+              "Wikimedia Commons"
+            ]
+          : []
+      )
+
+    ]);
+
+  /* --------------------------------------------------------
+     SONUÇ
+  -------------------------------------------------------- */
 
   return {
-
 
     ok:
       true,
@@ -3243,7 +3578,7 @@ const knowledgeMap = map.buildMap(
       true,
 
     query:
-      cleanText(query),
+      cleanQuery,
 
     analysis: {
 
@@ -3265,10 +3600,12 @@ const knowledgeMap = map.buildMap(
     },
 
     title:
-      main.title,
+      main.title ||
+      analysis.topic,
 
     image:
       main.image ||
+      images[0]?.image ||
       "",
 
     text:
@@ -3283,50 +3620,67 @@ const knowledgeMap = map.buildMap(
 
     images,
 
-   related: related,
-
+    related,
 
     brain,
 
-ai: {
-  summary: brain.summary,
-  facts: brain.facts,
-  interesting: brain.interesting,
-  quiz: brain.quiz,
-  lesson: lesson,
-  knowledgeMap: knowledgeMap
-},
+    ai: {
+
+      summary:
+        brain.summary,
+
+      facts:
+        brain.facts,
+
+      interesting:
+        brain.interesting,
+
+      quiz:
+        brain.quiz,
+
+      lesson,
+
+      knowledgeMap
+
+    },
 
     memoryMatch:
       memoryMatch
         ? {
+
             topic:
               memoryMatch.topic,
+
             learned:
               memoryMatch.learned,
+
             timesSearched:
               memoryMatch.timesSearched
+
           }
         : null,
 
-    confidence: calculateConfidence(
-      articles,
-      images,
-      memoryMatch
-    ),
+    confidence:
+      calculateConfidence(
+        articles,
+        images,
+        memoryMatch
+      ),
 
-    sources: [
-
-      "Wikipedia",
-      "Wikimedia Commons"
-
-    ],
+    sources:
+      sources.length
+        ? sources
+        : [
+            "Wikipedia"
+          ],
 
     fromMemory:
       false,
 
     time:
-      new Date().toISOString()
+      new Date()
+        .toISOString()
+
   };
 }
 
