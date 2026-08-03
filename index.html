@@ -24,7 +24,109 @@
 
 <body>
 
-<div class="app">
+<!-- =====================================================
+     PHASE 1 LANDING PAGE
+     The Brain Engine workspace below remains intact.
+===================================================== -->
+<div class="landing-page" id="landingPage">
+    <header class="landing-header" data-reveal>
+        <a class="landing-brand" href="#landingPage" aria-label="Yaşayan Defter ana sayfa">
+            <span class="landing-brand-mark" aria-hidden="true">YD</span>
+            <span class="landing-brand-copy">
+                <strong>YAŞAYAN <em>DEFTER</em></strong>
+                <small>Fiziksel dokunuş. Dijital zeka.</small>
+            </span>
+        </a>
+        <nav class="landing-nav" aria-label="Ana navigasyon">
+            <a href="#landingWhy">Neden Yaşayan Defter?</a>
+            <a href="#landingHow">Nasıl çalışır?</a>
+            <a href="#landingEngine">Brain Engine</a>
+            <a href="#landingLicense">Lisanslama</a>
+        </nav>
+        <a class="landing-header-cta" href="#brainEngineWorkspace">Brain Engine'i dene <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main class="landing-main">
+        <section class="landing-hero" aria-labelledby="landingHeroTitle">
+            <div class="landing-hero-glow landing-hero-glow-one" aria-hidden="true"></div>
+            <div class="landing-hero-glow landing-hero-glow-two" aria-hidden="true"></div>
+            <div class="landing-hero-copy" data-reveal>
+                <p class="landing-eyebrow"><span></span> Patent başvurusu yapılmış öğrenme ekosistemi</p>
+                <h1 id="landingHeroTitle">Fiziksel dokunuş.<br><span>Dijital zeka.</span></h1>
+                <p class="landing-hero-lede">Yazdıkların yaşayan bir dünyaya dönüşür. Yaşayan Defter; düşüncelerini araştırır, öğretir, hatırlar ve seninle birlikte gelişir.</p>
+                <div class="landing-hero-actions">
+                    <a class="landing-btn landing-btn-primary" href="#brainEngineWorkspace">Brain Engine'i dene <span aria-hidden="true">↗</span></a>
+                    <a class="landing-btn landing-btn-secondary" href="#landingShowcase">Ürünü keşfet</a>
+                    <a class="landing-text-link" href="#landingLicense">Lisanslama modelimiz <span aria-hidden="true">→</span></a>
+                </div>
+                <div class="landing-patent-badge"><span class="landing-patent-icon" aria-hidden="true">✦</span><span><strong>PATENT BAŞVURUSU</strong><small>2026/007971 · Tescilli fikir ve tasarım</small></span></div>
+            </div>
+            <div class="landing-hero-art" data-reveal data-delay="120">
+                <div class="landing-art-orbit landing-art-orbit-one" aria-hidden="true"></div>
+                <div class="landing-art-orbit landing-art-orbit-two" aria-hidden="true"></div>
+                <div class="landing-art-card">
+                    <img src="assets/images/yasayan-defter-product-board.png" alt="Yaşayan Defter ürün ve Brain Engine konsept görseli" loading="eager">
+                </div>
+                <div class="landing-art-note landing-art-note-top"><span>01</span><strong>Yaz</strong><small>Fikirlerini yakala.</small></div>
+                <div class="landing-art-note landing-art-note-bottom"><span>02</span><strong>Geliş</strong><small>Bilgiyi kalıcı kıl.</small></div>
+            </div>
+        </section>
+
+        <section class="landing-section landing-why" id="landingWhy" aria-labelledby="landingWhyTitle">
+            <div class="landing-section-heading" data-reveal><p class="landing-eyebrow"><span></span> Yeni nesil öğrenme</p><h2 id="landingWhyTitle">Neden <span>Yaşayan Defter?</span></h2><p>Defterin sıcaklığını, dijital zekanın gücüyle bir araya getiriyoruz.</p></div>
+            <div class="landing-value-grid">
+                <article class="landing-value-card" data-reveal><div class="landing-card-icon landing-icon-write" aria-hidden="true">✎</div><p class="landing-card-index">01</p><h3>Yaz</h3><p>Düşüncelerini gerçek bir deftere yaz. Fiziksel dokunuş, öğrenmeyi daha kalıcı hale getirir.</p></article>
+                <article class="landing-value-card" data-reveal data-delay="80"><div class="landing-card-icon landing-icon-learn" aria-hidden="true">◉</div><p class="landing-card-index">02</p><h3>Öğren</h3><p>Brain Engine yazdıklarını analiz eder, araştırır ve sana özel bilgiler sunar.</p></article>
+                <article class="landing-value-card" data-reveal data-delay="160"><div class="landing-card-icon landing-icon-grow" aria-hidden="true">↗</div><p class="landing-card-index">03</p><h3>Geliş</h3><p>Bilgilerin hafızada bağlanır. Her yeni not, daha güçlü bir öğrenme yolculuğu oluşturur.</p></article>
+            </div>
+        </section>
+
+        <section class="landing-section landing-how" id="landingHow" aria-labelledby="landingHowTitle">
+            <div class="landing-section-heading" data-reveal><p class="landing-eyebrow"><span></span> Sistem nasıl çalışır?</p><h2 id="landingHowTitle">Bir fikirden <span>bilgiye.</span></h2><p>Doğal akışını bozmadan, düşüncelerini anlamlı bir öğrenme sistemine dönüştürür.</p></div>
+            <div class="landing-timeline" role="list">
+                <article class="landing-timeline-step" role="listitem" data-reveal><span>01</span><div class="landing-timeline-icon" aria-hidden="true">✎</div><h3>Yaz</h3><p>Defterine yazarsın.</p></article>
+                <div class="landing-timeline-line" aria-hidden="true"></div>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="60"><span>02</span><div class="landing-timeline-icon" aria-hidden="true">⌁</div><h3>Tara</h3><p>Akıllı kamerayla tararsın.</p></article>
+                <div class="landing-timeline-line" aria-hidden="true"></div>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="120"><span>03</span><div class="landing-timeline-icon" aria-hidden="true">◉</div><h3>Analiz</h3><p>Brain Engine anlar.</p></article>
+                <div class="landing-timeline-line" aria-hidden="true"></div>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="180"><span>04</span><div class="landing-timeline-icon" aria-hidden="true">◎</div><h3>Araştır</h3><p>İnternetten senin için araştırır.</p></article>
+                <div class="landing-timeline-line" aria-hidden="true"></div>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="240"><span>05</span><div class="landing-timeline-icon" aria-hidden="true">▢</div><h3>Öğret</h3><p>Konuyu en iyi şekilde öğretir.</p></article>
+                <div class="landing-timeline-line" aria-hidden="true"></div>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="300"><span>06</span><div class="landing-timeline-icon" aria-hidden="true">✦</div><h3>Hafıza</h3><p>Bilgiyi hafızaya kaydeder.</p></article>
+            </div>
+        </section>
+
+        <section class="landing-section landing-showcase" id="landingShowcase" aria-labelledby="landingShowcaseTitle">
+            <div class="landing-showcase-copy" data-reveal><p class="landing-eyebrow"><span></span> Ürünün geleceği</p><h2 id="landingShowcaseTitle">Defter değil,<br><span>gelecek.</span></h2><p>Fiziksel defterin sıcaklığı ile dijital dünyanın sınırsız gücü tek bir deneyimde buluşuyor.</p><a class="landing-btn landing-btn-primary" href="#brainEngineWorkspace">Ürünü keşfet <span aria-hidden="true">↗</span></a></div>
+            <div class="landing-showcase-visual" data-reveal data-delay="100"><img src="assets/images/yasayan-defter-brand-board.png" alt="Yaşayan Defter marka ve ürün kullanım görselleri" loading="lazy"><div class="landing-showcase-label">Fiziksel dokunuş · Dijital zeka</div></div>
+        </section>
+
+        <section class="landing-section landing-engine" id="landingEngine" aria-labelledby="landingEngineTitle">
+            <div class="landing-section-heading" data-reveal><p class="landing-eyebrow"><span></span> Powered by Brain Engine</p><h2 id="landingEngineTitle">Düşüncelerini <span>anlar.</span></h2><p>Yaşayan Defter'in arkasındaki teknoloji; araştırır, özetler, öğretir ve bilgiyi senin için hatırlar.</p></div>
+            <div class="landing-engine-grid">
+                <article data-reveal><span class="landing-engine-number">01</span><div class="landing-engine-symbol">◉</div><h3>Akıllı analiz</h3><p>Yazdıklarını anlamlandırır, konuyu ve niyetini çözer.</p></article>
+                <article data-reveal data-delay="60"><span class="landing-engine-number">02</span><div class="landing-engine-symbol">◎</div><h3>Araştırma</h3><p>Güvenilir kaynaklardan senin için derinlemesine araştırır.</p></article>
+                <article data-reveal data-delay="120"><span class="landing-engine-number">03</span><div class="landing-engine-symbol">▧</div><h3>Öğretici mod</h3><p>Bilgiyi seviyene uygun, anlaşılır bir dille sunar.</p></article>
+                <article data-reveal data-delay="180"><span class="landing-engine-number">04</span><div class="landing-engine-symbol">✦</div><h3>Hafıza sistemi</h3><p>Öğrendiklerini bağlantılarıyla birlikte hatırlar.</p></article>
+            </div>
+        </section>
+
+        <section class="landing-section landing-license" id="landingLicense" aria-labelledby="landingLicenseTitle">
+            <div class="landing-license-copy" data-reveal><p class="landing-eyebrow"><span></span> İş ortaklığı</p><h2 id="landingLicenseTitle">Fikrimizi<br><span>lisanslıyoruz.</span></h2><p>Biz üretmiyoruz. Patent başvurusu yapılmış teknolojimizi, geleceği birlikte inşa etmek isteyen üreticilerle ve markalarla paylaşıyoruz.</p><a class="landing-btn landing-btn-secondary" href="#landingFooter">İş ortaklığı için ulaşın <span aria-hidden="true">→</span></a></div>
+            <div class="landing-license-flow" role="list" aria-label="Lisanslama akışı"><div role="listitem"><span>01</span><strong>Patent</strong><small>2026/007971</small></div><i aria-hidden="true">→</i><div role="listitem"><span>02</span><strong>Üretici</strong><small>Güvenilir üretim ortağımız</small></div><i aria-hidden="true">→</i><div role="listitem"><span>03</span><strong>Perakende</strong><small>Stratejik dağıtım ortağımız</small></div><i aria-hidden="true">→</i><div role="listitem"><span>04</span><strong>Son kullanıcı</strong><small>Hayatı boyu öğrenenler</small></div></div>
+        </section>
+    </main>
+
+    <footer class="landing-footer" id="landingFooter">
+        <div class="landing-footer-brand"><span class="landing-brand-mark" aria-hidden="true">YD</span><div><strong>YAŞAYAN <em>DEFTER</em></strong><small>Fiziksel dokunuş. Dijital zeka.</small></div></div>
+        <div class="landing-footer-links"><a href="#landingWhy">Neden Yaşayan Defter?</a><a href="#landingShowcase">Ürün</a><a href="#landingEngine">Brain Engine</a><a href="#landingLicense">Lisanslama</a><a href="#brainEngineWorkspace">Uygulamayı dene</a></div>
+        <div class="landing-footer-bottom"><span>© 2026 Yaşayan Defter</span><span>Patent başvurusu yapılmıştır.</span><span>Powered by Brain Engine</span></div>
+    </footer>
+</div>
+
+<div class="app engine-workspace" id="brainEngineWorkspace">
 
 <header class="header">
 
@@ -1458,6 +1560,24 @@ document.addEventListener("DOMContentLoaded", function () {
         initializeApp();
     } else {
         console.warn("initializeApp() bulunamadı. app.js kontrol edilmeli.");
+    }
+
+    const landingPage = document.getElementById("landingPage");
+    if (landingPage) {
+        landingPage.classList.add("js-ready");
+        const revealItems = landingPage.querySelectorAll("[data-reveal]");
+        if ("IntersectionObserver" in window) {
+            const revealObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    entry.target.classList.add("is-visible");
+                    observer.unobserve(entry.target);
+                });
+            }, { threshold: 0.12 });
+            revealItems.forEach((item) => revealObserver.observe(item));
+        } else {
+            revealItems.forEach((item) => item.classList.add("is-visible"));
+        }
     }
 
 });
