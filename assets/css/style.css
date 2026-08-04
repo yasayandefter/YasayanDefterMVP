@@ -3193,3 +3193,6 @@ html{scroll-behavior:smooth}.landing-page,.engine-workspace{contain:layout paint
 .yd-horizontal-rail{min-width:0;width:100%;max-width:100%;box-sizing:border-box}
 .professional-result-card,.professional-limitations{min-width:0;max-width:100%;box-sizing:border-box}
 .landing-page,.engine-workspace{contain:layout}
+.landing-post-engine{margin-top:18px;border-top:1px solid rgba(255,255,255,.06)}
+#brainEngineWorkspace,#landingHow,#landingWhy,#landingEngine,#landingLicense,#landingFooter{scroll-margin-top:24px}
+.landing-post-engine .landing-section:first-child{padding-top:76px}

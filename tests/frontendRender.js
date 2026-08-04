@@ -6,6 +6,7 @@ const source = fs.readFileSync(require("node:path").join(__dirname, "..", "asset
 const appSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "app.js"), "utf8");
 const styleSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "css", "style.css"), "utf8");
 const htmlSource = fs.readFileSync(require("node:path").join(__dirname, "..", "index.html"), "utf8");
+const htmlIdPosition = id => htmlSource.indexOf(`id="${id}"`);
 const context = { window: { location: { href: "http://localhost/" } }, URL, Set, console };
 vm.runInNewContext(source, context);
 const renderers = context.window.ResultRenderers;
@@ -94,5 +95,17 @@ assert.doesNotMatch(appSource, /setInterval\([^\n]*horizontal|setTimeout\([^\n]*
 assert.match(htmlSource, /id="imagesContainer"/);
 assert.match(htmlSource, /id="flashcardsContainer"/);
 assert.match(htmlSource, /id="relatedContainer"/);
+assert.equal((htmlSource.match(/<h1\b/gi) || []).length, 1);
+assert.equal(new Set([...htmlSource.matchAll(/id="([^"]+)"/g)].map(match => match[1])).size, [...htmlSource.matchAll(/id="([^"]+)"/g)].length);
+assert.ok(htmlIdPosition("brainEngineWorkspace") < htmlIdPosition("landingHow"));
+assert.ok(htmlIdPosition("landingHow") < htmlIdPosition("landingWhy"));
+assert.ok(htmlIdPosition("landingWhy") < htmlIdPosition("landingEngine"));
+assert.ok(htmlIdPosition("landingEngine") < htmlIdPosition("landingLicense"));
+assert.ok(htmlIdPosition("landingLicense") < htmlIdPosition("landingFooter"));
+assert.match(htmlSource, /href="#brainEngineWorkspace"/);
+assert.match(htmlSource, /href="#landingHow">Ürünü keşfet/);
+assert.match(htmlSource, /href="#landingLicense"/);
+assert.match(htmlSource, /mailto:yasayandefter1@gmail\.com/);
+assert.doesNotMatch(htmlSource, /kamera|akıllı kamera|\b[Tt]ara\b|tararsın/);
 
 console.log("PASS  frontend result model, URL safety, fallbacks, allowlists, and deduplication");
