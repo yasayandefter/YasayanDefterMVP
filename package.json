@@ -9,7 +9,8 @@
     "test:logger": "node tests/logger.js",
     "test:reliability": "node tests/sourceReliability.js",
     "test:content": "node tests/contentStructurer.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:smoke"
+    "test:frontend": "node tests/frontendRender.js",
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

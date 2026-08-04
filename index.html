@@ -158,7 +158,7 @@
 
         <div class="brand-text">
 
-            <h1>Yaşayan Defter</h1>
+            <h2>Yaşayan Defter</h2>
 
             <p>
                 Brain Engine 11.0 Professional
@@ -230,13 +230,13 @@
              HERO TITLE
         ========================== -->
 
-        <h1 class="hero-title">
+        <h2 class="hero-title">
 
             Yaşayan
 
             <span>Defter</span>
 
-        </h1>
+        </h2>
 
         <p class="hero-subtitle">
 
@@ -291,6 +291,7 @@
 
             <button
                 id="searchButton"
+                type="button"
                 onclick="researchTopic()">
 
                 🚀 Araştır
@@ -468,7 +469,7 @@
      ERROR BOX
 ===================================================== -->
 
-<div id="errorBox" class="error-box hidden"></div>
+<div id="errorBox" class="error-box hidden" role="alert" aria-live="assertive"></div>
 
 <!-- =====================================================
      RESULTS
@@ -572,6 +573,7 @@
         </div>
 
     </section>
+    <section id="professionalResult" class="professional-result section" aria-labelledby="professionalResultTitle" aria-live="polite"></section>
     <!-- =====================================================
          ANALYSIS
     ====================================================== -->
@@ -1565,9 +1567,10 @@
 ===================================================== -->
 
 <script src="assets/js/utils.js"></script>
-<script src="assets/js/effects.js"></script>
-<script src="assets/js/premium-ui.js" defer></script>
-<script src="assets/js/app.js"></script>
+    <script src="assets/js/effects.js"></script>
+    <script src="assets/js/premium-ui.js" defer></script>
+    <script src="assets/js/result-renderers.js"></script>
+    <script src="assets/js/app.js"></script>
 <script src="assets/js/professional14.js" defer></script>
 <script src="assets/js/professional15.js" defer></script>
 

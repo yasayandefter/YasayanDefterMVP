@@ -12,6 +12,8 @@ let currentAnalysis = null;
 let currentSpeech = null;
 let currentSpeechRate = 1;
 let quizAnswered = false;
+let researchSequence = 0;
+let activeResearchController = null;
 
 let learningState = {
 summary:false,
@@ -46,12 +48,13 @@ if (questionInput) {
    API
 ========================================================= */
 
-async function getJSON(url){
+async function getJSON(url, options = {}){
 
 const response = await fetch(url,{
 headers:{
 "Accept":"application/json"
-}
+},
+signal: options.signal
 });
 
 let data = null;
@@ -106,6 +109,10 @@ async function researchTopic() {
 
     hideError();
     showLoading(true);
+    const sequence = ++researchSequence;
+    if (activeResearchController) activeResearchController.abort();
+    const controller = new AbortController();
+    activeResearchController = controller;
 
     const results = $("results");
     const searchButton = $("searchButton");
@@ -178,18 +185,16 @@ async function researchTopic() {
 
     try {
 
-        console.log("🚀 researchTopic başladı");
-
         const data = await getJSON(
 
             API +
             "/api/research?q=" +
-            encodeURIComponent(question)
+            encodeURIComponent(question),
+            { signal: controller.signal }
 
         );
 
-        console.log("✅ RESEARCH DATA:", data);
-
+        if (sequence !== researchSequence) return;
         currentResearch = data;
 
         try {
@@ -198,13 +203,9 @@ async function researchTopic() {
 
                 API +
                 "/api/analyze?q=" +
-                encodeURIComponent(question)
+                encodeURIComponent(question),
+                { signal: controller.signal }
 
-            );
-
-            console.log(
-                "✅ ANALYZE DATA:",
-                analysisData
             );
 
             currentAnalysis =
@@ -214,10 +215,7 @@ async function researchTopic() {
         }
         catch (error) {
 
-            console.warn(
-                "Analyze endpoint:",
-                error
-            );
+            if (error && error.name !== "AbortError") console.warn("Analyze endpoint başarısız.");
 
             currentAnalysis =
                 data.analysis || {};
@@ -241,15 +239,7 @@ async function researchTopic() {
             setTimeout(resolve, 500)
         );
 
-        console.log(
-            "🧠 renderResearch başlıyor..."
-        );
-
         renderResearch(data);
-
-        console.log(
-            "✅ renderResearch tamamlandı."
-        );
 
         /*
         ŞİMDİLİK KAPALI
@@ -265,9 +255,6 @@ async function researchTopic() {
            results.classList.add("visible");
 
         }
-        console.log(
-            "✅ Results görünür yapıldı."
-        );
 
         const sections =
             document.querySelectorAll(
@@ -310,10 +297,8 @@ async function researchTopic() {
     }
     catch (error) {
 
-        console.error(
-            "❌ researchTopic Hatası:",
-            error
-        );
+        if (error && error.name === "AbortError") return;
+        console.error("Araştırma isteği başarısız:", error?.message || "Bilinmeyen hata");
 
         showError(
 
@@ -335,18 +320,12 @@ async function researchTopic() {
 
         clearInterval(timer);
 
-        if (progressBar) {
-            progressBar.style.width = "0%";
-        }
-
-        if (brainPercent) {
-            brainPercent.textContent = "0%";
-        }
-
-        showLoading(false);
-
-        if (searchButton) {
-            searchButton.disabled = false;
+        if (sequence === researchSequence) {
+            if (progressBar) progressBar.style.width = "0%";
+            if (brainPercent) brainPercent.textContent = "0%";
+            showLoading(false);
+            if (searchButton) searchButton.disabled = false;
+            activeResearchController = null;
         }
 
     }
@@ -386,6 +365,8 @@ function getSourceArticles(data) {
 }
 
 function renderResearch(data){
+
+    renderProfessionalResult(data);
 
  const required = [
         "topicTitle",
@@ -490,6 +471,192 @@ if (data.researchUnavailable) {
     summary = "Bu konu için doğrulanabilir bilgi kaynağına şu anda ulaşılamadı.";
 } else if(!summary){
     summary = createFallbackSummary(data);
+}
+
+function createSafeElement(tag, className, value) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (value !== undefined && value !== null) element.textContent = String(value);
+    return element;
+}
+
+function renderProfessionalResult(data) {
+    const host = $("professionalResult");
+    if (!host || !window.ResultRenderers) return;
+    const model = window.ResultRenderers.buildResultViewModel(data);
+    while (host.firstChild) host.removeChild(host.firstChild);
+
+    const head = createSafeElement("div", "professional-result-head");
+    const titleGroup = createSafeElement("div", "professional-result-title-group");
+    const kicker = createSafeElement("p", "professional-kicker", "ARAŞTIRMA SONUCU");
+    const title = createSafeElement("h2", "professional-result-title", model.title);
+    title.id = "professionalResultTitle";
+    const subtitle = createSafeElement("p", "professional-result-subtitle", model.query ? `“${model.query}” için yapılandırılmış öğrenme içeriği` : "Yapılandırılmış öğrenme içeriği");
+    titleGroup.append(kicker, title, subtitle);
+    const meta = createSafeElement("div", "professional-result-meta");
+    const audience = createSafeElement("span", "professional-badge", `Seviye: ${model.audienceLevel}`);
+    meta.appendChild(audience);
+    if (model.usedFallback) meta.appendChild(createSafeElement("span", "professional-badge is-muted", "Yerel fallback içeriği"));
+    head.append(titleGroup, meta);
+    host.appendChild(head);
+
+    if (model.safeImage) {
+        const visual = createSafeElement("figure", "professional-result-visual");
+        const image = document.createElement("img");
+        image.src = model.safeImage;
+        image.alt = `${model.title} konusu görseli`;
+        image.loading = "lazy";
+        image.decoding = "async";
+        image.onerror = () => visual.remove();
+        visual.appendChild(image);
+        host.appendChild(visual);
+    }
+
+    if (model.summary || model.introduction) {
+        const summary = createSafeElement("section", "professional-result-card professional-summary");
+        summary.appendChild(createSafeElement("h3", "professional-card-title", "Kısa Özet"));
+        summary.appendChild(createSafeElement("p", "professional-readable-text", model.summary || model.introduction));
+        host.appendChild(summary);
+    }
+
+    if (model.sections.length) {
+        const sectionWrap = createSafeElement("section", "professional-result-card");
+        sectionWrap.appendChild(createSafeElement("h3", "professional-card-title", "İçerik Bölümleri"));
+        const grid = createSafeElement("div", "professional-section-grid");
+        model.sections.forEach(section => {
+            const card = createSafeElement("article", "professional-content-section");
+            if (section.title) card.appendChild(createSafeElement("h4", "professional-section-title", section.title));
+            if (section.text) card.appendChild(createSafeElement("p", "professional-readable-text", section.text));
+            const points = Array.isArray(section.points) ? section.points.filter(Boolean).slice(0, 5) : [];
+            if (points.length) {
+                const list = createSafeElement("ul", "professional-point-list");
+                points.forEach(point => list.appendChild(createSafeElement("li", "", point)));
+                card.appendChild(list);
+            }
+            grid.appendChild(card);
+        });
+        sectionWrap.appendChild(grid);
+        host.appendChild(sectionWrap);
+    }
+
+    if (model.concepts.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Anahtar Kavramlar"));
+        const grid = createSafeElement("div", "professional-concept-grid");
+        model.concepts.forEach(item => {
+            const concept = createSafeElement("article", "professional-concept-card");
+            concept.appendChild(createSafeElement("h4", "professional-concept-term", item.term));
+            if (item.definition) concept.appendChild(createSafeElement("p", "professional-readable-text", item.definition));
+            grid.appendChild(concept);
+        });
+        card.appendChild(grid);
+        host.appendChild(card);
+    }
+
+    if (model.facts.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Önemli Bilgiler"));
+        const list = createSafeElement("div", "professional-fact-list");
+        model.facts.forEach(fact => {
+            const item = createSafeElement("article", "professional-fact-card");
+            item.appendChild(createSafeElement("p", "professional-readable-text", fact.text));
+            const metaLine = createSafeElement("p", "professional-fact-meta", `${model.confidenceLabel(fact.confidence)} · ${Number(fact.sourceCount) || 0} kaynak`);
+            item.appendChild(metaLine);
+            list.appendChild(item);
+        });
+        card.appendChild(list);
+        host.appendChild(card);
+    }
+
+    if (model.interestingFacts.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "İlginç Bilgiler"));
+        const list = createSafeElement("ul", "professional-point-list");
+        model.interestingFacts.forEach(fact => list.appendChild(createSafeElement("li", "", fact)));
+        card.appendChild(list);
+        host.appendChild(card);
+    }
+
+    if (model.reliability) {
+        const card = createSafeElement("section", "professional-result-card professional-reliability");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Kaynak Güvenilirliği"));
+        card.appendChild(createSafeElement("p", "professional-readable-text", "Bu puan, kaynak kalitesi ve çeşitliliğine dayalı heuristik bir göstergedir; kesin doğruluk oranı değildir."));
+        const stats = createSafeElement("div", "professional-reliability-grid");
+        [["Genel puan", model.score === null ? "—" : model.score], ["Seviye", model.confidenceLabel(model.reliability.level)], ["Kaynak", Number(model.reliability.sourceCount) || 0], ["Bağımsız domain", Number(model.reliability.independentDomainCount) || 0], ["Yüksek kalite", Number(model.reliability.highQualitySourceCount) || 0]].forEach(pair => {
+            const stat = createSafeElement("div", "professional-reliability-stat");
+            stat.append(createSafeElement("strong", "", pair[1]), createSafeElement("span", "", pair[0]));
+            stats.appendChild(stat);
+        });
+        card.appendChild(stats);
+        host.appendChild(card);
+    }
+
+    const sourceItems = model.articles.length
+        ? model.articles
+        : model.sources.map(source => ({ title: source, url: source }));
+    if (sourceItems.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Kaynaklar"));
+        const grid = createSafeElement("div", "professional-source-grid");
+        const seenUrls = new Set();
+        const seenTitles = new Set();
+        sourceItems.forEach(article => {
+            const titleText = String(article.title || article.source || "Kaynak").trim() || "Kaynak";
+            const url = model.safeUrl(article.url || article.link);
+            const titleKey = titleText.toLowerCase();
+            const domainKey = (() => { try { return url ? new URL(url).hostname.replace(/^www\./, "").toLowerCase() : ""; } catch (_) { return ""; } })();
+            if ((url && seenUrls.has(url)) || (domainKey && seenTitles.has(`${domainKey}|${titleKey}`))) return;
+            if (url) seenUrls.add(url);
+            if (domainKey) seenTitles.add(`${domainKey}|${titleKey}`);
+            const source = createSafeElement("article", "professional-source-card");
+            source.appendChild(createSafeElement("h4", "professional-source-title", titleText));
+            const domain = (() => { try { return url ? new URL(url).hostname.replace(/^www\./, "") : (article.source || "Kaynak"); } catch (_) { return article.source || "Kaynak"; } })();
+            source.appendChild(createSafeElement("p", "professional-source-domain", domain));
+            if (article.text || article.summary) source.appendChild(createSafeElement("p", "professional-readable-text", String(article.text || article.summary).slice(0, 280)));
+            if (article.reliabilityLevel) {
+                const score = model.finiteScore(article.reliabilityScore);
+                source.appendChild(createSafeElement("p", "professional-fact-meta", `${model.confidenceLabel(article.reliabilityLevel)} · puan ${score === null ? "—" : score}`));
+            }
+            if (url) {
+                const link = createSafeElement("a", "professional-source-link", "Kaynağı aç →");
+                link.href = url;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                source.appendChild(link);
+            }
+            grid.appendChild(source);
+        });
+        card.appendChild(grid);
+        host.appendChild(card);
+    }
+
+    if (model.questions.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Takip Soruları"));
+        const grid = createSafeElement("div", "professional-question-grid");
+        model.questions.forEach(question => {
+            const button = createSafeElement("button", "professional-question-button", question);
+            button.type = "button";
+            button.addEventListener("click", () => {
+                const input = $("questionInput");
+                if (input) input.value = question;
+                researchTopic();
+            });
+            grid.appendChild(button);
+        });
+        card.appendChild(grid);
+        host.appendChild(card);
+    }
+
+    if (model.limitations.length) {
+        const note = createSafeElement("aside", "professional-limitations", "");
+        note.setAttribute("role", "note");
+        note.appendChild(createSafeElement("h3", "professional-card-title", "Bilgi Notları"));
+        const list = createSafeElement("ul", "professional-point-list");
+        model.limitations.forEach(item => list.appendChild(createSafeElement("li", "", item)));
+        note.appendChild(list);
+        host.appendChild(note);
+    }
 }
 
 typeWriter($("summaryText"), summary);
@@ -893,9 +1060,11 @@ function getImageUrl(item){
 
 if(!item) return "";
 
-if(typeof item === "string") return item;
+if(typeof item === "string") return window.ResultRenderers && window.ResultRenderers.safeUrl
+? window.ResultRenderers.safeUrl(item)
+: "";
 
-return (
+const candidate = (
 item.thumbnail ||
 item.thumb ||
 item.image ||
@@ -905,6 +1074,9 @@ item.src ||
 item.source ||
 ""
 );
+return window.ResultRenderers && window.ResultRenderers.safeUrl
+? window.ResultRenderers.safeUrl(candidate)
+: "";
 
 }
 
@@ -2075,17 +2247,10 @@ const sourceMap = new Map();
 
 function addSource(title,url,source){
 
+url = window.ResultRenderers && window.ResultRenderers.safeUrl
+    ? window.ResultRenderers.safeUrl(url)
+    : "";
 if(!url) return;
-
-try{
-
-new URL(url);
-
-}catch{
-
-return;
-
-}
 
 if(!sourceMap.has(url)){
     sourceMap.set(url, {
