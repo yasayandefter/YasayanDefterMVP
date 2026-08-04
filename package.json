@@ -4,7 +4,8 @@
   "description": "Yaşayan Defter Brain Engine",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:smoke": "node tests/smoke.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
