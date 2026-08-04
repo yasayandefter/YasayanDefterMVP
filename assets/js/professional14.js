@@ -97,7 +97,22 @@
     function observeResults() {
         var results = document.getElementById("results");
         if (!results || !window.MutationObserver) return;
-        var observer = new MutationObserver(function () { addScoreAndRecommendations(); enhanceFlashcards(); updateScore(); });
+        var scheduled = false;
+        var refresh = function () {
+            scheduled = false;
+            addScoreAndRecommendations();
+            enhanceFlashcards();
+            updateScore();
+        };
+        var observer = new MutationObserver(function () {
+            if (scheduled) return;
+            scheduled = true;
+            if (window.requestAnimationFrame) {
+                window.requestAnimationFrame(refresh);
+            } else {
+                window.setTimeout(refresh, 0);
+            }
+        });
         observer.observe(results, { childList: true, subtree: true });
     }
 

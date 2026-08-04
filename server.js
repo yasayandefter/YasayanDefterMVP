@@ -318,10 +318,19 @@ function countMatches(text, words) {
    SORU ANALİZİ — BRAIN 10
 ======================================================== */
 
+function normalizeResearchInput(value) {
+  return cleanText(value)
+    .replace(/\bataturk\b/gi, "Atatürk")
+    .replace(/\bgezgeni\b/gi, "gezegeni")
+    .replace(/\bpiton dili\b/gi, "Python programlama dili")
+    .replace(/\bnasil\b/gi, "nasıl")
+    .replace(/\bolur\b/gi, "oluşur");
+}
+
 function analyzeQuestion(input) {
 
   const original =
-    cleanText(input);
+    normalizeResearchInput(input);
 
   const lower =
     normalize(original);
@@ -871,6 +880,16 @@ function detectCategory(
       text
     );
 
+  const healthSignals = [
+    "insulin", "insülin", "glukoz", "diyabet", "metabolizma",
+    "hormon", "hastalık", "sendrom", "kan şekeri", "obezite",
+    "pankreas", "tıp", "sağlık", "tedavi", "belirti", "tanı",
+    "hipertansiyon", "vitamin", "bağışıklık"
+  ];
+  if (healthSignals.some(signal => combined.includes(normalize(signal)))) {
+    return "İnsan ve Sağlık";
+  }
+
   const groups = [
 
     {
@@ -1035,6 +1054,7 @@ function detectCategory(
     "Genel Bilgi";
 
   let bestScore = 0;
+  const combinedTokens = new Set(combined.split(/\s+/).filter(Boolean));
 
   for (
     const group
@@ -1048,11 +1068,12 @@ function detectCategory(
       of group.words
     ) {
 
-      if (
-        combined.includes(
-          normalize(word)
-        )
-      ) {
+      const normalizedWord = normalize(word);
+      const matched = normalizedWord.length <= 3
+        ? combinedTokens.has(normalizedWord)
+        : combined.includes(normalizedWord);
+
+      if (matched) {
 
         current++;
       }
@@ -1081,65 +1102,56 @@ async function fetchJSON(
   url,
   timeoutMs = 18000
 ) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": UA, "Accept": "application/json" }
+      });
+      if (response.ok) return await response.json();
 
-  const controller =
-    new AbortController();
+      lastError = new Error("HTTP " + response.status);
+      if (response.status !== 429 || attempt === 2) throw lastError;
 
-  const timer =
-    setTimeout(
-      () =>
-        controller.abort(),
-      timeoutMs
-    );
-
-  try {
-
-    const response =
-      await fetch(
-        url,
-        {
-          signal:
-            controller.signal,
-
-          headers: {
-
-            "User-Agent":
-              UA,
-
-            "Accept":
-              "application/json"
-          }
-        }
-      );
-
-    if (!response.ok) {
-
-      throw new Error(
-        "HTTP " +
-        response.status
-      );
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 8000)
+        : 500 * (2 ** attempt);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2 || !String(error.message).includes("HTTP 429")) throw error;
+    } finally {
+      clearTimeout(timer);
     }
-
-    return await response.json();
   }
-
-  finally {
-
-    clearTimeout(timer);
-  }
+  throw lastError || new Error("JSON isteği başarısız.");
 }
 
 /* ========================================================
    WIKIPEDIA
 ======================================================== */
 
+const WIKIPEDIA_CACHE = new Map();
+const WIKIMEDIA_CACHE = new Map();
+const RESEARCH_CACHE_TTL = 60 * 1000;
+
 async function wikipediaSearch(
   query,
-  limit = 8
+  limit = 8,
+  language = "tr"
 ) {
 
+  const wikiLanguage = language === "en" ? "en" : "tr";
+  const cacheKey = `${wikiLanguage}:${normalize(query)}`;
+  const cached = WIKIPEDIA_CACHE.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.value;
+
   const url =
-    "https://tr.wikipedia.org/w/api.php" +
+    `https://${wikiLanguage}.wikipedia.org/w/api.php` +
     "?action=query" +
     "&generator=search" +
     "&gsrsearch=" +
@@ -1169,7 +1181,7 @@ async function wikipediaSearch(
   const pages =
     data.query?.pages || {};
 
-  return Object.values(pages)
+  const results = Object.values(pages)
     .map(page => {
 
       const title =
@@ -1205,15 +1217,92 @@ async function wikipediaSearch(
           ),
 
         source:
-          "Wikipedia"
+          wikiLanguage === "en"
+            ? "Wikipedia (EN)"
+            : "Wikipedia",
+
+        language: wikiLanguage
       };
     })
     .filter(Boolean);
+  if (results.length) {
+    WIKIPEDIA_CACHE.set(cacheKey, {
+      value: results,
+      expires: Date.now() + RESEARCH_CACHE_TTL
+    });
+  }
+  return results;
 }
 
 /* ========================================================
    ÇOKLU WIKIPEDIA
 ======================================================== */
+
+function isRelevantResearchArticle(article, topic) {
+  const title = normalize(article?.title || "");
+  const text = normalize(article?.text || "");
+  const normalizedTopic = normalize(topic || "");
+  if (!title || !text || !normalizedTopic) return false;
+
+  // Yaygın çok anlamlı aramalarda konu dışı ticari/yer adlarını ele.
+  if (normalizedTopic === "mars" &&
+      /(sirket|company|cikolata|chocolate|champ de mars)/.test(title)) {
+    return false;
+  }
+
+  const tokens = normalizedTopic
+    .split(/\s+/)
+    .filter(token => token.length > 2);
+
+  if (article?.language === "en") {
+    // Türkçe konu başlıklarını İngilizce makale metniyle karşılaştırırken
+    // Türkçe token eşleşmesi aramak geçerli sonuçları yanlışlıkla eler.
+    return true;
+  }
+
+  return !tokens.length || tokens.some(token =>
+    title.includes(token) || text.includes(token)
+  );
+}
+
+function buildEnglishResearchQueries(queries = []) {
+  const replacements = [
+    [/insülin direnci/gi, "insulin resistance"],
+    [/diyabet/gi, "diabetes"],
+    [/hipertansiyon/gi, "hypertension"],
+    [/vitamin b12 eksikliği/gi, "vitamin B12 deficiency"],
+    [/kan şekeri/gi, "blood glucose"],
+    [/kara delik/gi, "black hole"],
+    [/gökkuşağı/gi, "rainbow"],
+    [/nasıl/gi, "how"],
+    [/neden/gi, "why"]
+  ];
+
+  const result = [];
+  for (const query of queries) {
+    let translated = String(query || "").trim();
+    for (const [pattern, value] of replacements) translated = translated.replace(pattern, value);
+    if (translated && translated !== query) result.push(translated);
+  }
+  return [...new Set(result)];
+}
+
+async function allSettledLimited(values, worker, concurrency = 3) {
+  const results = new Array(values.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < values.length) {
+      const index = cursor++;
+      try {
+        results[index] = { status: "fulfilled", value: await worker(values[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, run));
+  return results;
+}
 
 async function searchWikipediaMultiple(analysis = {}) {
 
@@ -1269,14 +1358,11 @@ async function searchWikipediaMultiple(analysis = {}) {
 
   }
 
-  const settled =
-    await Promise.allSettled(
-
-      researchQueries.map(query =>
-        wikipediaSearch(query, 8)
-      )
-
-    );
+  const settled = await allSettledLimited(
+    researchQueries.slice(0, 8),
+    query => wikipediaSearch(query, 8),
+    3
+  );
 
   const all = [];
   const seen = new Set();
@@ -1313,6 +1399,10 @@ async function searchWikipediaMultiple(analysis = {}) {
         continue;
       }
 
+      if (!isRelevantResearchArticle(article, fallbackTopic)) {
+        continue;
+      }
+
       const key =
         normalize(title);
 
@@ -1332,6 +1422,40 @@ async function searchWikipediaMultiple(analysis = {}) {
     "Wikipedia makale sayısı:",
     all.length
   );
+
+  // Türkçe Wikipedia yetersiz kaldığında İngilizce Wikipedia'yı
+  // ücretsiz ve kontrollü fallback olarak kullan.
+  if (all.length < 2) {
+    const englishQueries = [
+      ...buildEnglishResearchQueries(researchQueries),
+      ...researchQueries.slice(0, 3)
+    ].filter((query, index, list) => list.indexOf(query) === index);
+
+    const englishSettled = await allSettledLimited(
+      englishQueries.slice(0, 6),
+      query => wikipediaSearch(query, 8, "en"),
+      3
+    );
+
+    for (const result of englishSettled) {
+      if (result.status !== "fulfilled") {
+        console.warn(
+          "İngilizce Wikipedia sorgusu başarısız:",
+          result.reason?.message || result.reason
+        );
+        continue;
+      }
+
+      for (const article of result.value || []) {
+        const title = cleanText(article?.title);
+        const key = normalize(title);
+        if (!title || !key || seen.has(key) ||
+            !isRelevantResearchArticle(article, fallbackTopic)) continue;
+        seen.add(key);
+        all.push(article);
+      }
+    }
+  }
 
   return all;
 
@@ -1420,6 +1544,9 @@ async function wikimediaImages(
   query,
   limit = 30
 ) {
+  const cacheKey = `${normalizeTopic(query)}:${limit}`;
+  const cached = WIKIMEDIA_CACHE.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.value;
 
   const url =
     "https://commons.wikimedia.org/w/api.php" +
@@ -1458,7 +1585,7 @@ async function wikimediaImages(
     "üniversitesi"
   ];
 
-  return Object.values(pages)
+  const results = Object.values(pages)
 
     .map(page => {
 
@@ -1473,7 +1600,9 @@ async function wikimediaImages(
 
       const lower = title.toLowerCase();
 
-      if (blocked.some(word => lower.includes(word))) {
+      const mediaUrl = info.thumburl || info.url || "";
+      if (blocked.some(word => lower.includes(word)) ||
+          !/\.(jpe?g|png|webp)(\?|$)/i.test(mediaUrl)) {
         return null;
       }
 
@@ -1482,9 +1611,7 @@ async function wikimediaImages(
         title,
 
         image:
-          info.thumburl ||
-          info.url ||
-          "",
+          mediaUrl,
 
         original:
           info.url ||
@@ -1527,6 +1654,14 @@ async function wikimediaImages(
 
     .slice(0, 6);
 
+  if (results.length) {
+    WIKIMEDIA_CACHE.set(cacheKey, {
+      value: results,
+      expires: Date.now() + RESEARCH_CACHE_TTL
+    });
+  }
+  return results;
+
 }
 
 /* ========================================================
@@ -1564,7 +1699,17 @@ async function searchImagesForQuestion(analysis) {
 
     }
 
-    return await wikimediaImages(query, 6);
+    const images = await wikimediaImages(query, 6);
+    if (!isHealthTopic(analysis)) return images;
+
+    const healthTerms = [
+      "insulin", "glucose", "metabolism", "metabolic", "pancreas",
+      "blood", "diabetes", "hormone", "medical", "medicine"
+    ];
+    return images.filter(item => {
+      const title = normalizeTopic(item.title || "");
+      return healthTerms.some(term => title.includes(term));
+    });
 
 }
 /* ========================================================
@@ -2828,10 +2973,107 @@ function relatedTopics(
     );
   }
 
+  const relatedDefaults = {
+    mars: ["Mars atmosferi", "Mars yüzeyi", "Mars görevleri", "Gezegenler", "NASA"],
+    "yapay zeka": ["Makine öğrenmesi", "Algoritma", "Robotik", "Veri bilimi"],
+    dna: ["Gen", "RNA", "Protein", "Hücre", "Kalıtım"],
+    "mustafa kemal ataturk": ["Türkiye Cumhuriyeti", "Kurtuluş Savaşı", "Cumhuriyet", "İnkılaplar"],
+    ataturk: ["Türkiye Cumhuriyeti", "Kurtuluş Savaşı", "Cumhuriyet", "İnkılaplar"],
+    "atatürk": ["Türkiye Cumhuriyeti", "Kurtuluş Savaşı", "Cumhuriyet", "İnkılaplar"]
+  };
+  const relatedSeed = analysis?.relatedTopics ||
+    relatedDefaults[normalize(analysis?.topic || "")];
+
+  if (!filtered.length && Array.isArray(relatedSeed)) {
+    filtered = relatedSeed
+      .map(title => ({
+        title: cleanText(title),
+        text: "",
+        image: "",
+        url: "",
+        source: "Brain Engine"
+      }))
+      .filter(item => item.title && normalize(item.title) !== main)
+      .filter((item, index, list) =>
+        list.findIndex(other => normalize(other.title) === normalize(item.title)) === index
+      );
+  }
+
   return filtered.slice(
     0,
     10
   );
+}
+
+/* ========================================================
+   ÇEVRİMDIŞI ARAŞTIRMA FALLBACK'I
+   Harici kaynaklar geçici olarak erişilemez olduğunda
+   response sözleşmesini koruyarak Brain Engine akışını
+   tamamlar. Harici sonuç geldiğinde hiçbir şekilde kullanılmaz.
+======================================================== */
+
+const OFFLINE_RESEARCH_CONTEXT = {
+
+  "yapay zeka":
+    "Yapay zeka, bilgisayarların öğrenme, akıl yürütme, algılama ve dil işleme gibi insan zekasıyla ilişkilendirilen görevleri gerçekleştirmesini sağlayan yöntemlerin genel adıdır.",
+
+  mars:
+    "Mars, Güneş Sistemi'nde Güneş'e dördüncü sırada yer alan kayasal bir gezegendir. İnce atmosferi, demir oksit içeren yüzeyi ve geçmişte sıvı su barındırmış olabileceğine dair izleriyle araştırılır.",
+
+  dna:
+    "DNA, canlıların kalıtsal bilgilerini taşıyan nükleik asittir. Hücrelerin protein üretimi ve özelliklerin nesilden nesile aktarılması için gerekli genetik talimatları içerir.",
+
+  "ataturk":
+    "Mustafa Kemal Atatürk, Türkiye Cumhuriyeti'nin kurucusu ve ilk Cumhurbaşkanıdır. Kurtuluş Savaşı'nın liderliğini yapmış ve Cumhuriyet'in kuruluşundan sonra kapsamlı dönüşüm çalışmaları yürütmüştür."
+
+};
+
+function buildOfflineResearchArticle(analysis = {}) {
+
+  const title =
+    cleanText(
+      analysis.topic ||
+      analysis.original ||
+      "Araştırma konusu"
+    );
+
+  const key =
+    normalizeTopic(title)
+      .replace(/ı/g, "i")
+      .replace(/ş/g, "s")
+      .replace(/ğ/g, "g")
+      .replace(/ü/g, "u")
+      .replace(/ö/g, "o")
+      .replace(/ç/g, "c");
+
+  const text =
+    OFFLINE_RESEARCH_CONTEXT[key] ||
+    `${title}, Yaşayan Defter Brain Engine tarafından araştırma konusu olarak analiz edildi. Harici kaynaklara geçici olarak erişilemediği için bu sonuç yerel özet akışıyla hazırlandı; bağlantı sağlandığında daha kapsamlı kaynaklar gösterilecektir.`;
+
+  return {
+
+    title,
+
+    text,
+
+    summary:
+      text,
+
+    extract:
+      text,
+
+    source:
+      "Yerel Brain Engine",
+
+    image:
+      "",
+
+    language:
+      "tr",
+
+    url:
+      ""
+  };
 }
 
 /* ========================================================
@@ -3052,8 +3294,20 @@ function findMemoryTopic(topic) {
 }
 
 /* ========================================================
-   ARAŞTIRMA
+     ARAŞTIRMA
 ======================================================== */
+
+function isHealthTopic(analysis = {}) {
+  const value = normalize(
+    `${analysis.topic || ""} ${analysis.original || ""}`
+  );
+  return [
+    "insulin", "insülin", "glukoz", "diyabet", "metabolizma",
+    "hormon", "hastalık", "sendrom", "kan şekeri", "obezite",
+    "pankreas", "tıp", "sağlık", "tedavi", "belirti", "tanı",
+    "hipertansiyon", "vitamin", "bağışıklık"
+  ].some(signal => value.includes(normalize(signal)));
+}
 
 async function research(query) {
 
@@ -3071,6 +3325,9 @@ async function research(query) {
     analyzeQuestion(
       cleanQuery
     );
+
+  const healthTopic = isHealthTopic(analysis);
+  let researchUnavailable = false;
 
   const memoryMatch =
     findMemoryTopic(
@@ -3168,6 +3425,14 @@ async function research(query) {
           continue;
         }
 
+        if (!isRelevantResearchArticle({
+          title,
+          text,
+          language: item?.language || ""
+        }, analysis.topic)) {
+          continue;
+        }
+
         const normalizedTitle =
           normalize(title);
 
@@ -3202,7 +3467,11 @@ async function research(query) {
 
           source:
             item?.source ||
-            "Web"
+            "Web",
+
+          language:
+            item?.language ||
+            ""
 
         });
       }
@@ -3471,13 +3740,33 @@ async function research(query) {
      SONUÇ KONTROLÜ
   -------------------------------------------------------- */
 
-  if (
-    !articles.length &&
-    !images.length
-  ) {
+  if (!articles.length && !images.length && !healthTopic) {
 
-    throw new Error(
-      "Araştırma sonucu bulunamadı."
+    const fallbackArticle =
+      buildOfflineResearchArticle(
+        analysis
+      );
+
+    articles = [
+      fallbackArticle
+    ];
+
+    console.warn(
+      "Harici araştırma kaynağı bulunamadı; yerel Brain Engine fallback'i kullanıldı.",
+      analysis.topic
+    );
+  } else if (!articles.length && healthTopic) {
+    researchUnavailable = true;
+    console.warn(
+      "Doğrulanabilir sağlık kaynağı bulunamadı:",
+      analysis.topic
+    );
+  } else if (!articles.length && !memoryMatch) {
+    // Görsel bulunması tek başına doğrulanmış bilgi sonucu sayılmaz.
+    researchUnavailable = true;
+    console.warn(
+      "Metin kaynağı bulunamadı; yalnızca görsel sonuçları kullanılmayacak:",
+      analysis.topic
     );
   }
 
@@ -3510,18 +3799,24 @@ async function research(query) {
      BRAIN ENGINE
   -------------------------------------------------------- */
 
-  const brain =
-    buildBrain(
-      main,
-      analysis,
-      articles
-    );
+  const brain = researchUnavailable
+    ? {
+        category: detectCategory(analysis.topic, ""),
+        summary: "",
+        facts: [],
+        interesting: "",
+        quiz: null,
+        flashcards: [],
+        questionType: analysis.type,
+        intent: analysis.intent,
+        understoodQuestion: analysis.original,
+        understoodTopic: analysis.topic
+      }
+    : buildBrain(main, analysis, articles);
 
-  const lesson =
-    teacher.teach(
-      analysis.topic,
-      brain.summary
-    );
+  const lesson = researchUnavailable
+    ? { topic: analysis.topic, summary: "", simple: "", detailed: "", analogy: "", examples: [] }
+    : teacher.teach(analysis.topic, brain.summary);
 
   const related =
     relatedTopics(
@@ -3530,11 +3825,7 @@ async function research(query) {
       analysis
     );
 
-  const knowledgeMap =
-    map.buildMap(
-      analysis.topic,
-      related
-    );
+  const knowledgeMap = map.buildMap(analysis.topic, related);
 
   /* --------------------------------------------------------
      KAYNAKLAR
@@ -3550,7 +3841,7 @@ async function research(query) {
       ),
 
       ...(
-        images.length
+        images.length && articles.length
           ? [
               "Wikimedia Commons"
             ]
@@ -3595,7 +3886,10 @@ async function research(query) {
         analysis.keywords,
 
       researchQueries:
-        analysis.researchQueries
+        analysis.researchQueries,
+
+      relatedTopics:
+        analysis.relatedTopics || []
 
     },
 
@@ -3670,9 +3964,14 @@ async function research(query) {
     sources:
       sources.length
         ? sources
-        : [
-            "Wikipedia"
-          ],
+        : [],
+
+    researchUnavailable,
+
+    medicalNotice:
+      healthTopic
+        ? "Bu içerik genel eğitim amaçlıdır; tanı veya tedavi önerisi değildir."
+        : "",
 
     fromMemory:
       false,
@@ -4368,6 +4667,95 @@ app.get(
         memories.length,
 
       memories
+    });
+  }
+);
+
+/* ========================================================
+   API — MEMORY SAVE COMPATIBILITY
+   The frontend has always posted this normalized payload.
+   Keep it on the existing learning-memory writer so the
+   persisted schema and all read endpoints remain unchanged.
+======================================================== */
+
+app.post(
+  "/api/memory/save",
+  (
+    req,
+    res
+  ) => {
+
+    const body =
+      req.body ||
+      {};
+
+    const topic =
+      cleanText(
+        body.topic ||
+        body.title ||
+        body.query
+      );
+
+    if (!topic) {
+
+      return res
+        .status(400)
+        .json({
+
+          ok:
+            false,
+
+          error:
+            "Kaydedilecek konu belirtilmedi."
+        });
+    }
+
+    const memory =
+      saveResearchToMemory({
+
+        analysis: {
+          topic
+        },
+
+        title:
+          cleanText(
+            body.title ||
+            topic
+          ),
+
+        query:
+          cleanText(
+            body.query ||
+            topic
+          ),
+
+        brain: {
+          summary:
+            cleanText(
+              body.summary
+            ),
+
+          interesting:
+            cleanText(
+              body.interesting
+            ),
+
+          facts:
+            Array.isArray(
+              body.facts
+            )
+              ? body.facts
+              : []
+        }
+      });
+
+    res.json({
+
+      ok:
+        true,
+
+      memory
+
     });
   }
 );

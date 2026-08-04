@@ -63,6 +63,14 @@ throw new Error("Sunucudan geçerli JSON cevabı alınamadı.");
 }
 
 if(!response.ok){
+console.error(
+"API isteği başarısız:",
+{
+status: response.status,
+url,
+detail: data?.detail || ""
+}
+);
 throw new Error(
 data?.error ||
 data?.message ||
@@ -343,6 +351,34 @@ async function researchTopic() {
    MAIN RENDER
 ========================================================= */
 
+function getUniqueImages(images) {
+    if (!Array.isArray(images)) return [];
+    const seen = new Set();
+    return images.filter(item => {
+        const url = getImageUrl(item);
+        if (!url || seen.has(url)) return false;
+        seen.add(url);
+        return true;
+    });
+}
+
+function getSourceArticles(data) {
+    const seen = new Set();
+    const articles = Array.isArray(data?.articles) ? data.articles : [];
+    const result = articles.filter(article => {
+        const url = article?.url || article?.link || "";
+        if (!url || seen.has(url)) return false;
+        try { new URL(url); } catch { return false; }
+        seen.add(url);
+        return true;
+    });
+    const mainUrl = data?.url || "";
+    if (mainUrl && !seen.has(mainUrl)) {
+        try { new URL(mainUrl); result.push({ title: data.title, url: mainUrl }); } catch {}
+    }
+    return result;
+}
+
 function renderResearch(data){
 
  const required = [
@@ -414,10 +450,10 @@ analysis.original ||
 
 $("topicCategory").textContent =
 categoryLabel(
-analysis.subject ||
-analysis.topic ||
-brain.category ||
-"araştırma"
+    brain.category ||
+    analysis.subject ||
+    analysis.topic ||
+    "araştırma"
 );
 
 $("analysisType").textContent =
@@ -444,8 +480,10 @@ safeText(ai.summary) ||
 safeText(brain.summary) ||
 safeText(data.summary);
 
-if(!summary){
-summary = createFallbackSummary(data);
+if (data.researchUnavailable) {
+    summary = "Bu konu için doğrulanabilir bilgi kaynağına şu anda ulaşılamadı.";
+} else if(!summary){
+    summary = createFallbackSummary(data);
 }
 
 typeWriter($("summaryText"), summary);
@@ -458,16 +496,22 @@ if (heroSummary) {
 
 }
 
+const medicalNotice = $("medicalNotice");
+if (medicalNotice) {
+    medicalNotice.textContent = data.medicalNotice || "";
+    medicalNotice.hidden = !data.medicalNotice;
+}
+
 $("heroCategory").textContent =
     analysis.subject ||
     brain.category ||
     "Genel";
 
 $("heroSources").textContent =
-    data.articles?.length || 0;
+    getSourceArticles(data).length;
 
 $("heroImages").textContent =
-    data.images?.length || 0;
+    getUniqueImages(data.images).length;
 
 $("heroFacts").textContent =
     brain.facts?.length || 0;
@@ -541,6 +585,13 @@ Array.isArray(ai.facts) && ai.facts.length
 
 renderFacts(facts,data);
 
+renderFlashcards(
+    data.brain?.flashcards ||
+    data.ai?.flashcards ||
+    data.flashcards ||
+    []
+);
+
 const interestingBox = $("interestingText");
 
 if(interestingBox){
@@ -559,7 +610,7 @@ if (interestingText) {
    }
 }
 
-const interestingFacts={
+var interestingFacts={
 
 "yapay zeka":[
 
@@ -626,15 +677,18 @@ renderQuiz(quiz,data);
 
 const related =
 normalizeList(
-ai.relatedTopics ||
-data.related ||
-data.relatedTopics ||
-brain.relatedTopics ||
-[]
+    ai.relatedTopics ||
+    data.related ||
+    data.relatedTopics ||
+    analysis.relatedTopics ||
+    brain.relatedTopics ||
+    []
 );
 
 renderKnowledgeMap(
-    ai.knowledgeMap || {}
+    data.knowledgeMap ||
+    ai.knowledgeMap ||
+    {}
 );
 
 renderRelated(related);
@@ -1153,6 +1207,45 @@ return [
 
 }
 
+function renderFlashcards(cards) {
+    const container = $("flashcardsContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    const items = Array.isArray(cards) ? cards.filter(card =>
+        card && (card.question || card.front) && (card.answer || card.back)
+    ) : [];
+    if (!items.length) {
+        container.innerHTML =
+            '<div class="fact" style="grid-column:1/-1">' +
+            '<h4>Hafıza kartı hazır değil</h4>' +
+            '<p>Bu araştırma için yeterli tekrar bilgisi bulunamadı.</p>' +
+            '</div>';
+        return;
+    }
+    items.slice(0, 8).forEach(card => {
+        const wrapper = document.createElement("article");
+        wrapper.className = "flashcard";
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute("role", "button");
+        const question = document.createElement("div");
+        question.className = "flashcard-question";
+        question.textContent = card.question || card.front;
+        const answer = document.createElement("div");
+        answer.className = "flashcard-answer";
+        answer.textContent = card.answer || card.back;
+        const toggle = () => wrapper.classList.toggle("is-flipped");
+        wrapper.addEventListener("click", toggle);
+        wrapper.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggle();
+            }
+        });
+        wrapper.append(question, answer);
+        container.appendChild(wrapper);
+    });
+}
+
 /* =========================================================
    IMAGES
 ========================================================= */
@@ -1200,11 +1293,39 @@ Array.isArray(images)
 
     ];
 
-    return !blocked.some(word => t.includes(word));
+    if (blocked.some(word => t.includes(word))) return false;
+
+    const topic = safeText(currentAnalysis?.topic || currentResearch?.title || "")
+        .toLocaleLowerCase("tr-TR");
+    if (topic.includes("yapay zeka") || topic.includes("yapay zekâ")) {
+        const relevant = ["yapay", "zeka", "makine", "öğrenme", "sinir", "robot", "algoritma", "veri", "bilgisayar"];
+        if (!relevant.some(word => t.includes(word))) return false;
+    }
+
+    if (/(insülin|diyabet|hipertansiyon|metabolizma|sağlık|tıp|glukoz|vitamin)/i.test(topic)) {
+        const relevant = ["insulin", "insülin", "glucose", "glukoz", "metabolism", "metabolic", "pancreas", "diabetes", "hormone", "medical", "medicine", "blood"];
+        if (!relevant.some(word => t.includes(word))) return false;
+    }
+
+    return true;
 
 })
+.filter((item, index, list) =>
+    list.findIndex(other =>
+        other.url === item.url ||
+        (item.title && other.title === item.title)
+    ) === index
+)
 .slice(0,6)
 : [];
+
+const heroImages = $("heroImages");
+if (currentResearch) {
+    currentResearch.images = normalized;
+    renderStats(currentResearch);
+}
+if (heroImages) heroImages.textContent = String(normalized.length);
+
 if(!normalized.length){
 
 const topic =
@@ -1311,7 +1432,14 @@ title:page.title?.replace(/^File:/,"") || ""
 
 if(images.length){
 
-renderImages(images);
+const uniqueImages = getUniqueImages(images).slice(0, 6);
+
+if (currentResearch) {
+    currentResearch.images = uniqueImages;
+    renderStats(currentResearch);
+}
+
+renderImages(uniqueImages);
 
 return;
 
@@ -1363,7 +1491,9 @@ result.className = "quiz-result";
 
 quizAnswered = false;
 
-if(
+if (data?.researchUnavailable) {
+    quiz = null;
+} else if(
 !quiz ||
 !quiz.question ||
 !Array.isArray(quiz.options)
@@ -1639,7 +1769,7 @@ function renderKnowledgeMap(map){
     if(!map.nodes || !map.nodes.length){
 
         container.innerHTML =
-            "<p>Bilgi haritası hazırlanıyor...</p>";
+            "<p>Bu konu için yeterli bağlantı bulunamadı.</p>";
 
         return;
 
@@ -1875,15 +2005,9 @@ function renderStats(data){
 
 const container = $("researchStats");
 
-const articles =
-Array.isArray(data.articles)
-? data.articles.length
-: Number(data.stats?.articles || 0);
+const articles = getSourceArticles(data).length;
 
-const images =
-Array.isArray(data.images)
-? data.images.length
-: Number(data.stats?.images || 0);
+const images = getUniqueImages(data.images).length;
 
 const facts =
 Array.isArray(data.brain?.facts)
@@ -1894,10 +2018,11 @@ Array.isArray(data.brain?.facts)
 ? data.facts.length
 : Number(data.stats?.facts || 0);
 
-const sources =
-Array.isArray(data.sources)
-? data.sources.length
-: Number(data.stats?.sources || 0);
+const sources = articles;
+
+const related = Array.isArray(data.related) ? data.related.length : 0;
+const flashcards = Array.isArray(data.brain?.flashcards)
+? data.brain.flashcards.length : 0;
 
 container.innerHTML =
 
@@ -1905,6 +2030,17 @@ statCard("📚","Araştırma kaynağı",articles) +
 statCard("🖼️","Görsel",images) +
 statCard("🧠","Temel bilgi",facts) +
 statCard("🔗","Kaynak",sources);
+
+/* Additional data-driven counters are appended without changing the
+   existing four-card layout. */
+container.innerHTML +=
+statCard("🔗", "İlişkili konu", related) +
+statCard("🗂️", "Flashcard", flashcards);
+
+const footerSources = $("footerSourceCount");
+const footerImages = $("footerImageCount");
+if (footerSources) footerSources.textContent = String(sources);
+if (footerImages) footerImages.textContent = String(images);
 
 }
 
@@ -1931,7 +2067,7 @@ container.innerHTML = "";
 
 const sourceMap = new Map();
 
-function addSource(title,url){
+function addSource(title,url,source){
 
 if(!url) return;
 
@@ -1945,10 +2081,12 @@ return;
 
 }
 
-sourceMap.set(
-title || "Kaynak",
-url
-);
+if(!sourceMap.has(url)){
+    sourceMap.set(url, {
+        title: title || "Kaynak",
+        source: source || title || "Kaynak"
+    });
+}
 
 }
 
@@ -1957,7 +2095,8 @@ data.title ||
 currentAnalysis?.topic ||
 "Ana kaynak",
 data.url ||
-data.sourceUrl
+data.sourceUrl,
+data.engine || "Brain Engine"
 );
 
 if(Array.isArray(data.sources)){
@@ -1995,8 +2134,8 @@ addSource(
 article.title ||
 article.source ||
 "Kaynak",
-article.url ||
-article.link
+article.url || article.link,
+article.source
 );
 
 }
@@ -2017,7 +2156,7 @@ return;
 
 }
 
-sourceMap.forEach((url,title)=>{
+sourceMap.forEach((meta,url)=>{
 
 const row =
 document.createElement("div");
@@ -2026,7 +2165,11 @@ row.className = "source-item";
 
 row.innerHTML =
 '<div class="source-name">' +
-escapeHTML(title) +
+escapeHTML(meta.title) +
+'</div>' +
+
+'<div class="source-type">' +
+escapeHTML(meta.source) +
 '</div>' +
 
 '<a class="source-link" href="' +
@@ -2060,6 +2203,12 @@ text.includes("mars")
 
 return "Uzay ve Astronomi";
 
+}
+
+if (text.includes("sağlık") || text.includes("tıp") ||
+    text.includes("insülin") || text.includes("diyabet") ||
+    text.includes("metabolizma") || text.includes("hipertansiyon")) {
+    return "İnsan ve Sağlık";
 }
 
 if(
@@ -2731,7 +2880,7 @@ API + "/api/status"
 if(data?.ok){
 
 $("statusText").textContent =
-"Brain Engine 10.0 hazır";
+data.engine || ("Brain Engine " + (data.version || "hazır"));
 
 return;
 
@@ -2753,7 +2902,7 @@ API + "/api/analyze?q=durum"
 if(data?.ok){
 
 $("statusText").textContent =
-"Brain Engine 10.0 hazır";
+data.engine || ("Brain Engine " + (data.version || "hazır"));
 
 return;
 

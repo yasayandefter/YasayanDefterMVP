@@ -196,17 +196,18 @@ async function searchWeb(query){
     try{
 
         const url =
-            "https://tr.wikipedia.org/w/api.php" +
+            "https://en.wikipedia.org/w/api.php" +
             "?action=query" +
             "&generator=search" +
             "&gsrsearch=" +
             encodeURIComponent(query) +
             "&gsrnamespace=0" +
             "&gsrlimit=5" +
-            "&prop=extracts|info" +
+            "&prop=extracts|pageimages|info" +
             "&exintro=1" +
             "&explaintext=1" +
             "&exchars=1200" +
+            "&pithumbsize=1000" +
             "&inprop=url" +
             "&format=json" +
             "&origin=*";
@@ -220,15 +221,23 @@ async function searchWeb(query){
 
         return{
 
-            articles:pages.map(page=>({
+            articles: pages.map(page => ({
 
-                title:page.title,
+                title: page.title || "",
 
-                summary:page.extract,
+                text: page.extract || "",
 
-                url:page.fullurl || ""
+                summary: page.extract || "",
 
-            }))
+                image: page.thumbnail?.source || "",
+
+                url: page.fullurl || "",
+
+                source: "Wikipedia (EN)",
+
+                language: "en"
+
+            })).filter(article => article.title && article.text)
 
         };
 

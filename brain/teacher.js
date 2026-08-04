@@ -39,15 +39,19 @@ function createSummary(text) {
 // ----------------------------
 
 function createSimpleExplanation(text) {
-
-    return "Bu konu daha basit bir dille şöyle açıklanabilir:\n\n" + text;
+    const first = String(text || "").split(/(?<=[.!?])\s+/)[0] || text;
+    return "Bu konunun temel fikri şudur:\n\n" + first;
 }
 
 // ----------------------------
 
 function createDetailedExplanation(text) {
-
-    return "Detaylı Anlatım:\n\n" + text;
+    const sentences = String(text || "")
+        .split(/(?<=[.!?])\s+/)
+        .filter(Boolean)
+        .slice(0, 5);
+    return "Detaylı açıklama:\n\n" +
+        (sentences.length ? sentences.join(" ") : "Bu konu hakkında yeterli ayrıntı bulunamadı.");
 }
 
 // ----------------------------

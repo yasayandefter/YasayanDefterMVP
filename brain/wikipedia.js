@@ -74,11 +74,13 @@ async function fetchJSON(url) {
    WIKIPEDIA SEARCH
 ========================================================= */
 
-async function wikipediaSearch(query) {
+async function wikipediaSearch(query, language = "tr") {
+
+    const wikiLanguage = language === "en" ? "en" : "tr";
 
     const url =
 
-        "https://tr.wikipedia.org/w/api.php" +
+        `https://${wikiLanguage}.wikipedia.org/w/api.php` +
 
         "?action=query" +
 
@@ -144,7 +146,12 @@ async function wikipediaSearch(query) {
 
                     ),
 
-                source: "Wikipedia"
+                source:
+                    wikiLanguage === "en"
+                        ? "Wikipedia (EN)"
+                        : "Wikipedia",
+
+                language: wikiLanguage
 
             };
 
@@ -170,7 +177,7 @@ async function searchWikipediaMultiple(analysis) {
 
         searches.map(
 
-            wikipediaSearch
+            query => wikipediaSearch(query, "tr")
 
         )
 
@@ -202,6 +209,22 @@ async function searchWikipediaMultiple(analysis) {
 
         }
 
+    }
+
+    if (results.length < 2) {
+        const english = await Promise.allSettled(
+            searches.slice(0, 3).map(query => wikipediaSearch(query, "en"))
+        );
+
+        for (const item of english) {
+            if (item.status !== "fulfilled") continue;
+            for (const article of item.value || []) {
+                const key = article.title.toLocaleLowerCase("tr-TR");
+                if (seen.has(key)) continue;
+                seen.add(key);
+                results.push(article);
+            }
+        }
     }
 
     return results;
