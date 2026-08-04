@@ -18,6 +18,7 @@ const Research = require("./brain/research");
 const logger = require("./brain/logger");
 const sourceReliability = require("./brain/sourceReliability");
 const contentStructurer = require("./brain/contentStructurer");
+const livingMemory = require("./brain/livingMemory");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -206,6 +207,7 @@ function uniqueStrings(items) {
 
 function safeReadJSON(file, fallback) {
   try {
+    livingMemory.recoverAtomicFile(file);
     if (!fs.existsSync(file)) {
       return fallback;
     }
@@ -233,13 +235,7 @@ function safeReadJSON(file, fallback) {
 
 function safeWriteJSON(file, data) {
   try {
-    fs.writeFileSync(
-      file,
-      JSON.stringify(data, null, 2),
-      "utf8"
-    );
-
-    return true;
+    return livingMemory.writeJSONAtomic(file, data);
   }
 
   catch (error) {
@@ -333,20 +329,28 @@ function readLearningMemory() {
     );
 
   if (Array.isArray(data)) {
-    return data;
+    return livingMemory.sanitizeRecords(data);
   }
 
   if (
     data &&
     Array.isArray(data.memories)
   ) {
-    return data.memories;
+    return livingMemory.sanitizeRecords(data.memories);
   }
 
   return [];
 }
 
 function writeLearningMemory(items) {
+  if (fs.existsSync(LEARNING_MEMORY_FILE)) {
+    try {
+      JSON.parse(fs.readFileSync(LEARNING_MEMORY_FILE, "utf8"));
+    } catch (error) {
+      logger.warn("memory.write_blocked_invalid_file", { errorName: error.name });
+      return false;
+    }
+  }
   return safeWriteJSON(
     LEARNING_MEMORY_FILE,
     items
@@ -416,6 +420,11 @@ function normalizeResearchInput(value) {
 function requiredQuery(req, name = "q") {
   const value = cleanText(req.query?.[name]);
   return value.length <= 500 ? value : value.slice(0, 500);
+}
+
+function memoryLimit(req, fallback) {
+  const value = Number.parseInt(req.query?.limit, 10);
+  return Number.isFinite(value) ? Math.min(Math.max(value, 1), fallback) : fallback;
 }
 
 function analyzeQuestion(input) {
@@ -4224,8 +4233,9 @@ function saveResearchToMemory(
     existingIndex >= 0
       ? items[existingIndex]
       : null;
+  const previousConnectionIds = new Set(livingMemory.buildConnections(items).map(item => item.id));
 
-  const entry = {
+  let entry = {
 
     id:
       old?.id ||
@@ -4316,6 +4326,14 @@ function saveResearchToMemory(
       null
   };
 
+  const livingEntry = livingMemory.buildEntry(result, old);
+  if (livingEntry) {
+    entry = {
+      ...entry,
+      ...livingEntry
+    };
+  }
+
   if (
     existingIndex >= 0
   ) {
@@ -4340,9 +4358,25 @@ function saveResearchToMemory(
     );
   }
 
-  writeLearningMemory(
-    items
-  );
+  const persisted = writeLearningMemory(items);
+  if (!persisted) {
+    logger.warn("memory.write_failed", {
+      memoryId: entry.id,
+      topicLength: topic.length
+    });
+  } else {
+    logger.info(old ? "memory.updated" : "memory.saved", {
+      memoryId: entry.id,
+      topicLength: topic.length,
+      sourceCount: entry.sourceCount,
+      confidence: entry.confidence
+    });
+    const newConnections = livingMemory.buildConnections(items)
+      .filter(item => !previousConnectionIds.has(item.id));
+    if (newConnections.length) {
+      logger.info("memory.connection_created", { count: newConnections.length });
+    }
+  }
 
   return entry;
 }
@@ -4697,6 +4731,22 @@ app.get(
           audienceLevel: req.query?.audienceLevel
         });
 
+      try {
+        const memoryEntry = saveResearchToMemory(result);
+        const memoryItems = readLearningMemory();
+        result.livingMemory = {
+          recordId: memoryEntry?.id || null,
+          suggestions: livingMemory.buildSuggestions(memoryEntry, memoryItems),
+          chainPosition: livingMemory.buildHistory(memoryItems).find(item => item.id === memoryEntry?.id)?.sequence || null
+        };
+      } catch (memoryError) {
+        logger.warn("memory.save_failed", {
+          errorName: memoryError.name,
+          errorMessage: memoryError.message,
+          topicLength: query.length
+        });
+      }
+
       res.json(
         result
       );
@@ -4857,6 +4907,36 @@ app.get("/api/images", async (req, res) => {
 /* ========================================================
    API — MEMORY LIST
 ======================================================== */
+
+app.get("/api/memory/history", (req, res) => {
+  const memories = readLearningMemory();
+  const history = livingMemory.buildHistory(memories).slice(-memoryLimit(req, livingMemory.LIMITS.history));
+  logger.info("memory.history_generated", { count: history.length });
+  res.json({ ok: true, count: history.length, history });
+});
+
+app.get("/api/memory/connections", (req, res) => {
+  const memories = readLearningMemory();
+  const connections = livingMemory.buildConnections(memories).slice(0, memoryLimit(req, livingMemory.LIMITS.connections));
+  logger.info("memory.connections_generated", { count: connections.length });
+  res.json({ ok: true, count: connections.length, connections });
+});
+
+app.get("/api/memory/review", (req, res) => {
+  const memories = readLearningMemory();
+  const review = livingMemory.buildReview(memories).slice(0, memoryLimit(req, livingMemory.LIMITS.records * livingMemory.REVIEW_INTERVALS.length));
+  const due = review.filter(item => item.due);
+  logger.info("memory.review_generated", { count: review.length, dueCount: due.length });
+  res.json({ ok: true, intervals: livingMemory.REVIEW_INTERVALS, count: review.length, dueCount: due.length, review });
+});
+
+app.get("/api/memory/stats", (req, res) => {
+  const memories = readLearningMemory();
+  const connections = livingMemory.buildConnections(memories);
+  const stats = livingMemory.buildStats(memories, connections);
+  logger.info("memory.stats_generated", { totalTopics: stats.totalTopics, connectionCount: stats.connectionCount });
+  res.json({ ok: true, stats });
+});
 
 app.get(
   "/api/memory/list",
