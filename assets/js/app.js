@@ -63,18 +63,24 @@ throw new Error("Sunucudan geçerli JSON cevabı alınamadı.");
 }
 
 if(!response.ok){
+const errorPayload = data?.error;
+const errorMessage = typeof errorPayload === "object"
+? errorPayload.message
+ : errorPayload;
 console.error(
 "API isteği başarısız:",
 {
 status: response.status,
 url,
-detail: data?.detail || ""
+ code: errorPayload?.code || "",
+ detail: errorMessage || data?.detail || "",
+ requestId: data?.requestId || ""
 }
 );
 throw new Error(
-data?.error ||
-data?.message ||
-"Sunucu isteği reddetti."
+ errorMessage ||
+ data?.message ||
+ "Sunucu isteği reddetti."
 );
 }
 

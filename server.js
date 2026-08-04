@@ -1,6 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const teacher = require("./brain/teacher");
 const map = require("./brain/map");
@@ -48,14 +49,70 @@ const {
 =========================================================
 */
 
-const UA =
-  "YasayanDefter/10.0 (Educational Research Engine)";
+const UA = CONFIG.USER_AGENT;
 
 /* ========================================================
    EXPRESS
 ======================================================== */
 
+app.use(installResponseContract);
 app.use(express.json({ limit: "10mb" }));
+
+function createRequestId() {
+  return typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function errorCode(status, payload) {
+  if (payload && typeof payload.error === "object" && payload.error.code) {
+    return payload.error.code;
+  }
+  if (status === 400) return "BAD_REQUEST";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 429) return "RATE_LIMITED";
+  return "INTERNAL_ERROR";
+}
+
+function errorMessage(payload, status) {
+  if (payload && typeof payload.error === "object" && payload.error.message) {
+    return String(payload.error.message);
+  }
+  if (payload && typeof payload.error === "string") return payload.error;
+  if (payload && typeof payload.message === "string") return payload.message;
+  return status >= 500 ? "Sunucuda beklenmeyen bir hata oluştu." : "İstek geçersiz.";
+}
+
+function installResponseContract(req, res, next) {
+  req.requestId = req.requestId || createRequestId();
+  res.setHeader("X-Request-Id", req.requestId);
+  const sendJSON = res.json.bind(res);
+  res.json = payload => {
+    if (payload && payload.ok === false) {
+      payload = {
+        ok: false,
+        error: {
+          code: errorCode(res.statusCode, payload),
+          message: errorMessage(payload, res.statusCode)
+        },
+        requestId: req.requestId
+      };
+    }
+    return sendJSON(payload);
+  };
+  const started = Date.now();
+  res.on("finish", () => {
+    console.info(JSON.stringify({
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - started
+    }));
+  });
+  next();
+}
+
 app.use(express.static(__dirname));
 
 /* ========================================================
@@ -325,6 +382,11 @@ function normalizeResearchInput(value) {
     .replace(/\bpiton dili\b/gi, "Python programlama dili")
     .replace(/\bnasil\b/gi, "nasıl")
     .replace(/\bolur\b/gi, "oluşur");
+}
+
+function requiredQuery(req, name = "q") {
+  const value = cleanText(req.query?.[name]);
+  return value.length <= 500 ? value : value.slice(0, 500);
 }
 
 function analyzeQuestion(input) {
@@ -4468,10 +4530,7 @@ app.get(
     res
   ) => {
 
-    const query =
-      cleanText(
-        req.query.q
-      );
+    const query = requiredQuery(req);
 
     if (!query) {
 
@@ -4530,7 +4589,7 @@ app.get(
 
 app.get("/api/analyze", (req, res) => {
 
-    const query = Analyzer.cleanText(req.query.q);
+    const query = requiredQuery(req);
 
     if (!query) {
 
@@ -4584,7 +4643,7 @@ app.get("/api/analyze", (req, res) => {
 
 app.get("/api/images", async (req, res) => {
 
-    const query = Analyzer.cleanText(req.query.q);
+    const query = requiredQuery(req);
 
     if (!query) {
 
@@ -5556,6 +5615,19 @@ app.use(
     res,
     next
   ) => {
+
+    if (error && error.type === "entity.parse.failed") {
+      console.error("GEÇERSİZ JSON:", error.message);
+      return res
+        .status(400)
+        .json({
+          ok: false,
+          error: {
+            code: "INVALID_JSON",
+            message: "Gönderilen JSON verisi geçersiz."
+          }
+        });
+    }
 
     console.error(
       "SUNUCU HATASI:",
