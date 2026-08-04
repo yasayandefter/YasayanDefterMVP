@@ -130,6 +130,15 @@ async function run() {
         assert.ok(result.json.reliability.score >= 0 && result.json.reliability.score <= 100);
         if (result.json.reliabilitySources !== undefined) assert.ok(Array.isArray(result.json.reliabilitySources));
       }
+      assert.ok(result.json.structuredContent);
+      assert.equal(typeof result.json.structuredContent.version, "string");
+      assert.equal(typeof result.json.structuredContent.summary, "string");
+      assert.ok(Array.isArray(result.json.structuredContent.sections));
+      assert.ok(Array.isArray(result.json.structuredContent.keyConcepts));
+      assert.ok(Array.isArray(result.json.structuredContent.keyFacts));
+      assert.ok(Array.isArray(result.json.structuredContent.followUpQuestions));
+      assert.ok(result.json.structuredContent.generatedFrom);
+      assert.doesNotThrow(() => JSON.stringify(result.json.structuredContent));
       for (const article of result.json.articles || []) {
         if (article.reliabilityScore !== undefined) {
           assert.ok(article.reliabilityScore >= 0 && article.reliabilityScore <= 100);

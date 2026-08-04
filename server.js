@@ -17,6 +17,7 @@ const Network = require("./brain/network");
 const Research = require("./brain/research");
 const logger = require("./brain/logger");
 const sourceReliability = require("./brain/sourceReliability");
+const contentStructurer = require("./brain/contentStructurer");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -3417,10 +3418,13 @@ function isHealthTopic(analysis = {}) {
   ].some(signal => value.includes(normalize(signal)));
 }
 
-async function research(query) {
+async function research(query, options = {}) {
 
   const cleanQuery =
     cleanText(query);
+  const audienceLevel = ["child", "middle_school", "high_school", "general"].includes(options.audienceLevel)
+    ? options.audienceLevel
+    : "general";
 
   if (!cleanQuery) {
 
@@ -3996,6 +4000,51 @@ async function research(query) {
     });
   }
 
+  let structuredContent = null;
+  const contentStartedAt = Date.now();
+  logger.info("content.structuring_started", {
+    sourceCount: sources.length,
+    articleCount: articles.length,
+    audienceLevel
+  });
+  try {
+    structuredContent = contentStructurer.buildStructuredContent({
+      topic: cleanQuery,
+      articles,
+      sourceCount: reliability.sourceCount,
+      usedFallback: Boolean(researchUnavailable || articles.some(article => article?.source === "Yerel Brain Engine"))
+    }, { topic: cleanQuery, audienceLevel });
+    logger.info("content.structuring_completed", {
+      sourceCount: sources.length,
+      articleCount: articles.length,
+      sentenceCount: structuredContent.sections.reduce((count, section) => count + section.points.length, 0),
+      sectionCount: structuredContent.sections.length,
+      keyConceptCount: structuredContent.keyConcepts.length,
+      keyFactCount: structuredContent.keyFacts.length,
+      durationMs: Date.now() - contentStartedAt,
+      audienceLevel,
+      usedFallback: structuredContent.generatedFrom.usedFallback
+    });
+  } catch (error) {
+    logger.error("content.structuring_failed", error, {
+      sourceCount: sources.length,
+      articleCount: articles.length,
+      errorCode: "CONTENT_STRUCTURING_FAILED",
+      durationMs: Date.now() - contentStartedAt,
+      audienceLevel
+    });
+    structuredContent = {
+      version: "1.0",
+      topic: cleanQuery,
+      audienceLevel,
+      summary: "Bu konu için yapılandırılmış içerik üretilemedi.",
+      introduction: "Kaynak metni yetersiz.",
+      sections: [], keyConcepts: [], keyFacts: [], interestingFacts: [], followUpQuestions: [],
+      contentWarnings: [], limitations: ["İçerik yapılandırma işlemi tamamlanamadı."],
+      generatedFrom: { sourceCount: sources.length, articleCount: articles.length, usedFallback: true }
+    };
+  }
+
   /* --------------------------------------------------------
      SONUÇ
   -------------------------------------------------------- */
@@ -4113,6 +4162,8 @@ async function research(query) {
         : [],
 
     reliability,
+
+    structuredContent,
 
 
     researchUnavailable,
@@ -4642,9 +4693,9 @@ app.get(
       });
 
       const result =
-        await research(
-          query
-        );
+        await research(query, {
+          audienceLevel: req.query?.audienceLevel
+        });
 
       res.json(
         result
