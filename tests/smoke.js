@@ -126,6 +126,15 @@ async function run() {
       for (const field of ["articles", "images", "related", "sources"]) {
         assert.ok(Object.prototype.hasOwnProperty.call(result.json, field), `Eksik alan: ${field}`);
       }
+      if (result.json.reliability) {
+        assert.ok(result.json.reliability.score >= 0 && result.json.reliability.score <= 100);
+        if (result.json.reliabilitySources !== undefined) assert.ok(Array.isArray(result.json.reliabilitySources));
+      }
+      for (const article of result.json.articles || []) {
+        if (article.reliabilityScore !== undefined) {
+          assert.ok(article.reliabilityScore >= 0 && article.reliabilityScore <= 100);
+        }
+      }
       assert.ok(requestIdOf(result));
       assertNoObjectString(result);
     });

@@ -16,6 +16,7 @@ const Wikipedia = require("./brain/wikipedia");
 const Network = require("./brain/network");
 const Research = require("./brain/research");
 const logger = require("./brain/logger");
+const sourceReliability = require("./brain/sourceReliability");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -3958,6 +3959,43 @@ async function research(query) {
 
     ]);
 
+  let reliability = {
+    score: 0,
+    level: "low",
+    sourceCount: 0,
+    independentDomainCount: 0,
+    highQualitySourceCount: 0
+  };
+  const reliabilityStartedAt = Date.now();
+  logger.info("reliability.scoring_started", { sourceCount: articles.length });
+  try {
+    const reliabilitySources = sourceReliability.rankSources(articles, {
+      query: cleanQuery,
+      sources: articles
+    });
+    reliability = sourceReliability.summarizeReliability(reliabilitySources);
+    const scoredByKey = new Map(reliabilitySources.map(item => [item.canonicalUrl || `${item.domain}|${item.title}`, item]));
+    articles = articles.map(article => {
+      const key = sourceReliability.normalizeSource(article).canonicalUrl || `${sourceReliability.normalizeSource(article).domain}|${sourceReliability.normalizeSource(article).title}`;
+      const scored = scoredByKey.get(key);
+      return scored ? { ...article, reliabilityScore: scored.reliabilityScore, reliabilityLevel: scored.reliabilityLevel, reliabilityReasons: scored.reliabilityReasons } : article;
+    });
+    logger.info("reliability.scoring_completed", {
+      sourceCount: articles.length,
+      scoredSourceCount: reliabilitySources.length,
+      independentDomainCount: reliability.independentDomainCount,
+      highQualitySourceCount: reliability.highQualitySourceCount,
+      durationMs: Date.now() - reliabilityStartedAt
+    });
+  } catch (error) {
+    logger.error("reliability.scoring_failed", error, {
+      sourceCount: articles.length,
+      scoredSourceCount: 0,
+      errorCode: "RELIABILITY_FAILED",
+      durationMs: Date.now() - reliabilityStartedAt
+    });
+  }
+
   /* --------------------------------------------------------
      SONUÇ
   -------------------------------------------------------- */
@@ -4073,6 +4111,9 @@ async function research(query) {
       sources.length
         ? sources
         : [],
+
+    reliability,
+
 
     researchUnavailable,
 
