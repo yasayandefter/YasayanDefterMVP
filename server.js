@@ -15,6 +15,20 @@ const Images = require("./brain/images");
 const Wikipedia = require("./brain/wikipedia");
 const Network = require("./brain/network");
 const Research = require("./brain/research");
+const logger = require("./brain/logger");
+
+// Legacy backend messages are routed through the central redacting logger.
+// Only the fixed first message is retained; query values and objects are not logged.
+function bridgeConsole(level, args) {
+  const message = args.length && typeof args[0] === "string"
+    ? args[0]
+    : "legacy.console";
+  logger[level]("legacy.console", { message });
+}
+console.log = (...args) => bridgeConsole("info", args);
+console.info = (...args) => bridgeConsole("info", args);
+console.warn = (...args) => bridgeConsole("warn", args);
+console.error = (...args) => bridgeConsole("error", args);
 
 const {
 
@@ -101,16 +115,29 @@ function installResponseContract(req, res, next) {
     return sendJSON(payload);
   };
   const started = Date.now();
-  res.on("finish", () => {
-    console.info(JSON.stringify({
+  const isApiRequest = req.path.startsWith("/api");
+  if (isApiRequest) {
+    logger.info("request.started", {
       requestId: req.requestId,
       method: req.method,
       path: req.path,
-      status: res.statusCode,
-      durationMs: Date.now() - started
-    }));
+      queryLength: typeof req.originalUrl === "string"
+        ? (req.originalUrl.split("?")[1] || "").length
+        : 0
+    });
+  }
+  res.on("finish", () => {
+    if (isApiRequest) {
+      logger.info("request.completed", {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs: Date.now() - started
+      });
+    }
   });
-  next();
+  return logger.runWithRequest(req.requestId, next);
 }
 
 app.use(express.static(__dirname));
@@ -1210,7 +1237,11 @@ async function wikipediaSearch(
   const wikiLanguage = language === "en" ? "en" : "tr";
   const cacheKey = `${wikiLanguage}:${normalize(query)}`;
   const cached = WIKIPEDIA_CACHE.get(cacheKey);
-  if (cached && cached.expires > Date.now()) return cached.value;
+  if (cached && cached.expires > Date.now()) {
+    logger.info("cache.hit", { source: `wikipedia:${wikiLanguage}`, queryLength: String(query || "").length });
+    return cached.value;
+  }
+  logger.info("cache.miss", { source: `wikipedia:${wikiLanguage}`, queryLength: String(query || "").length });
 
   const url =
     `https://${wikiLanguage}.wikipedia.org/w/api.php` +
@@ -1230,15 +1261,12 @@ async function wikipediaSearch(
     "&inprop=url" +
     "&format=json" +
     "&origin=*";
-  console.log("Wikipedia URL:", url);
-
+  logger.info("source.request_started", {
+    source: `wikipedia:${wikiLanguage}`,
+    queryLength: String(query || "").length
+  });
   const data =
     await fetchJSON(url);
-
-  console.log(
-    "Wikipedia cevabı:",
-    JSON.stringify(data, null, 2)
-  );
 
   const pages =
     data.query?.pages || {};
@@ -1287,6 +1315,10 @@ async function wikipediaSearch(
       };
     })
     .filter(Boolean);
+  logger.info("source.request_succeeded", {
+    source: `wikipedia:${wikiLanguage}`,
+    resultCount: results.length
+  });
   if (results.length) {
     WIKIPEDIA_CACHE.set(cacheKey, {
       value: results,
@@ -1608,7 +1640,11 @@ async function wikimediaImages(
 ) {
   const cacheKey = `${normalizeTopic(query)}:${limit}`;
   const cached = WIKIMEDIA_CACHE.get(cacheKey);
-  if (cached && cached.expires > Date.now()) return cached.value;
+  if (cached && cached.expires > Date.now()) {
+    logger.info("cache.hit", { source: "wikimedia", queryLength: String(query || "").length });
+    return cached.value;
+  }
+  logger.info("cache.miss", { source: "wikimedia", queryLength: String(query || "").length });
 
   const url =
     "https://commons.wikimedia.org/w/api.php" +
@@ -1624,6 +1660,10 @@ async function wikimediaImages(
     "&iiurlwidth=1200" +
     "&format=json" +
     "&origin=*";
+  logger.info("source.request_started", {
+    source: "wikimedia",
+    queryLength: String(query || "").length
+  });
 
   const data = await fetchJSON(url);
 
@@ -1715,6 +1755,11 @@ async function wikimediaImages(
     })
 
     .slice(0, 6);
+
+  logger.info("source.request_succeeded", {
+    source: "wikimedia",
+    resultCount: results.length
+  });
 
   if (results.length) {
     WIKIMEDIA_CACHE.set(cacheKey, {
@@ -3419,12 +3464,12 @@ async function research(query) {
   }
   catch (error) {
 
-    console.warn(
-      "Wikipedia araştırması başarısız:",
-      error.message
-    );
-
     articles = [];
+    logger.warn("source.request_failed", {
+      source: "wikipedia",
+      errorName: error.name,
+      errorMessage: error.message
+    });
   }
 
   /* --------------------------------------------------------
@@ -3559,10 +3604,11 @@ async function research(query) {
   }
   catch (error) {
 
-    console.warn(
-      "Web araması başarısız:",
-      error.message
-    );
+    logger.warn("source.request_failed", {
+      source: "web",
+      errorName: error.name,
+      errorMessage: error.message
+    });
   }
 
   /* --------------------------------------------------------
@@ -3588,12 +3634,12 @@ async function research(query) {
   }
   catch (error) {
 
-    console.warn(
-      "Görseller alınamadı:",
-      error.message
-    );
-
     images = [];
+    logger.warn("source.request_failed", {
+      source: "wikimedia",
+      errorName: error.name,
+      errorMessage: error.message
+    });
   }
 
   /* --------------------------------------------------------
@@ -3813,10 +3859,10 @@ async function research(query) {
       fallbackArticle
     ];
 
-    console.warn(
-      "Harici araştırma kaynağı bulunamadı; yerel Brain Engine fallback'i kullanıldı.",
-      analysis.topic
-    );
+    logger.warn("research.fallback_used", {
+      fallbackReason: "no_external_text_source",
+      resultCount: 1
+    });
   } else if (!articles.length && healthTopic) {
     researchUnavailable = true;
     console.warn(
@@ -4548,6 +4594,12 @@ app.get(
 
     try {
 
+      const researchStartedAt = Date.now();
+      logger.info("research.started", {
+        requestId: req.requestId,
+        queryLength: query.length
+      });
+
       const result =
         await research(
           query
@@ -4557,14 +4609,21 @@ app.get(
         result
       );
 
+      logger.info("research.completed", {
+        requestId: req.requestId,
+        durationMs: Date.now() - researchStartedAt,
+        resultCount: Array.isArray(result.articles) ? result.articles.length : 0,
+        imageCount: Array.isArray(result.images) ? result.images.length : 0
+      });
+
     }
 
     catch (error) {
 
-      console.error(
-        "ARAŞTIRMA HATASI:",
-        error.message
-      );
+      logger.error("research.failed", error, {
+        requestId: req.requestId,
+        errorCode: "RESEARCH_FAILED"
+      });
 
       res
         .status(500)
@@ -5617,7 +5676,10 @@ app.use(
   ) => {
 
     if (error && error.type === "entity.parse.failed") {
-      console.error("GEÇERSİZ JSON:", error.message);
+      logger.error("request.invalid_json", error, {
+        requestId: req.requestId,
+        errorCode: "INVALID_JSON"
+      });
       return res
         .status(400)
         .json({
@@ -5629,10 +5691,10 @@ app.use(
         });
     }
 
-    console.error(
-      "SUNUCU HATASI:",
-      error
-    );
+    logger.error("server.error", error, {
+      requestId: req.requestId,
+      errorCode: "INTERNAL_ERROR"
+    });
 
     res
       .status(500)

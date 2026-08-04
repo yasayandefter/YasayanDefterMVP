@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:smoke": "node tests/smoke.js"
+    "test:smoke": "node tests/smoke.js",
+    "test:logger": "node tests/logger.js",
+    "test": "npm run test:logger && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
