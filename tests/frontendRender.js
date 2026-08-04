@@ -3,6 +3,9 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "result-renderers.js"), "utf8");
+const appSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "app.js"), "utf8");
+const styleSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "css", "style.css"), "utf8");
+const htmlSource = fs.readFileSync(require("node:path").join(__dirname, "..", "index.html"), "utf8");
 const context = { window: { location: { href: "http://localhost/" } }, URL, Set, console };
 vm.runInNewContext(source, context);
 const renderers = context.window.ResultRenderers;
@@ -71,5 +74,25 @@ const legacyNull = renderers.buildResultViewModel({ ok: true, title: null, text:
 assert.equal(legacyNull.title, "Araştırma sonucu");
 assert.equal(legacyNull.summary, "");
 assert.equal(legacyNull.safeImage, "");
+
+assert.match(appSource, /initializeHorizontalRails\(\)/);
+assert.match(appSource, /\.professional-concept-grid/);
+assert.match(appSource, /\.professional-interesting-list/);
+assert.match(appSource, /#imagesContainer/);
+assert.match(appSource, /#flashcardsContainer/);
+assert.match(appSource, /#relatedContainer/);
+assert.match(appSource, /#sourcesContainer/);
+assert.match(appSource, /const seen = new Set\(\);/);
+assert.match(appSource, /toLocaleLowerCase\("tr-TR"\)/);
+assert.match(appSource, /ArrowLeft.*ArrowRight.*Home.*End/s);
+assert.match(appSource, /previous\.disabled = singleItem \|\| atStart/);
+assert.match(appSource, /next\.disabled = singleItem \|\| atEnd/);
+assert.match(appSource, /hint\.hidden = !scrollable/);
+assert.match(styleSource, /overflow-x:auto/);
+assert.match(styleSource, /prefers-reduced-motion:reduce/);
+assert.doesNotMatch(appSource, /setInterval\([^\n]*horizontal|setTimeout\([^\n]*rail/);
+assert.match(htmlSource, /id="imagesContainer"/);
+assert.match(htmlSource, /id="flashcardsContainer"/);
+assert.match(htmlSource, /id="relatedContainer"/);
 
 console.log("PASS  frontend result model, URL safety, fallbacks, allowlists, and deduplication");

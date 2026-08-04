@@ -571,7 +571,7 @@ function renderProfessionalResult(data) {
     if (model.interestingFacts.length) {
         const card = createSafeElement("section", "professional-result-card");
         card.appendChild(createSafeElement("h3", "professional-card-title", "İlginç Bilgiler"));
-        const list = createSafeElement("ul", "professional-point-list");
+        const list = createSafeElement("ul", "professional-point-list professional-interesting-list");
         model.interestingFacts.forEach(fact => list.appendChild(createSafeElement("li", "", fact)));
         card.appendChild(list);
         host.appendChild(card);
@@ -886,9 +886,154 @@ renderStats(data);
 
 renderSources(data);
 
+initializeHorizontalRails();
+
 updateSaveButton();
 
 }
+
+/* =========================================================
+   HORIZONTAL RESULT RAILS
+========================================================= */
+
+const horizontalRailRegistry = new Set();
+let horizontalRailResizeBound = false;
+
+function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function railHasRealItems(container) {
+    return Array.from(container.children).some(child =>
+        !child.classList.contains("fact") || child.children.length > 1
+    );
+}
+
+function updateHorizontalRail(rail) {
+    const { container, previous, next, count, hint } = rail;
+    const max = Math.max(0, container.scrollWidth - container.clientWidth);
+    const atStart = container.scrollLeft <= 2;
+    const atEnd = container.scrollLeft >= max - 2;
+    const singleItem = container.children.length <= 1;
+    previous.disabled = singleItem || atStart;
+    next.disabled = singleItem || atEnd;
+    count.textContent = `${container.children.length} öğe`;
+    const scrollable = !singleItem && max > 2;
+    rail.controls.classList.toggle("is-scrollable", scrollable);
+    hint.hidden = !scrollable;
+    hint.setAttribute("aria-hidden", String(!scrollable));
+}
+
+function scrollHorizontalRail(rail, direction) {
+    const first = rail.container.firstElementChild;
+    const amount = Math.max(rail.container.clientWidth * 0.72, first ? first.getBoundingClientRect().width + 12 : 240);
+    rail.container.scrollBy({
+        left: direction * amount,
+        behavior: prefersReducedMotion() ? "auto" : "smooth"
+    });
+}
+
+function createHorizontalRail(container) {
+    if (!container || container.dataset.horizontalRail === "true") {
+        return container && container._horizontalRail;
+    }
+    if (!railHasRealItems(container)) return null;
+
+    const parent = container.parentElement;
+    if (!parent) return null;
+
+    const section = container.closest(".section, .professional-result-card");
+    const title = section?.querySelector(".section-title, .professional-card-title")?.textContent?.trim() || "İçerik";
+    const controls = document.createElement("div");
+    controls.className = "yd-rail-controls";
+    controls.setAttribute("role", "group");
+    controls.setAttribute("aria-label", `${title} kaydırma kontrolleri`);
+
+    const count = document.createElement("span");
+    count.className = "yd-rail-count";
+    const hint = document.createElement("span");
+    hint.className = "yd-rail-hint";
+    hint.textContent = "Yana kaydır";
+    const previous = document.createElement("button");
+    previous.type = "button";
+    previous.className = "yd-rail-arrow";
+    previous.setAttribute("aria-label", `${title} önceki kart`);
+    previous.textContent = "←";
+    const next = document.createElement("button");
+    next.type = "button";
+    next.className = "yd-rail-arrow";
+    next.setAttribute("aria-label", `${title} sonraki kart`);
+    next.textContent = "→";
+
+    controls.append(count, hint, previous, next);
+    parent.insertBefore(controls, container);
+    container.classList.add("yd-horizontal-rail");
+    container.dataset.horizontalRail = "true";
+    container.tabIndex = 0;
+    container.setAttribute("aria-label", `${title} yatay kart listesi`);
+
+    const rail = { container, controls, count, hint, previous, next };
+    container._horizontalRail = rail;
+    horizontalRailRegistry.add(container);
+    previous.addEventListener("click", () => scrollHorizontalRail(rail, -1));
+    next.addEventListener("click", () => scrollHorizontalRail(rail, 1));
+    container.addEventListener("scroll", () => updateHorizontalRail(rail), { passive: true });
+    container.addEventListener("keydown", event => {
+        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            if (event.key === "Home") container.scrollTo({ left: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+            else if (event.key === "End") container.scrollTo({ left: container.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+            else scrollHorizontalRail(rail, event.key === "ArrowRight" ? 1 : -1);
+        }
+    });
+    updateHorizontalRail(rail);
+    requestAnimationFrame(() => {
+        if (container.isConnected) updateHorizontalRail(rail);
+    });
+    return rail;
+}
+
+function initializeHorizontalRails() {
+    const selectors = [
+        ".professional-concept-grid",
+        ".professional-fact-list",
+        ".professional-source-grid",
+        ".professional-question-grid",
+        ".professional-interesting-list",
+        "#factsContainer",
+        "#imagesContainer",
+        "#flashcardsContainer",
+        "#memoryContainer",
+        "#knowledgeMap",
+        "#followContainer",
+        "#relatedContainer",
+        "#sourcesContainer"
+    ];
+    horizontalRailRegistry.forEach(container => {
+        if (!container.isConnected) horizontalRailRegistry.delete(container);
+    });
+    selectors.forEach(selector => {
+        const container = document.querySelector(selector);
+        if (!container) return;
+        const rail = createHorizontalRail(container);
+        if (rail) {
+            if (container.dataset.horizontalRail === "true") updateHorizontalRail(rail);
+        }
+    });
+    if (!horizontalRailResizeBound) {
+        horizontalRailResizeBound = true;
+        window.addEventListener("resize", () => {
+            horizontalRailRegistry.forEach(container => {
+                if (!container.isConnected) {
+                    horizontalRailRegistry.delete(container);
+                } else if (container._horizontalRail) {
+                    updateHorizontalRail(container._horizontalRail);
+                }
+            });
+        }, { passive: true });
+    }
+}
+
 /* =========================================================
    AI LESSON ENGINE
 ========================================================= */
@@ -1906,6 +2051,7 @@ function normalizeList(value){
 
 if(!Array.isArray(value)) return [];
 
+const seen = new Set();
 return value
 .map(item=>{
 
@@ -1933,7 +2079,16 @@ item?.link ||
 };
 
 })
-.filter(item=>item.title);
+.filter(item=>{
+    if(!item.title) return false;
+    const key = item.title
+        .trim()
+        .toLocaleLowerCase("tr-TR")
+        .replace(/[\s\p{P}\p{S}]+/gu, " ");
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+});
 
 }
 function renderKnowledgeMap(map){
