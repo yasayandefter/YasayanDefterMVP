@@ -63,6 +63,7 @@
         var button = document.getElementById("searchButton"); if (button) button.addEventListener("click", function () { var value = input.value.trim(); if (!value) return; state.research += 1; state.xp += 10; state.recent = [value].concat(state.recent.filter(function (x) { return x !== value; })).slice(0, 6); save(); renderProfile(); toast("Araştırma öğrenme paneline eklendi."); }, true);
     }
     function addQuizTracking() {
+        return;
         var result = document.getElementById("quizResult"); if (!result || !window.MutationObserver) return;
         var previous = ""; new MutationObserver(function () { var current = result.textContent.trim(); if (current && current !== previous && /başar|doğru|puan|score/i.test(current)) { state.quizzes += 1; state.xp += 25; save(); renderProfile(); toast("Quiz tamamlandı. XP kazandın!"); } previous = current; }).observe(result, { childList: true, subtree: true, characterData: true });
     }

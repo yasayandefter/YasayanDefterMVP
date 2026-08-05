@@ -11,7 +11,8 @@
     "test:content": "node tests/contentStructurer.js",
     "test:frontend": "node tests/frontendRender.js",
     "test:memory": "node tests/memory.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:frontend && npm run test:memory && npm run test:smoke"
+    "test:quiz": "node tests/quiz.js",
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

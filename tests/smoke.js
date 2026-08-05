@@ -138,6 +138,9 @@ async function run() {
       assert.ok(Array.isArray(result.json.structuredContent.keyFacts));
       assert.ok(Array.isArray(result.json.structuredContent.followUpQuestions));
       assert.ok(result.json.structuredContent.generatedFrom);
+      assert.ok(result.json.quizPro);
+      assert.ok(Array.isArray(result.json.quizPro.questions));
+      assert.ok(result.json.quizPro.questions.length <= 5);
       assert.doesNotThrow(() => JSON.stringify(result.json.structuredContent));
       for (const article of result.json.articles || []) {
         if (article.reliabilityScore !== undefined) {

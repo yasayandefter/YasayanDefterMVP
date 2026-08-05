@@ -19,6 +19,7 @@ const logger = require("./brain/logger");
 const sourceReliability = require("./brain/sourceReliability");
 const contentStructurer = require("./brain/contentStructurer");
 const livingMemory = require("./brain/livingMemory");
+const quizEngine = require("./brain/quizEngine");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -4731,6 +4732,12 @@ app.get(
           audienceLevel: req.query?.audienceLevel
         });
 
+      result.quizPro = quizEngine.buildQuiz(result, {
+        count: 5,
+        difficulty: "medium",
+        type: "multiple-choice"
+      });
+
       try {
         const memoryEntry = saveResearchToMemory(result);
         const memoryItems = readLearningMemory();
@@ -5167,6 +5174,16 @@ app.post(
 /* ========================================================
    API — QUIZ
 ======================================================== */
+
+app.post("/api/quiz/generate", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const researchData = body.research && typeof body.research === "object" ? body.research : body;
+  const count = Math.min(10, Math.max(3, Number(body.count) || 5));
+  const difficulty = quizEngine.normalizeDifficulty(body.difficulty);
+  const type = quizEngine.normalizeType(body.type);
+  const quiz = quizEngine.buildQuiz(researchData, { count, difficulty, type });
+  res.json({ ok: true, quiz });
+});
 
 app.post(
   "/api/memory/quiz",

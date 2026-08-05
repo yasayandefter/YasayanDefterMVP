@@ -3148,6 +3148,17 @@ input:focus{
 @media (max-width:600px){.knowledge-map-svg{width:760px;min-height:270px}.knowledge-map-graph{margin-inline:-4px}.knowledge-map-node text{font-size:12px}}
 @media (prefers-reduced-motion:reduce){.knowledge-map-node circle,.knowledge-map-skeleton{transition:none;animation:none}}
 
+/* ===========================
+   QUIZ PRO
+=========================== */
+.quiz-pro-settings{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:0 0 18px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.04)}
+.quiz-pro-settings label{display:grid;gap:5px;color:#9da9c7;font-size:12px;font-weight:700}.quiz-pro-settings select{min-height:38px;padding:0 10px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:#11152d;color:#eaf0ff}
+.quiz-pro-button,.quiz-pro-skip{min-height:42px;padding:0 16px;border:1px solid rgba(0,212,255,.35);border-radius:10px;background:linear-gradient(135deg,#6c3bff,#00aee8);color:#fff;font:inherit;font-weight:800;cursor:pointer}.quiz-pro-skip{margin-top:10px;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18)}.quiz-pro-button:disabled{opacity:.45;cursor:not-allowed}
+.quiz-pro-options{display:grid;gap:10px;margin-top:16px}.quiz-pro-options .quiz-option{min-height:48px;text-align:left}.quiz-pro-progress{height:7px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.1)}.quiz-pro-progress span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#6c3bff,#00d4ff);transition:width .2s ease}
+.quiz-result ul{margin:10px 0;padding-left:20px}.quiz-result .quiz-pro-button{margin-top:12px}.quiz-pro-settings:focus-within,.quiz-option:focus-visible,.quiz-pro-button:focus-visible,.quiz-pro-skip:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media (max-width:600px){.quiz-pro-settings{display:grid;grid-template-columns:1fr}.quiz-pro-settings select,.quiz-pro-button,.quiz-pro-skip{width:100%}.quiz-pro-options .quiz-option{min-height:52px}}
+@media (prefers-reduced-motion:reduce){.quiz-pro-progress span{transition:none}}
+
 /* ==========================================================
    PHASE 1 LANDING PAGE — PREMIUM PRODUCT LAYER
 ========================================================== */

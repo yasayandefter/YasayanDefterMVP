@@ -12,6 +12,10 @@ let currentAnalysis = null;
 let currentSpeech = null;
 let currentSpeechRate = 1;
 let quizAnswered = false;
+let activeProQuiz = null;
+let activeProQuizIndex = 0;
+let activeProQuizAnswers = [];
+let activeProQuizChecked = false;
 let researchSequence = 0;
 let activeResearchController = null;
 let livingMemoryRequest = null;
@@ -1815,7 +1819,157 @@ return "";
    QUIZ
 ========================================================= */
 
+function quizText(value) {
+    if (typeof value !== "string" && typeof value !== "number") return "";
+    const clean = String(value).replace(/\s+/g, " ").trim();
+    return /\[object Object\]|undefined|null|Error/i.test(clean) ? "" : clean;
+}
+
+function ensureProQuizSettings() {
+    const question = $("quizQuestion");
+    if (!question || $("quizProSettings")) return;
+    const settings = document.createElement("div");
+    settings.id = "quizProSettings";
+    settings.className = "quiz-pro-settings";
+    settings.setAttribute("role", "group");
+    settings.setAttribute("aria-label", "Quiz ayarları");
+    [["quizProDifficulty", "Zorluk", [["easy", "Kolay"], ["medium", "Orta"], ["hard", "Zor"]]], ["quizProCount", "Soru sayısı", [["5", "5 soru"], ["10", "10 soru"]]], ["quizProType", "Soru türü", [["multiple-choice", "Çoktan seçmeli"], ["true-false", "Doğru / Yanlış"]]]].forEach(([id, label, values]) => {
+        const wrap = document.createElement("label");
+        wrap.textContent = `${label}: `;
+        const select = document.createElement("select");
+        select.id = id;
+        select.setAttribute("aria-label", label);
+        values.forEach(([value, name]) => { const option = document.createElement("option"); option.value = value; option.textContent = name; select.appendChild(option); });
+        wrap.appendChild(select);
+        settings.appendChild(wrap);
+    });
+    const start = document.createElement("button");
+    start.type = "button";
+    start.id = "quizProStart";
+    start.className = "quiz-pro-button";
+    start.textContent = "Quiz'i Başlat";
+    start.addEventListener("click", async () => {
+        if (!currentResearch) return;
+        start.disabled = true;
+        try {
+            const response = await fetch(API + "/api/quiz/generate", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: Number($("quizProCount")?.value || 5), difficulty: $("quizProDifficulty")?.value || "medium", type: $("quizProType")?.value || "multiple-choice" }) });
+            const payload = await response.json();
+            if (!response.ok || !payload.quiz) throw new Error("Quiz oluşturulamadı.");
+            if (!payload.quiz.questions?.length) throw new Error("Bu konu için güvenli soru bulunamadı.");
+            renderProQuiz(payload.quiz, currentResearch, true);
+        } catch (error) {
+            const result = $("quizResult");
+            if (result) { result.className = "quiz-result bad"; result.textContent = "Bu konu için güvenli biçimde hazırlanabilen soru sayısı sınırlıydı."; }
+        } finally { start.disabled = false; }
+    });
+    settings.appendChild(start);
+    question.parentNode.insertBefore(settings, question);
+}
+
+function proQuizNormalize(value) {
+    return quizText(value).toLocaleLowerCase("tr-TR").replace(/[\s\p{P}\p{S}]+/gu, " ");
+}
+
+function proQuizXp(result) {
+    if (!result?.quizId) return;
+    const key = "yasayan-defter-quiz-attempts";
+    let attempts = [];
+    try { attempts = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_) { attempts = []; }
+    if (!Array.isArray(attempts) || attempts.includes(result.quizId)) return;
+    attempts = attempts.slice(-49);
+    attempts.push(result.quizId);
+    try { localStorage.setItem(key, JSON.stringify(attempts)); } catch (_) { return; }
+    try {
+        const profileKey = "yasayan-defter-commercial-profile";
+        const profile = JSON.parse(localStorage.getItem(profileKey) || "{}");
+        profile.xp = Number(profile.xp) || 0;
+        profile.quizzes = Number(profile.quizzes) || 0;
+        profile.xp += result.correct * ({ easy: 5, medium: 8, hard: 12 }[result.difficulty] || 8) + 10 + (result.percentage === 100 ? 15 : 0);
+        profile.quizzes += 1;
+        localStorage.setItem(profileKey, JSON.stringify(profile));
+    } catch (_) { /* optional profile storage */ }
+}
+
+function renderProQuiz(quiz, data, restart = false) {
+    ensureProQuizSettings();
+    activeProQuiz = quiz;
+    if (restart) {
+        activeProQuizIndex = 0;
+        activeProQuizAnswers = [];
+    }
+    activeProQuizChecked = false;
+    renderProQuizQuestion();
+}
+
+function renderProQuizQuestion() {
+    const question = $("quizQuestion");
+    const options = $("quizOptions");
+    const result = $("quizResult");
+    if (!question || !options || !result || !activeProQuiz?.questions?.length) return;
+    const item = activeProQuiz.questions[activeProQuizIndex];
+    activeProQuizChecked = false;
+    question.textContent = `Soru ${activeProQuizIndex + 1} / ${activeProQuiz.questions.length}: ${quizText(item.prompt)}`;
+    question.setAttribute("tabindex", "-1");
+    options.replaceChildren();
+    result.replaceChildren();
+    result.className = "quiz-result";
+    const progress = document.createElement("div");
+    progress.className = "quiz-pro-progress";
+    progress.setAttribute("role", "progressbar");
+    progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", activeProQuiz.questions.length); progress.setAttribute("aria-valuenow", activeProQuizIndex + 1);
+    const bar = document.createElement("span"); bar.style.width = `${((activeProQuizIndex + 1) / activeProQuiz.questions.length) * 100}%`; progress.appendChild(bar); options.appendChild(progress);
+    const group = document.createElement("div"); group.className = "quiz-pro-options"; group.setAttribute("role", "group"); group.setAttribute("aria-label", "Cevap seçenekleri");
+    (item.options || []).forEach(option => {
+        const button = document.createElement("button"); button.type = "button"; button.className = "quiz-option"; button.textContent = quizText(option); button.addEventListener("click", () => checkProQuizAnswer(button.textContent, button, item)); group.appendChild(button);
+    });
+    options.appendChild(group);
+    const skip = document.createElement("button"); skip.type = "button"; skip.className = "quiz-pro-skip"; skip.textContent = "Atla"; skip.addEventListener("click", () => checkProQuizAnswer("", null, item)); options.appendChild(skip);
+    question.focus({ preventScroll: true });
+}
+
+function checkProQuizAnswer(answer, clicked, item) {
+    if (activeProQuizChecked) return;
+    activeProQuizChecked = true;
+    const accepted = (item.acceptedAnswers || [item.correctAnswer]).map(proQuizNormalize);
+    const correct = accepted.includes(proQuizNormalize(answer));
+    activeProQuizAnswers[activeProQuizIndex] = { correct, skipped: !quizText(answer), answer: quizText(answer), question: item };
+    document.querySelectorAll("#quizOptions .quiz-option").forEach(button => {
+        button.disabled = true;
+        if (accepted.includes(proQuizNormalize(button.textContent))) button.classList.add("correct");
+    });
+    if (clicked) clicked.classList.add(correct ? "correct" : "wrong");
+    const result = $("quizResult");
+    result.className = `quiz-result ${correct ? "good" : "bad"}`;
+    result.setAttribute("aria-live", "polite");
+    result.textContent = `${correct ? "Doğru." : (quizText(answer) ? "Bu cevap doğru değil." : "Soru atlandı.")} ${quizText(item.explanation)}`;
+    const next = document.createElement("button"); next.type = "button"; next.className = "quiz-pro-button"; next.textContent = activeProQuizIndex + 1 < activeProQuiz.questions.length ? "Sonraki soru" : "Sonuçları gör"; next.addEventListener("click", () => { if (activeProQuizIndex + 1 < activeProQuiz.questions.length) { activeProQuizIndex += 1; renderProQuizQuestion(); } else completeProQuiz(); }); result.appendChild(next);
+}
+
+function completeProQuiz() {
+    const rows = activeProQuizAnswers;
+    const total = activeProQuiz.questions.length;
+    const correct = rows.filter(item => item?.correct).length;
+    const skipped = rows.filter(item => item?.skipped).length;
+    const wrong = total - correct - skipped;
+    const percentage = total ? Math.round(correct / total * 100) : 0;
+    const weak = new Map(); rows.filter(item => !item?.correct).forEach(item => { const concept = quizText(item?.question?.concept) || "Genel"; weak.set(concept, (weak.get(concept) || 0) + 1); });
+    const summary = { quizId: activeProQuiz.id, correct, wrong, skipped, total, percentage, difficulty: activeProQuiz.difficulty };
+    proQuizXp(summary);
+    fetch(API + "/api/memory/quiz", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ topic: activeProQuiz.topic || currentResearch?.query || currentResearch?.title || "", score: correct, total }) }).catch(() => {});
+    const question = $("quizQuestion"); const options = $("quizOptions"); const result = $("quizResult");
+    question.textContent = "Quiz sonucu"; options.replaceChildren(); result.replaceChildren(); result.className = "quiz-result good";
+    const summaryText = document.createElement("p"); summaryText.textContent = `${correct} doğru · ${wrong} yanlış · ${skipped} atlandı · Başarı: %${percentage}`; result.appendChild(summaryText);
+    if (weak.size) { const heading = document.createElement("strong"); heading.textContent = "Tekrar önerileri"; result.appendChild(heading); const list = document.createElement("ul"); [...weak.entries()].slice(0, 8).forEach(([concept]) => { const li = document.createElement("li"); li.textContent = `${concept}: Bu noktayı tekrar gözden geçirebilirsin.`; list.appendChild(li); }); result.appendChild(list); }
+    const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", () => { activeProQuiz = { ...activeProQuiz, id: `${activeProQuiz.id}-retry`, retry: true, questions: activeProQuiz.questions.filter((_, index) => !rows[index]?.correct) }; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); }); result.appendChild(retry);
+    completeStep("quiz");
+}
+
 function renderQuiz(quiz,data){
+
+if (data?.quizPro?.questions?.length) {
+    renderProQuiz(data.quizPro, data);
+    return;
+}
 
 const question = $("quizQuestion");
 const options = $("quizOptions");
