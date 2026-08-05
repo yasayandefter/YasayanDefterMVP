@@ -18,6 +18,7 @@ let livingMemoryRequest = null;
 let livingMemoryData = null;
 let livingMemoryController = null;
 let livingMemorySequence = 0;
+let knowledgeGraphSignature = "";
 
 let learningState = {
 summary:false,
@@ -113,6 +114,7 @@ async function researchTopic() {
 
     hideError();
     showLoading(true);
+    renderKnowledgeGraphLoading();
     const sequence = ++researchSequence;
     if (activeResearchController) activeResearchController.abort();
     const controller = new AbortController();
@@ -313,6 +315,7 @@ async function researchTopic() {
             error.message
 
         );
+        renderKnowledgeGraphError();
 
         if (statusText) {
 
@@ -864,11 +867,13 @@ normalizeList(
     []
 );
 
-renderKnowledgeMap(
-    data.knowledgeMap ||
-    ai.knowledgeMap ||
-    {}
-);
+renderKnowledgeGraph({
+    topic: data.query || data.title || ai.title || "",
+    related,
+    keyConcepts: data.structuredContent?.keyConcepts || ai.keyConcepts || [],
+    connections: livingMemoryData?.connections || [],
+    history: livingMemoryData?.history || []
+});
 
 renderRelated(related);
 
@@ -2099,6 +2104,140 @@ item?.link ||
 });
 
 }
+function renderKnowledgeGraphLoading() {
+    const container = $("knowledgeMap");
+    if (!container) return;
+    knowledgeGraphSignature = "";
+    clearMemoryNode(container);
+    container.setAttribute("aria-busy", "true");
+    const skeleton = memoryNode("div", "knowledge-map-skeleton", "Bilgi haritası hazırlanıyor…");
+    skeleton.setAttribute("role", "status");
+    skeleton.setAttribute("aria-hidden", "true");
+    container.appendChild(skeleton);
+}
+
+function renderKnowledgeGraphError() {
+    const container = $("knowledgeMap");
+    if (!container) return;
+    knowledgeGraphSignature = "";
+    clearMemoryNode(container);
+    container.removeAttribute("aria-busy");
+    const error = memoryNode("div", "knowledge-map-empty", "Bilgi haritası şu an oluşturulamadı.");
+    error.setAttribute("role", "status");
+    container.appendChild(error);
+}
+
+function renderKnowledgeGraph(map = {}) {
+    const container = $("knowledgeMap");
+    if (!container) return;
+    map = map && typeof map === "object" ? map : {};
+    container.classList.add("knowledge-map-graph");
+    container.setAttribute("aria-label", "Bilgi Haritası");
+    const text = value => (typeof value === "string" || typeof value === "number") ? String(value).trim() : "";
+    const key = value => text(value).toLocaleLowerCase("tr-TR").replace(/[\s\p{P}\p{S}]+/gu, " ");
+    const center = text(map.topic) || "Araştırma";
+    const centerKey = key(center);
+    const signature = JSON.stringify({
+        center: centerKey,
+        related: (Array.isArray(map.related) ? map.related : []).slice(0, 12).map(item => key(typeof item === "string" ? item : item?.title)),
+        connections: (Array.isArray(map.connections) ? map.connections : []).slice(0, 12).map(item => [key(item?.from), key(item?.to)]),
+        concepts: (Array.isArray(map.keyConcepts) ? map.keyConcepts : []).slice(0, 12).map(item => key(typeof item === "string" ? item : item?.term || item?.title || item?.name)),
+        history: (Array.isArray(map.history) ? map.history : []).slice(-8).map(item => key(item?.topic))
+    });
+    if (knowledgeGraphSignature === signature && container.firstChild) return;
+    knowledgeGraphSignature = signature;
+    clearMemoryNode(container);
+    const nodes = [];
+    const seen = new Set([centerKey]);
+    const edges = new Set();
+    const add = (label, kind, tag, previous = false, ring = 1) => {
+        label = text(label);
+        const normalized = key(label);
+        if (!label || seen.has(normalized) || nodes.length >= 23) return null;
+        seen.add(normalized);
+        const node = { label, kind, tag, previous, ring };
+        nodes.push(node);
+        return node;
+    };
+    const connect = node => {
+        if (!node) return;
+        const edge = [centerKey, key(node.label)].sort().join("::");
+        if (edge !== `${centerKey}::${centerKey}` && edges.size < 12) edges.add(edge);
+    };
+    (Array.isArray(map.related) ? map.related : []).slice(0, 12).forEach(item => {
+        const node = add(typeof item === "string" ? item : item?.title, "related", "İlişkili konu", false, 1);
+        connect(node);
+    });
+    (Array.isArray(map.connections) ? map.connections : []).slice(0, 12).forEach(item => {
+        const from = text(item?.from); const to = text(item?.to);
+        if (!from || !to || key(from) === key(to)) return;
+        const label = key(from) === centerKey ? to : from;
+        const node = add(label, "memory", "Hafıza bağlantısı", key(from) !== centerKey, 1);
+        connect(node);
+    });
+    (Array.isArray(map.keyConcepts) ? map.keyConcepts : []).slice(0, 12).forEach(item => {
+        const node = add(typeof item === "string" ? item : item?.term || item?.title || item?.name, "concept", "Anahtar kavram", false, 2);
+        connect(node);
+    });
+    (Array.isArray(map.history) ? map.history : []).slice(-8).forEach(item => {
+        const node = add(item?.topic, "memory", "Önceki konu", true, 2);
+        connect(node);
+    });
+    if (!nodes.length) {
+        container.appendChild(memoryNode("div", "knowledge-map-empty", "Bu konu için henüz bilgi haritası oluşturulamadı."));
+        return;
+    }
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "knowledge-map-svg");
+    svg.setAttribute("viewBox", "0 0 900 440");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `${center} bilgi haritası`);
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = `${center} bilgi haritası`;
+    svg.appendChild(title);
+    const points = new Map([[centerKey, { x: 450, y: 220 }]]);
+    nodes.forEach((node, index) => {
+        const ringNodes = nodes.filter(item => item.ring === node.ring);
+        const ringIndex = ringNodes.indexOf(node);
+        const angle = ringIndex / Math.max(1, ringNodes.length) * Math.PI * 2 - Math.PI / 2;
+        const radiusX = node.ring === 2 ? 210 : 300;
+        const radiusY = node.ring === 2 ? 105 : 150;
+        points.set(key(node.label), { x: 450 + Math.cos(angle) * radiusX, y: 220 + Math.sin(angle) * radiusY });
+    });
+    edges.forEach(edge => {
+        const [aKey, bKey] = edge.split("::");
+        const a = points.get(aKey); const b = points.get(bKey);
+        if (!a || !b) return;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", a.x); line.setAttribute("y1", a.y); line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+        line.setAttribute("class", "knowledge-map-edge");
+        line.setAttribute("aria-hidden", "true");
+        svg.appendChild(line);
+    });
+    [{ label: center, kind: "center", tag: "Araştırılan konu" }, ...nodes].forEach(node => {
+        const point = points.get(key(node.label));
+        if (!point) return;
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute("class", `knowledge-map-node is-${node.kind}${node.previous ? " is-previous" : ""}`);
+        group.setAttribute("tabindex", "0");
+        group.setAttribute("role", "button");
+        group.setAttribute("aria-label", `${node.label}, ${node.tag}`);
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", point.x); circle.setAttribute("cy", point.y); circle.setAttribute("r", node.kind === "center" ? "56" : "34");
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", point.x); label.setAttribute("y", point.y + 4); label.setAttribute("text-anchor", "middle");
+        label.textContent = node.label.length > 20 ? `${node.label.slice(0, 19)}…` : node.label;
+        group.append(circle, label);
+        if (node.kind !== "center") {
+            const activate = () => { const input = $("questionInput"); if (input) { input.value = node.label; input.focus(); researchTopic(); } };
+            group.addEventListener("click", activate);
+            group.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); } });
+        }
+        svg.appendChild(group);
+    });
+    container.appendChild(svg);
+}
+
 function renderKnowledgeMap(map){
 
     const container = $("knowledgeMap");
@@ -2372,6 +2511,16 @@ function renderLivingMemoryWorkspace(data) {
     renderMemoryStats(data.stats || {});
     renderMemoryTimeline(Array.isArray(data.history) ? data.history : []);
     initializeHorizontalRails();
+    if (currentResearch) {
+        const ai = currentResearch.ai || {};
+        renderKnowledgeGraph({
+            topic: currentResearch.query || currentResearch.title || "",
+            related: normalizeList(currentResearch.related || currentResearch.relatedTopics || ai.relatedTopics || []),
+            keyConcepts: currentResearch.structuredContent?.keyConcepts || ai.keyConcepts || [],
+            connections: data.connections || [],
+            history: data.history || []
+        });
+    }
 }
 
 function renderLivingMemoryError() {
