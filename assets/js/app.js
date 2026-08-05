@@ -14,6 +14,10 @@ let currentSpeechRate = 1;
 let quizAnswered = false;
 let researchSequence = 0;
 let activeResearchController = null;
+let livingMemoryRequest = null;
+let livingMemoryData = null;
+let livingMemoryController = null;
+let livingMemorySequence = 0;
 
 let learningState = {
 summary:false,
@@ -240,6 +244,8 @@ async function researchTopic() {
         );
 
         renderResearch(data);
+        renderLivingMemoryResult(data);
+        refreshLivingMemoryWorkspace(true);
 
         /*
         ŞİMDİLİK KAPALI
@@ -904,9 +910,10 @@ function prefersReducedMotion() {
 }
 
 function railHasRealItems(container) {
-    return Array.from(container.children).some(child =>
-        !child.classList.contains("fact") || child.children.length > 1
-    );
+    return Array.from(container.children).some(child => {
+        if (child.classList.contains("living-memory-empty") || child.classList.contains("living-memory-skeleton") || child.classList.contains("living-memory-error")) return false;
+        return !child.classList.contains("fact") || child.children.length > 1;
+    });
 }
 
 function updateHorizontalRail(rail) {
@@ -1007,7 +1014,8 @@ function initializeHorizontalRails() {
         "#knowledgeMap",
         "#followContainer",
         "#relatedContainer",
-        "#sourcesContainer"
+        "#sourcesContainer",
+        ".living-memory-rail"
     ];
     horizontalRailRegistry.forEach(container => {
         if (!container.isConnected) horizontalRailRegistry.delete(container);
@@ -2188,7 +2196,271 @@ container.appendChild(button);
 }
 
 /* =========================================================
-   MEMORY ENGINE 10.0
+   LIVING MEMORY WORKSPACE 12.0
+========================================================= */
+
+function memoryNode(tag, className, value) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (value !== undefined) node.textContent = safeText(value);
+    return node;
+}
+
+function clearMemoryNode(node) {
+    if (!node) return;
+    while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function renderMemorySkeleton(node, count = 2) {
+    clearMemoryNode(node);
+    if (node) node.setAttribute("aria-busy", "true");
+    for (let index = 0; index < count; index += 1) {
+        const item = memoryNode("div", "living-memory-skeleton");
+        item.setAttribute("aria-hidden", "true");
+        item.append(memoryNode("span"), memoryNode("span"));
+        node.appendChild(item);
+    }
+}
+
+function renderMemoryEmpty(node, title, message) {
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    const empty = memoryNode("div", "living-memory-empty");
+    empty.append(memoryNode("strong", "", title), memoryNode("span", "", message));
+    node.appendChild(empty);
+}
+
+function memoryTopicButton(topic, className = "living-memory-item") {
+    const button = memoryNode("button", className);
+    button.type = "button";
+    button.appendChild(memoryNode("strong", "", topic || "Konu"));
+    button.addEventListener("click", () => {
+        const input = $("questionInput");
+        if (!input || !topic) return;
+        input.value = topic;
+        input.focus();
+        researchTopic();
+    });
+    return button;
+}
+
+function renderMemoryHistory(history) {
+    const node = $("memoryHistoryContainer");
+    if (!node) return;
+    if (!history.length) {
+        renderMemoryEmpty(node, "Henüz öğrenme geçmişin yok.", "İlk araştırmanı yaparak Yaşayan Hafızanı oluşturmaya başlayabilirsin.");
+        return;
+    }
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    history.slice(-5).reverse().forEach(item => {
+        const card = memoryTopicButton(item.topic);
+        const parsedDate = item.createdAt ? new Date(item.createdAt) : null;
+        const date = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString("tr-TR") : "Tarih yok";
+        card.appendChild(memoryNode("small", "", `Öğrenildi: ${date}`));
+        const meta = memoryNode("span", "living-memory-item-meta");
+        meta.append(
+            memoryNode("span", "living-memory-chip", `Confidence: ${item.confidence ?? "—"}`),
+            memoryNode("span", "living-memory-chip", `Reliability: ${item.reliabilitySummary?.score ?? "—"}`)
+        );
+        card.appendChild(meta);
+        node.appendChild(card);
+    });
+}
+
+function renderMemoryReview(review) {
+    const node = $("memoryReviewContainer");
+    if (!node) return;
+    const dueByTopic = new Map();
+    review.filter(item => item.due && [1, 3, 7, 30].includes(Number(item.intervalDays))).forEach(item => {
+        const topic = safeText(item.topic);
+        if (!topic) return;
+        const key = topic.toLocaleLowerCase("tr-TR");
+        const current = dueByTopic.get(key);
+        if (!current || Number(item.intervalDays) < Number(current.intervalDays)) dueByTopic.set(key, item);
+    });
+    const due = [...dueByTopic.values()];
+    if (!due.length) {
+        renderMemoryEmpty(node, "Bugün tekrar zamanı yok.", "Yeni bir araştırma yaptığında tekrar önerileri burada görünecek.");
+        return;
+    }
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    due.slice(0, 8).forEach(item => {
+        const card = memoryTopicButton(item.topic, "living-memory-item living-memory-review");
+        card.appendChild(memoryNode("small", "", `${item.intervalDays} gün aralığı`));
+        const action = memoryNode("span", "living-memory-review-action", "Gözden geçir");
+        card.appendChild(action);
+        node.appendChild(card);
+    });
+}
+
+function renderMemoryConnections(connections) {
+    const node = $("memoryConnectionsContainer");
+    if (!node) return;
+    if (!connections.length) {
+        renderMemoryEmpty(node, "Henüz bağlantı yok.", "İlişkili konular araştırdıkça öğrenme haritan oluşacak.");
+        return;
+    }
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    const seen = new Set();
+    connections.slice(0, 24).forEach(connection => {
+        const from = safeText(connection?.from);
+        const to = safeText(connection?.to);
+        if (!from || !to || from.toLocaleLowerCase("tr-TR") === to.toLocaleLowerCase("tr-TR")) return;
+        const key = [from, to].map(value => value.toLocaleLowerCase("tr-TR")).sort().join("::");
+        if (seen.has(key)) return;
+        seen.add(key);
+        const card = memoryTopicButton(to, "living-memory-item");
+        card.insertBefore(memoryNode("small", "", from), card.firstChild);
+        card.appendChild(memoryNode("small", "", "↕ İlişkili konu"));
+        node.appendChild(card);
+    });
+    if (!node.children.length) renderMemoryEmpty(node, "Henüz bağlantı yok.", "İlişkili konular araştırdıkça öğrenme haritan oluşacak.");
+}
+
+function renderMemoryStats(stats) {
+    const node = $("memoryStatsContainer");
+    if (!node) return;
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    const numberOrZero = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const textOrDash = value => safeText(value) || "—";
+    const values = [
+        [numberOrZero(stats.totalTopics), "Toplam konu"],
+        [numberOrZero(stats.totalSources), "Toplam kaynak"],
+        [numberOrZero(stats.connectionCount), "Bağlantılar"],
+        [textOrDash(stats.mostStudiedTopic), "En çok çalışılan"],
+        [numberOrZero(stats.averageConfidence), "Ortalama güven"]
+    ];
+    values.forEach(([value, label]) => {
+        const stat = memoryNode("div", "living-memory-stat");
+        stat.append(memoryNode("strong", "", value), memoryNode("small", "", label));
+        node.appendChild(stat);
+    });
+}
+
+function renderMemoryTimeline(history) {
+    const node = $("memoryTimelineContainer");
+    if (!node) return;
+    if (!history.length) {
+        renderMemoryEmpty(node, "Öğrenme zincirin burada oluşacak.", "İlk konundan sonra önceki ve sonraki adımlarını görebilirsin.");
+        return;
+    }
+    clearMemoryNode(node);
+    node.removeAttribute("aria-busy");
+    history.slice(-8).forEach((item, index, list) => {
+        if (item.previousTopic) node.appendChild(memoryNode("span", "living-memory-timeline-arrow", "←"));
+        const current = memoryNode("div", "living-memory-timeline-node");
+        current.append(memoryNode("small", "", item.previousTopic ? "Devam" : "Başlangıç"), memoryNode("strong", "", item.topic));
+        if (item.nextTopic) current.appendChild(memoryNode("small", "", `Sonraki: ${item.nextTopic}`));
+        node.appendChild(current);
+        if (index < list.length - 1) node.appendChild(memoryNode("span", "living-memory-timeline-arrow", "→"));
+    });
+}
+
+function renderLivingMemoryWorkspace(data) {
+    const status = $("memoryWorkspaceStatus");
+    if (status) {
+        status.textContent = "Güncel";
+        status.classList.remove("is-error");
+    }
+    renderMemoryHistory(Array.isArray(data.history) ? data.history : []);
+    renderMemoryConnections(Array.isArray(data.connections) ? data.connections : []);
+    renderMemoryReview(Array.isArray(data.review) ? data.review : []);
+    renderMemoryStats(data.stats || {});
+    renderMemoryTimeline(Array.isArray(data.history) ? data.history : []);
+    initializeHorizontalRails();
+}
+
+function renderLivingMemoryError() {
+    const status = $("memoryWorkspaceStatus");
+    if (status) {
+        status.textContent = "Hafıza şu an kullanılamıyor";
+        status.classList.add("is-error");
+    }
+    ["memoryHistoryContainer", "memoryConnectionsContainer", "memoryReviewContainer", "memoryStatsContainer", "memoryTimelineContainer"].forEach(id => {
+        const node = $(id);
+        if (node) renderMemoryEmpty(node, "Hafıza yüklenemedi.", "Araştırma ekranı çalışmaya devam ediyor; daha sonra tekrar deneyebilirsin.");
+    });
+}
+
+async function refreshLivingMemoryWorkspace(force = false) {
+    if (livingMemoryRequest && !force) return livingMemoryRequest;
+    if (force && livingMemoryController) livingMemoryController.abort();
+    const sequence = ++livingMemorySequence;
+    const controller = new AbortController();
+    livingMemoryController = controller;
+    const status = $("memoryWorkspaceStatus");
+    ["memoryHistoryContainer", "memoryConnectionsContainer", "memoryReviewContainer", "memoryStatsContainer", "memoryTimelineContainer"].forEach(id => renderMemorySkeleton($(id)));
+    const requests = [
+        ["history", "/api/memory/history", []],
+        ["connections", "/api/memory/connections", []],
+        ["review", "/api/memory/review", []],
+        ["stats", "/api/memory/stats", {}]
+    ];
+    livingMemoryRequest = Promise.allSettled(requests.map(([, endpoint]) => getJSON(API + endpoint, { signal: controller.signal }))).then(results => {
+        if (sequence !== livingMemorySequence) return null;
+        const data = { history: [], connections: [], review: [], stats: {} };
+        const failed = [];
+        results.forEach((result, index) => {
+            const [key, , fallback] = requests[index];
+            if (result.status === "fulfilled") {
+                const payload = result.value || {};
+                data[key] = payload[key] || fallback;
+            } else if (result.reason?.name !== "AbortError") {
+                failed.push(key);
+            }
+        });
+        livingMemoryData = data;
+        renderLivingMemoryWorkspace(livingMemoryData);
+        failed.forEach(key => {
+            const id = `memory${key.charAt(0).toUpperCase()}${key.slice(1)}Container`;
+            renderMemoryEmpty($(id), "Bu hafıza bölümü yüklenemedi.", "Araştırma ekranı çalışmaya devam ediyor.");
+        });
+        return livingMemoryData;
+    }).catch(error => {
+        if (error?.name === "AbortError" || sequence !== livingMemorySequence) return null;
+        console.warn("Living Memory workspace:", error?.message || "Memory endpoint başarısız.");
+        renderLivingMemoryError();
+        return null;
+    }).finally(() => {
+        if (sequence !== livingMemorySequence) return;
+        livingMemoryRequest = null;
+        livingMemoryController = null;
+        if (status && !status.classList.contains("is-error")) status.textContent = "Güncel";
+    });
+    return livingMemoryRequest;
+}
+
+function renderLivingMemoryResult(data) {
+    const banner = $("livingMemoryResultBanner");
+    if (!banner) return;
+    clearMemoryNode(banner);
+    const suggestions = Array.isArray(data?.livingMemory?.suggestions) ? data.livingMemory.suggestions : [];
+    if (!suggestions.length) {
+        banner.hidden = true;
+        return;
+    }
+    const title = memoryNode("strong", "", "🧠 Bu konuyu daha önce araştırmıştın.");
+    const detail = memoryNode("small", "", suggestions.map(item => item.text).filter(Boolean).join(" "));
+    banner.append(title, detail);
+    const review = suggestions.find(item => item.type === "review");
+    if (review?.topic) {
+        const button = memoryNode("button", "", "Kaldığın yerden devam et");
+        button.type = "button";
+        button.addEventListener("click", () => {
+            const input = $("questionInput");
+            if (input) { input.value = review.topic; input.focus(); researchTopic(); }
+        });
+        banner.appendChild(button);
+    }
+    banner.hidden = false;
+}
+
+/* =========================================================
+   LEGACY MEMORY ENGINE
 ========================================================= */
 
 async function loadMemory(question,data){
@@ -3254,6 +3526,7 @@ function initializeApp() {
     renderNotebook();
 
     checkStatus();
+    refreshLivingMemoryWorkspace();
 
     if (typeof updateClock === "function") {
         updateClock();

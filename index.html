@@ -272,6 +272,39 @@
 
         </div>
 
+        <section class="living-memory-workspace" id="livingMemoryWorkspace" aria-labelledby="livingMemoryTitle">
+            <div class="living-memory-heading">
+                <div>
+                    <p class="living-memory-kicker">BRAIN ENGINE MEMORY</p>
+                    <h3 id="livingMemoryTitle">🧠 Yaşayan Hafıza</h3>
+                    <p>Öğrendiklerini zaman içinde hatırla, ilişkilendir ve kaldığın yerden devam et.</p>
+                </div>
+                <span class="living-memory-status" id="memoryWorkspaceStatus" role="status" aria-live="polite">Hazırlanıyor</span>
+            </div>
+            <div class="living-memory-grid">
+                <section class="living-memory-card living-memory-history" aria-labelledby="memoryHistoryTitle">
+                    <div class="living-memory-card-heading"><h4 id="memoryHistoryTitle">Son Öğrenilenler</h4><span>History</span></div>
+                    <div class="living-memory-rail" id="memoryHistoryContainer" aria-label="Son öğrenilenler"></div>
+                </section>
+                <section class="living-memory-card" aria-labelledby="memoryReviewTitle">
+                    <div class="living-memory-card-heading"><h4 id="memoryReviewTitle">Bugün Tekrar Et</h4><span>Review</span></div>
+                    <div class="living-memory-rail" id="memoryReviewContainer" aria-label="Tekrar zamanı gelen konular"></div>
+                </section>
+                <section class="living-memory-card" aria-labelledby="memoryConnectionsTitle">
+                    <div class="living-memory-card-heading"><h4 id="memoryConnectionsTitle">Öğrenme Bağlantıları</h4><span>Connections</span></div>
+                    <div class="living-memory-rail" id="memoryConnectionsContainer" aria-label="Öğrenme bağlantıları"></div>
+                </section>
+                <section class="living-memory-card" aria-labelledby="memoryStatsTitle">
+                    <div class="living-memory-card-heading"><h4 id="memoryStatsTitle">Hafıza İstatistikleri</h4><span>Stats</span></div>
+                    <div class="living-memory-stats" id="memoryStatsContainer"></div>
+                </section>
+            </div>
+            <section class="living-memory-timeline-card" aria-labelledby="memoryTimelineTitle">
+                <div class="living-memory-card-heading"><h4 id="memoryTimelineTitle">Öğrenme Zinciri</h4><span>Timeline</span></div>
+                <div class="living-memory-timeline" id="memoryTimelineContainer"></div>
+            </section>
+        </section>
+
         <!-- =====================================================
              HERO DASHBOARD
         ====================================================== -->
@@ -517,6 +550,7 @@
         </div>
 
     </section>
+    <div id="livingMemoryResultBanner" class="living-memory-result-banner" hidden role="status" aria-live="polite"></div>
     <section id="professionalResult" class="professional-result section" aria-labelledby="professionalResultTitle" aria-live="polite"></section>
     <!-- =====================================================
          ANALYSIS

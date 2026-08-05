@@ -107,5 +107,24 @@ assert.match(htmlSource, /href="#landingHow">Ürünü keşfet/);
 assert.match(htmlSource, /href="#landingLicense"/);
 assert.match(htmlSource, /mailto:yasayandefter1@gmail\.com/);
 assert.doesNotMatch(htmlSource, /kamera|akıllı kamera|\b[Tt]ara\b|tararsın/);
+for (const id of ["livingMemoryWorkspace", "memoryHistoryContainer", "memoryConnectionsContainer", "memoryReviewContainer", "memoryStatsContainer", "memoryTimelineContainer", "livingMemoryResultBanner"]) {
+  assert.match(htmlSource, new RegExp(`id="${id}"`));
+}
+assert.match(appSource, /\/api\/memory\/history/);
+assert.match(appSource, /\/api\/memory\/connections/);
+assert.match(appSource, /\/api\/memory\/review/);
+assert.match(appSource, /\/api\/memory\/stats/);
+assert.match(appSource, /function renderLivingMemoryWorkspace/);
+assert.match(appSource, /function renderLivingMemoryResult/);
+assert.match(appSource, /Promise\.allSettled/);
+assert.match(appSource, /new AbortController\(\)/);
+assert.match(appSource, /livingMemorySequence/);
+assert.match(appSource, /Number\.isFinite/);
+assert.match(appSource, /item\.createdAt \? new Date/);
+assert.match(appSource, /\.living-memory-rail/);
+assert.doesNotMatch(appSource, /livingMemory.*innerHTML\s*=/i);
+assert.match(styleSource, /living-memory-workspace/);
+assert.match(styleSource, /@media \(max-width:600px\).*living-memory-rail/);
+assert.match(styleSource, /prefers-reduced-motion:reduce.*living-memory-skeleton/);
 
 console.log("PASS  frontend result model, URL safety, fallbacks, allowlists, and deduplication");
