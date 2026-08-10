@@ -20,6 +20,10 @@ async function run() {
   const malformed = await fetch(`http://127.0.0.1:${port}/api/memory/save`, { method: "POST", headers: { "content-type": "application/json" }, body: "{broken" });
   const malformedBody = await malformed.text(); assert.equal(malformed.status, 400); assert.equal(malformedBody.includes("stack"), false); assert.equal(malformedBody.includes("C:\\Users\\"), false);
   const notFound = await fetch(`http://127.0.0.1:${port}/api/does-not-exist`); const notFoundBody = await notFound.text(); assert.equal(notFound.status, 404); assert.equal(notFoundBody.includes("node_modules"), false);
+  for (const route of ["/backups/manifest.json", "/data/classrooms.json", "/memory.json", "/yasayan_deefter_memory.json"]) {
+    const response = await fetch(`http://127.0.0.1:${port}${route}`);
+    assert.equal(response.status, 404, `public data route exposed: ${route}`);
+  }
   const xss = await fetch(`http://127.0.0.1:${port}/api/research?q=${encodeURIComponent("<script>alert(1)</script>")}`); const xssBody = await xss.text(); assert.match(xss.headers.get("content-type") || "", /application\/json/); assert.equal(xssBody.includes("[object Object]"), false);
   console.log("PASS  security headers, input limits, malformed JSON, leakage, XSS, and 404 checks");
 }

@@ -164,6 +164,13 @@ function installResponseContract(req, res, next) {
   return logger.runWithRequest(req.requestId, next);
 }
 
+// Persistent data and backup files are never public static assets.
+app.use((req, res, next) => {
+  if (/^\/(?:backups|data)(?:\/|$)/i.test(req.path) || /^\/(?:memory\.json|yasayan_deefter_memory\.json)(?:\/|$)/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  return next();
+});
 app.use(express.static(__dirname));
 
 /* ========================================================
@@ -171,10 +178,10 @@ app.use(express.static(__dirname));
 ======================================================== */
 
 const MEMORY_FILE =
-  path.join(__dirname, "memory.json");
+  path.resolve(process.env.YASAYAN_MEMORY_FILE || path.join(__dirname, "memory.json"));
 
 const LEARNING_MEMORY_FILE =
-  path.join(__dirname, "yasayan_deefter_memory.json");
+  path.resolve(process.env.YASAYAN_LEARNING_MEMORY_FILE || path.join(__dirname, "yasayan_deefter_memory.json"));
 
 /* ========================================================
    TEMEL ARAÇLAR
@@ -6108,7 +6115,7 @@ app.use(
 
 if (require.main === module) {
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
 
     console.log(
       "=========================================="
@@ -6236,6 +6243,27 @@ if (require.main === module) {
     );
 
   });
+
+  server.on("error", error => {
+    if (error && error.code === "EADDRINUSE") {
+      console.error("pilot.port_in_use");
+      process.exitCode = 1;
+      return;
+    }
+    console.error("pilot.startup_failed");
+    process.exitCode = 1;
+  });
+
+  let shuttingDown = false;
+  const shutdown = signal => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info("server.shutdown", { signal });
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 5000).unref();
+  };
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
 
 }
 
