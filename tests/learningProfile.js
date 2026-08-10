@@ -1,0 +1,20 @@
+const assert = require("node:assert/strict");
+const profile = require("../brain/learningProfile");
+
+assert.deepEqual(profile.buildProfile([]), { totalXP: 0, level: 1, nextLevelXP: 100, xpToNextLevel: 100, researchedTopics: 0, completedQuizzes: 0, answeredQuestions: 0, correctAnswers: 0, incorrectAnswers: 0, skippedAnswers: 0, accuracy: 0, strongConcepts: [], weakConcepts: [], recentTopics: [], topicProgress: [], lastActivity: null });
+assert.equal(profile.calculateLevel(0).level, 1);
+assert.equal(profile.calculateLevel(100).level, 2);
+assert.equal(profile.calculateLevel(250).level, 3);
+const records = [{ topic: "Mars", timesSearched: 3, updatedAt: "2026-08-10T00:00:00.000Z", keyConcepts: ["Gezegenler"], relatedTopics: ["Jüpiter"], quizScore: { score: 8, total: 10, skipped: 1, weakConcepts: ["Atmosfer"] } }, { topic: "Jüpiter", timesSearched: 1, updatedAt: "2026-07-01T00:00:00.000Z", keyConcepts: ["Gezegenler"], quizScore: { score: 10, total: 10, skipped: 0, weakConcepts: [] } }];
+const result = profile.buildProfile(records, new Date("2026-08-11T00:00:00.000Z"));
+assert.equal(result.researchedTopics, 2);
+assert.equal(result.completedQuizzes, 2);
+assert.equal(result.accuracy, 90);
+assert.ok(result.topicProgress.every(item => item.mastery >= 0 && item.mastery <= 100));
+assert.ok(result.weakConcepts.includes("Atmosfer"));
+assert.ok(result.strongConcepts.includes("Gezegenler"));
+assert.ok(profile.buildRecommendations(result, records).length > 0);
+const malformed = profile.buildProfile([null, {}, { topic: "" }, { topic: "Güvenli", quizScore: { score: "bad", total: null } }]);
+assert.equal(malformed.researchedTopics, 1);
+assert.doesNotThrow(() => JSON.stringify(malformed));
+console.log("PASS  learning profile defaults, levels, topic mastery, concepts, recommendations, and malformed data tolerance");

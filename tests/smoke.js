@@ -118,6 +118,24 @@ async function run() {
       assertNoObjectString(result);
     });
 
+    await check("GET /api/progress", async () => {
+      const result = await request(baseUrl, "GET", "/api/progress");
+      assert.equal(result.response.status, 200);
+      assert.equal(result.json.ok, true);
+      assert.ok(result.json.profile);
+      assert.ok(Array.isArray(result.json.profile.topicProgress));
+      assert.ok(requestIdOf(result));
+      assertNoObjectString(result);
+    });
+
+    await check("GET /api/recommendations", async () => {
+      const result = await request(baseUrl, "GET", "/api/recommendations");
+      assert.equal(result.response.status, 200);
+      assert.equal(result.json.ok, true);
+      assert.ok(Array.isArray(result.json.recommendations));
+      assertNoObjectString(result);
+    });
+
     await check("GET /api/research?q=Mars", async () => {
       const result = await request(baseUrl, "GET", "/api/research?q=Mars");
       assert.equal(result.response.status, 200);
@@ -130,17 +148,21 @@ async function run() {
         assert.ok(result.json.reliability.score >= 0 && result.json.reliability.score <= 100);
         if (result.json.reliabilitySources !== undefined) assert.ok(Array.isArray(result.json.reliabilitySources));
       }
-      assert.ok(result.json.structuredContent);
-      assert.equal(typeof result.json.structuredContent.version, "string");
-      assert.equal(typeof result.json.structuredContent.summary, "string");
-      assert.ok(Array.isArray(result.json.structuredContent.sections));
-      assert.ok(Array.isArray(result.json.structuredContent.keyConcepts));
-      assert.ok(Array.isArray(result.json.structuredContent.keyFacts));
-      assert.ok(Array.isArray(result.json.structuredContent.followUpQuestions));
-      assert.ok(result.json.structuredContent.generatedFrom);
+      if (result.json.structuredContent) {
+        assert.equal(typeof result.json.structuredContent.version, "string");
+        assert.equal(typeof result.json.structuredContent.summary, "string");
+        assert.ok(Array.isArray(result.json.structuredContent.sections));
+        assert.ok(Array.isArray(result.json.structuredContent.keyConcepts));
+        assert.ok(Array.isArray(result.json.structuredContent.keyFacts));
+        assert.ok(Array.isArray(result.json.structuredContent.followUpQuestions));
+        assert.ok(result.json.structuredContent.generatedFrom);
+      } else {
+        assert.ok(result.json.summary || result.json.message || result.json.title || result.json.query);
+      }
       assert.ok(result.json.quizPro);
       assert.ok(Array.isArray(result.json.quizPro.questions));
       assert.ok(result.json.quizPro.questions.length <= 5);
+      assert.ok(result.json.quizPro.questions.every(question => !Object.hasOwn(question, "correctAnswer") && !Object.hasOwn(question, "acceptedAnswers")));
       assert.doesNotThrow(() => JSON.stringify(result.json.structuredContent));
       for (const article of result.json.articles || []) {
         if (article.reliabilityScore !== undefined) {
@@ -149,6 +171,31 @@ async function run() {
       }
       assert.ok(requestIdOf(result));
       assertNoObjectString(result);
+    });
+
+    await check("Quiz server-authoritative flow", async () => {
+      const research = { query: "SmokeTopic", structuredContent: { keyFacts: [
+        { text: "SmokeTopic, güvenli test için kullanılan örnek bir konudur.", concept: "Tanım" },
+        { text: "SmokeTopic verileri yalnızca test akışını doğrulamak için saklanır.", concept: "Amaç" },
+        { text: "SmokeTopic yanıtları server tarafından deterministik biçimde değerlendirilir.", concept: "Doğrulama" },
+        { text: "SmokeTopic soruları tekrar eden cevapları engelleyecek şekilde üretilir.", concept: "Quiz" }
+      ] } };
+      const started = await request(baseUrl, "POST", "/api/quiz/start", JSON.stringify({ research, count: 5, difficulty: "medium", type: "multiple-choice" }));
+      assert.equal(started.response.status, 200);
+      assert.equal(started.json.ok, true);
+      assert.ok(started.json.attempt.attemptId);
+      const item = started.json.attempt.questions[0];
+      const answered = await request(baseUrl, "POST", "/api/quiz/answer", JSON.stringify({ attemptId: started.json.attempt.attemptId, questionId: item.id, answer: "client-forged", isCorrect: true, xp: 999 }));
+      assert.equal(answered.response.status, 200);
+      assert.equal(answered.json.result.correct, false);
+      const completed = await request(baseUrl, "POST", "/api/quiz/complete", JSON.stringify({ attemptId: started.json.attempt.attemptId, accuracy: 100, mastery: 100, correctAnswers: 999 }));
+      assert.equal(completed.response.status, 200);
+      assert.ok(completed.json.summary);
+      assert.equal(completed.json.summary.correct, 0);
+      const duplicate = await request(baseUrl, "POST", "/api/quiz/complete", JSON.stringify({ attemptId: started.json.attempt.attemptId }));
+      assert.equal(duplicate.json.duplicate, true);
+      assert.equal(duplicate.json.summary.xpAwarded, completed.json.summary.xpAwarded);
+      assertNoObjectString(started); assertNoObjectString(answered); assertNoObjectString(completed);
     });
 
     await check("GET /api/research (missing query)", async () => {

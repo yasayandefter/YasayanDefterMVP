@@ -20,6 +20,8 @@ const sourceReliability = require("./brain/sourceReliability");
 const contentStructurer = require("./brain/contentStructurer");
 const livingMemory = require("./brain/livingMemory");
 const quizEngine = require("./brain/quizEngine");
+const learningProfile = require("./brain/learningProfile");
+const quizSessions = require("./brain/quizSessions");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -4432,7 +4434,11 @@ function markLearned(
 function saveQuizResult(
   topic,
   score,
-  total
+  total,
+  weakConcepts = [],
+  skipped = 0,
+  xpAwarded = 0,
+  attemptId = ""
 ) {
 
   const items =
@@ -4483,6 +4489,14 @@ function saveQuizResult(
       numericTotal,
 
     percentage,
+
+    weakConcepts: Array.isArray(weakConcepts) ? weakConcepts.filter(item => typeof item === "string").slice(0, 20) : [],
+
+    skipped: Math.max(0, Number(skipped) || 0),
+
+    xpAwarded: Math.max(0, Number(xpAwarded) || 0),
+
+    attemptId: typeof attemptId === "string" ? attemptId.slice(0, 100) : "",
 
     date:
       new Date().toISOString()
@@ -4732,11 +4746,11 @@ app.get(
           audienceLevel: req.query?.audienceLevel
         });
 
-      result.quizPro = quizEngine.buildQuiz(result, {
+      result.quizPro = quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
         count: 5,
         difficulty: "medium",
         type: "multiple-choice"
-      });
+      }));
 
       try {
         const memoryEntry = saveResearchToMemory(result);
@@ -5175,14 +5189,46 @@ app.post(
    API — QUIZ
 ======================================================== */
 
+function quizApiError(res, status, code, message, requestId) {
+  return res.status(status).json({ ok: false, error: { code, message }, requestId });
+}
+
+app.post("/api/quiz/start", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  if (!body.research || typeof body.research !== "object") return quizApiError(res, 400, "BAD_REQUEST", "Quiz araştırma verisi bulunamadı.", req.requestId);
+  const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf);
+  if (!started.quiz.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Bu konu için güvenli bir quiz oluşturulamadı.", req.requestId);
+  res.json({ ok: true, attempt: started.quiz, requestId: req.requestId });
+});
+
+app.post("/api/quiz/answer", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  if (!body.attemptId || !body.questionId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt ve soru bilgisi gerekli.", req.requestId);
+  const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true);
+  if (result.error) return quizApiError(res, 409, result.error, "Bu quiz cevabı işlenemedi.", req.requestId);
+  res.json({ ok: true, result: result.result, requestId: req.requestId });
+});
+
+app.post("/api/quiz/complete", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  if (!body.attemptId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt bilgisi gerekli.", req.requestId);
+  const completed = quizSessions.complete(body.attemptId);
+  if (completed.error) return quizApiError(res, 409, completed.error, "Bu quiz tamamlanamadı.", req.requestId);
+  if (!completed.duplicate) {
+    const summary = completed.summary;
+    saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId);
+  }
+  res.json({ ok: true, summary: completed.summary, duplicate: completed.duplicate, requestId: req.requestId });
+});
+
 app.post("/api/quiz/generate", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const researchData = body.research && typeof body.research === "object" ? body.research : body;
   const count = Math.min(10, Math.max(3, Number(body.count) || 5));
   const difficulty = quizEngine.normalizeDifficulty(body.difficulty);
   const type = quizEngine.normalizeType(body.type);
-  const quiz = quizEngine.buildQuiz(researchData, { count, difficulty, type });
-  res.json({ ok: true, quiz });
+  const started = quizSessions.start({ research: researchData, count, difficulty, type });
+  res.json({ ok: true, quiz: started.quiz, requestId: req.requestId });
 });
 
 app.post(
@@ -5191,42 +5237,13 @@ app.post(
     req,
     res
   ) => {
-
-    const topic =
-      cleanText(
-        req.body?.topic
-      );
-
-    const score =
-      Number(
-        req.body?.score
-      );
-
-    const total =
-      Number(
-        req.body?.total
-      );
-
-    if (!topic) {
-
-      return res
-        .status(400)
-        .json({
-
-          ok:
-            false,
-
-          error:
-            "Quiz konusu belirtilmedi."
-        });
+    const attemptId = cleanText(req.body?.attemptId, 100);
+    const session = quizSessions.get(attemptId);
+    if (!session?.completed || session.summary?.attemptId !== attemptId) {
+      return quizApiError(res, 409, "QUIZ_SERVER_REQUIRED", "Quiz sonucu yalnızca server doğrulamasıyla kaydedilebilir.", req.requestId);
     }
-
-    const memory =
-      saveQuizResult(
-        topic,
-        score,
-        total
-      );
+    const summary = session.summary;
+    const memory = saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId);
 
     if (!memory) {
 
@@ -5250,7 +5267,8 @@ app.post(
       message:
         "Quiz sonucu kaydedildi.",
 
-      memory
+      memory,
+      requestId: req.requestId
 
     });
   }
@@ -5429,6 +5447,26 @@ app.get(
 /* ========================================================
    API — LEARNING STATS
 ======================================================== */
+
+app.get("/api/progress", (req, res) => {
+  const records = readLearningMemory();
+  const profile = learningProfile.buildProfile(records);
+  res.json({ ok: true, profile, recommendations: learningProfile.buildRecommendations(profile, records) });
+});
+
+app.get("/api/progress/:topic", (req, res) => {
+  const records = readLearningMemory();
+  const profile = learningProfile.buildProfile(records);
+  const topic = profile.topicProgress.find(item => item.topic.toLocaleLowerCase("tr-TR") === String(req.params.topic || "").toLocaleLowerCase("tr-TR"));
+  if (!topic) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Bu konu için ilerleme kaydı bulunamadı." }, requestId: req.requestId });
+  res.json({ ok: true, progress: topic });
+});
+
+app.get("/api/recommendations", (req, res) => {
+  const records = readLearningMemory();
+  const profile = learningProfile.buildProfile(records);
+  res.json({ ok: true, recommendations: learningProfile.buildRecommendations(profile, records) });
+});
 
 app.get(
   "/api/learning/stats",

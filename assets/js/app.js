@@ -1852,11 +1852,11 @@ function ensureProQuizSettings() {
         if (!currentResearch) return;
         start.disabled = true;
         try {
-            const response = await fetch(API + "/api/quiz/generate", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: Number($("quizProCount")?.value || 5), difficulty: $("quizProDifficulty")?.value || "medium", type: $("quizProType")?.value || "multiple-choice" }) });
+            const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: Number($("quizProCount")?.value || 5), difficulty: $("quizProDifficulty")?.value || "medium", type: $("quizProType")?.value || "multiple-choice" }) });
             const payload = await response.json();
-            if (!response.ok || !payload.quiz) throw new Error("Quiz oluşturulamadı.");
-            if (!payload.quiz.questions?.length) throw new Error("Bu konu için güvenli soru bulunamadı.");
-            renderProQuiz(payload.quiz, currentResearch, true);
+            if (!response.ok || !payload.attempt) throw new Error("Quiz oluşturulamadı.");
+            if (!payload.attempt.questions?.length) throw new Error("Bu konu için güvenli soru bulunamadı.");
+            renderProQuiz(payload.attempt, currentResearch, true);
         } catch (error) {
             const result = $("quizResult");
             if (result) { result.className = "quiz-result bad"; result.textContent = "Bu konu için güvenli biçimde hazırlanabilen soru sayısı sınırlıydı."; }
@@ -1868,26 +1868,6 @@ function ensureProQuizSettings() {
 
 function proQuizNormalize(value) {
     return quizText(value).toLocaleLowerCase("tr-TR").replace(/[\s\p{P}\p{S}]+/gu, " ");
-}
-
-function proQuizXp(result) {
-    if (!result?.quizId) return;
-    const key = "yasayan-defter-quiz-attempts";
-    let attempts = [];
-    try { attempts = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_) { attempts = []; }
-    if (!Array.isArray(attempts) || attempts.includes(result.quizId)) return;
-    attempts = attempts.slice(-49);
-    attempts.push(result.quizId);
-    try { localStorage.setItem(key, JSON.stringify(attempts)); } catch (_) { return; }
-    try {
-        const profileKey = "yasayan-defter-commercial-profile";
-        const profile = JSON.parse(localStorage.getItem(profileKey) || "{}");
-        profile.xp = Number(profile.xp) || 0;
-        profile.quizzes = Number(profile.quizzes) || 0;
-        profile.xp += result.correct * ({ easy: 5, medium: 8, hard: 12 }[result.difficulty] || 8) + 10 + (result.percentage === 100 ? 15 : 0);
-        profile.quizzes += 1;
-        localStorage.setItem(profileKey, JSON.stringify(profile));
-    } catch (_) { /* optional profile storage */ }
 }
 
 function renderProQuiz(quiz, data, restart = false) {
@@ -1906,6 +1886,13 @@ function renderProQuizQuestion() {
     const options = $("quizOptions");
     const result = $("quizResult");
     if (!question || !options || !result || !activeProQuiz?.questions?.length) return;
+    if (!activeProQuiz.attemptId) {
+        question.textContent = "Quiz ayarlarını seçip başlatabilirsin.";
+        options.replaceChildren();
+        result.replaceChildren();
+        result.textContent = "Cevaplar server tarafından doğrulanır.";
+        return;
+    }
     const item = activeProQuiz.questions[activeProQuizIndex];
     activeProQuizChecked = false;
     question.textContent = `Soru ${activeProQuizIndex + 1} / ${activeProQuiz.questions.length}: ${quizText(item.prompt)}`;
@@ -1927,40 +1914,54 @@ function renderProQuizQuestion() {
     question.focus({ preventScroll: true });
 }
 
-function checkProQuizAnswer(answer, clicked, item) {
+async function checkProQuizAnswer(answer, clicked, item) {
     if (activeProQuizChecked) return;
     activeProQuizChecked = true;
-    const accepted = (item.acceptedAnswers || [item.correctAnswer]).map(proQuizNormalize);
-    const correct = accepted.includes(proQuizNormalize(answer));
-    activeProQuizAnswers[activeProQuizIndex] = { correct, skipped: !quizText(answer), answer: quizText(answer), question: item };
+    let response;
+    try {
+        const request = await fetch(API + "/api/quiz/answer", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz.attemptId, questionId: item.id, answer: quizText(answer), skipped: !quizText(answer) }) });
+        response = await request.json();
+        if (!request.ok || !response.result) throw new Error("Cevap doğrulanamadı.");
+    } catch (_) {
+        activeProQuizChecked = false;
+        const error = $("quizResult");
+        if (error) { error.className = "quiz-result bad"; error.textContent = "Cevap şu anda doğrulanamadı. Lütfen tekrar dene."; }
+        return;
+    }
+    const serverResult = response.result;
+    const correct = Boolean(serverResult.correct);
+    activeProQuizAnswers[activeProQuizIndex] = { ...serverResult, question: item };
     document.querySelectorAll("#quizOptions .quiz-option").forEach(button => {
         button.disabled = true;
-        if (accepted.includes(proQuizNormalize(button.textContent))) button.classList.add("correct");
     });
     if (clicked) clicked.classList.add(correct ? "correct" : "wrong");
     const result = $("quizResult");
     result.className = `quiz-result ${correct ? "good" : "bad"}`;
     result.setAttribute("aria-live", "polite");
-    result.textContent = `${correct ? "Doğru." : (quizText(answer) ? "Bu cevap doğru değil." : "Soru atlandı.")} ${quizText(item.explanation)}`;
+    result.textContent = `${correct ? "Doğru." : (quizText(answer) ? "Bu cevap doğru değil." : "Soru atlandı.")} ${quizText(serverResult.explanation)}`;
     const next = document.createElement("button"); next.type = "button"; next.className = "quiz-pro-button"; next.textContent = activeProQuizIndex + 1 < activeProQuiz.questions.length ? "Sonraki soru" : "Sonuçları gör"; next.addEventListener("click", () => { if (activeProQuizIndex + 1 < activeProQuiz.questions.length) { activeProQuizIndex += 1; renderProQuizQuestion(); } else completeProQuiz(); }); result.appendChild(next);
 }
 
-function completeProQuiz() {
-    const rows = activeProQuizAnswers;
-    const total = activeProQuiz.questions.length;
-    const correct = rows.filter(item => item?.correct).length;
-    const skipped = rows.filter(item => item?.skipped).length;
-    const wrong = total - correct - skipped;
-    const percentage = total ? Math.round(correct / total * 100) : 0;
-    const weak = new Map(); rows.filter(item => !item?.correct).forEach(item => { const concept = quizText(item?.question?.concept) || "Genel"; weak.set(concept, (weak.get(concept) || 0) + 1); });
-    const summary = { quizId: activeProQuiz.id, correct, wrong, skipped, total, percentage, difficulty: activeProQuiz.difficulty };
-    proQuizXp(summary);
-    fetch(API + "/api/memory/quiz", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ topic: activeProQuiz.topic || currentResearch?.query || currentResearch?.title || "", score: correct, total }) }).catch(() => {});
+async function completeProQuiz() {
+    let payload;
+    try {
+        const response = await fetch(API + "/api/quiz/complete", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz?.attemptId }) });
+        payload = await response.json();
+        if (!response.ok || !payload.summary) throw new Error("Quiz tamamlanamadı.");
+    } catch (_) {
+        const error = $("quizResult");
+        if (error) { error.className = "quiz-result bad"; error.textContent = "Quiz sonucu şu anda doğrulanamadı. Lütfen tekrar dene."; }
+        return;
+    }
+    const summary = payload.summary;
+    const wrong = Number(summary.incorrect) || 0;
+    const skipped = Number(summary.skipped) || 0;
     const question = $("quizQuestion"); const options = $("quizOptions"); const result = $("quizResult");
     question.textContent = "Quiz sonucu"; options.replaceChildren(); result.replaceChildren(); result.className = "quiz-result good";
-    const summaryText = document.createElement("p"); summaryText.textContent = `${correct} doğru · ${wrong} yanlış · ${skipped} atlandı · Başarı: %${percentage}`; result.appendChild(summaryText);
-    if (weak.size) { const heading = document.createElement("strong"); heading.textContent = "Tekrar önerileri"; result.appendChild(heading); const list = document.createElement("ul"); [...weak.entries()].slice(0, 8).forEach(([concept]) => { const li = document.createElement("li"); li.textContent = `${concept}: Bu noktayı tekrar gözden geçirebilirsin.`; list.appendChild(li); }); result.appendChild(list); }
-    const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", () => { activeProQuiz = { ...activeProQuiz, id: `${activeProQuiz.id}-retry`, retry: true, questions: activeProQuiz.questions.filter((_, index) => !rows[index]?.correct) }; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); }); result.appendChild(retry);
+    const summaryText = document.createElement("p"); summaryText.textContent = `${summary.correct} doğru · ${wrong} yanlış · ${skipped} atlandı · Başarı: %${summary.percentage}`; result.appendChild(summaryText);
+    if (Array.isArray(summary.weakConcepts) && summary.weakConcepts.length) { const heading = document.createElement("strong"); heading.textContent = "Tekrar önerileri"; result.appendChild(heading); const list = document.createElement("ul"); summary.weakConcepts.slice(0, 8).forEach(concept => { const li = document.createElement("li"); li.textContent = `${concept}: Bu noktayı tekrar gözden geçirebilirsin.`; list.appendChild(li); }); result.appendChild(list); }
+    const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", async () => { const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: activeProQuiz.questions.length, difficulty: activeProQuiz.difficulty, type: activeProQuiz.type, retryOf: activeProQuiz.attemptId }) }); const next = await response.json(); if (response.ok && next.attempt?.questions?.length) { activeProQuiz = next.attempt; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); } }); result.appendChild(retry);
+    window.dispatchEvent(new CustomEvent("learning:updated"));
     completeStep("quiz");
 }
 

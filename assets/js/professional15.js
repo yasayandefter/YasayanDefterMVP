@@ -51,6 +51,30 @@
         var label = document.getElementById("commercialGoalLabel"); if (label) label.textContent = Math.min(5, state.research) + " / 5 araştırma";
         var badges = document.getElementById("commercialBadges"); if (badges) { badges.innerHTML = ""; [["İlk adım", state.research > 0], ["Meraklı zihin", state.research >= 3], ["Quiz ustası", state.quizzes > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
     }
+
+    function renderLearningProgress(profile, recommendations) {
+        var panel = document.getElementById("commercialProfile");
+        if (!panel) return;
+        var authoritative = { commercialResearchCount: Number(profile.researchedTopics) || 0, commercialQuizCount: Number(profile.completedQuizzes) || 0, commercialXp: (Number(profile.totalXP) || 0) + " XP", commercialProfileLevel: "Seviye " + (Number(profile.level) || 1) };
+        Object.keys(authoritative).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = authoritative[id]; });
+        var existing = document.getElementById("learningProgressPanel");
+        if (existing) existing.remove();
+        var section = el("section", { id: "learningProgressPanel", class: "learning-progress-panel", "aria-labelledby": "learningProgressTitle" });
+        var title = el("h3", { id: "learningProgressTitle", class: "commercial-kicker" }, "İlerlemem");
+        var grid = el("div", { class: "learning-progress-grid" });
+        [["progressXP", "Toplam XP", (Number(profile.totalXP) || 0) + " XP"], ["progressLevel", "Level", String(Number(profile.level) || 1)], ["progressAccuracy", "Başarı", "%" + (Number(profile.accuracy) || 0)], ["progressTopics", "Konular", String(Number(profile.researchedTopics) || 0)], ["progressQuizzes", "Quiz", String(Number(profile.completedQuizzes) || 0)]].forEach(function (item) { var card = el("div", { class: "learning-progress-stat" }); card.append(el("strong", { id: item[0] }, item[2]), el("span", {}, item[1])); grid.appendChild(card); });
+        section.append(title, grid);
+        var topics = el("div", { class: "learning-progress-topics", "aria-label": "Konu ilerlemeleri" });
+        (Array.isArray(profile.topicProgress) ? profile.topicProgress : []).slice(0, 6).forEach(function (item) { var row = el("div", { class: "learning-topic-row" }); row.append(el("strong", {}, item.topic || "Konu"), el("span", {}, "%" + (Number(item.mastery) || 0))); var track = el("div", { class: "learning-topic-track" }); var fill = el("span", {}); fill.style.width = Math.max(0, Math.min(100, Number(item.mastery) || 0)) + "%"; track.appendChild(fill); row.appendChild(track); topics.appendChild(row); });
+        section.appendChild(topics);
+        var recommendation = el("p", { id: "learningRecommendation", class: "learning-recommendation" }, recommendations?.[0]?.text || "Yeni bir araştırma yaparak ilerlemene başlayabilirsin.");
+        section.appendChild(recommendation);
+        panel.appendChild(section);
+    }
+
+    function loadLearningProgress() {
+        fetch("/api/progress", { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { if (payload?.profile) renderLearningProgress(payload.profile, payload.recommendations || []); }).catch(function () { /* progress is optional */ });
+    }
     function editProfile() {
         var name = window.prompt("Profil adın", state.name); if (name === null) return;
         state.name = name.trim() || defaults.name; state.level = window.prompt("Öğrenme seviyen", state.level) || state.level; save(); renderProfile(); toast("Profilin güncellendi.");
@@ -60,7 +84,7 @@
         var input = document.getElementById("questionInput"); if (!input || document.getElementById("commercialSearchList")) return;
         var list = el("datalist", { id: "commercialSearchList" }); ["Yapay zeka", "Kuantum fiziği", "İklim değişikliği", "Mars", "DNA", "Osmanlı tarihi"].concat(state.recent).forEach(function (value) { list.appendChild(el("option", { value: value })); });
         input.setAttribute("list", "commercialSearchList"); input.insertAdjacentElement("afterend", list);
-        var button = document.getElementById("searchButton"); if (button) button.addEventListener("click", function () { var value = input.value.trim(); if (!value) return; state.research += 1; state.xp += 10; state.recent = [value].concat(state.recent.filter(function (x) { return x !== value; })).slice(0, 6); save(); renderProfile(); toast("Araştırma öğrenme paneline eklendi."); }, true);
+        var button = document.getElementById("searchButton"); if (button) button.addEventListener("click", function () { var value = input.value.trim(); if (!value) return; state.recent = [value].concat(state.recent.filter(function (x) { return x !== value; })).slice(0, 6); save(); toast("Araştırma öğrenme paneline eklendi."); }, true);
     }
     function addQuizTracking() {
         return;
@@ -78,5 +102,6 @@
         var hero = document.querySelector("#brainEngineWorkspace .hero"); if (!hero || document.getElementById("demoModeButton")) return;
         var button = el("button", { id: "demoModeButton", type: "button", class: "commercial-demo" }, "Demo modunu göster"); button.addEventListener("click", function () { toast("Demo modu: örnek akış hazır. Araştırma verilerin değişmedi."); document.body.classList.toggle("demo-mode"); }); hero.querySelector(".hero-live")?.appendChild(button);
     }
-    document.addEventListener("DOMContentLoaded", function () { addWorkspaceNavigation(); addProfilePanel(); addSmartSearch(); addQuizTracking(); addSettings(); addDemoMode(); });
+    document.addEventListener("DOMContentLoaded", function () { addWorkspaceNavigation(); addProfilePanel(); addSmartSearch(); addQuizTracking(); addSettings(); addDemoMode(); loadLearningProgress(); });
+    window.addEventListener("learning:updated", function () { loadLearningProgress(); });
 }());

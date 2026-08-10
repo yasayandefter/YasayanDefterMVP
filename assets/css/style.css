@@ -3159,6 +3159,11 @@ input:focus{
 @media (max-width:600px){.quiz-pro-settings{display:grid;grid-template-columns:1fr}.quiz-pro-settings select,.quiz-pro-button,.quiz-pro-skip{width:100%}.quiz-pro-options .quiz-option{min-height:52px}}
 @media (prefers-reduced-motion:reduce){.quiz-pro-progress span{transition:none}}
 
+/* ===========================
+   LEARNING PROFILE
+=========================== */
+.learning-progress-panel{margin-top:22px;padding:20px;border:1px solid rgba(0,212,255,.16);border-radius:18px;background:rgba(0,212,255,.035)}.learning-progress-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px}.learning-progress-stat{display:grid;gap:5px;padding:12px;border-radius:12px;background:rgba(255,255,255,.05)}.learning-progress-stat strong{font-size:20px;color:#f3f7ff}.learning-progress-stat span,.learning-topic-row span{color:#9da9c7;font-size:11px}.learning-progress-topics{display:grid;gap:10px;margin-top:16px}.learning-topic-row{display:grid;grid-template-columns:minmax(100px,1fr) 42px;gap:8px;align-items:center}.learning-topic-row strong{overflow:hidden;color:#dbe5ff;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.learning-topic-track{grid-column:1/-1;height:6px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.1)}.learning-topic-track span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#6c3bff,#00d4ff)}.learning-recommendation{margin:16px 0 0;color:#d4ddf7;font-size:13px;line-height:1.5}@media (max-width:600px){.learning-progress-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.learning-progress-stat strong{font-size:18px}}
+
 /* ==========================================================
    PHASE 1 LANDING PAGE — PREMIUM PRODUCT LAYER
 ========================================================== */
