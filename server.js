@@ -80,8 +80,18 @@ const UA = CONFIG.USER_AGENT;
    EXPRESS
 ======================================================== */
 
+function installSecurityHeaders(req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (req.path.startsWith("/api")) res.setHeader("Cache-Control", "no-store");
+  next();
+}
+
+app.use(installSecurityHeaders);
 app.use(installResponseContract);
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "1mb" }));
 
 function createRequestId() {
   return typeof crypto.randomUUID === "function"
@@ -448,7 +458,7 @@ function normalizeResearchInput(value) {
 
 function requiredQuery(req, name = "q") {
   const value = cleanText(req.query?.[name]);
-  return value.length <= 500 ? value : value.slice(0, 500);
+  return value.length <= 500 ? value : "";
 }
 
 function memoryLimit(req, fallback) {
@@ -4881,8 +4891,7 @@ app.get(
           error:
             "İnternet araştırması tamamlanamadı.",
 
-          detail:
-            error.message
+          requestId: req.requestId
         });
     }
   }
@@ -4934,7 +4943,7 @@ app.get("/api/analyze", (req, res) => {
 
             error: "Soru analiz edilemedi.",
 
-            detail: error.message
+            requestId: req.requestId
 
         });
 
@@ -5000,7 +5009,7 @@ app.get("/api/images", async (req, res) => {
 
             error: "Görseller alınamadı.",
 
-            detail: error.message
+            requestId: req.requestId
 
         });
 
@@ -6066,8 +6075,7 @@ app.use(
         error:
           "Sunucuda beklenmeyen bir hata oluştu.",
 
-        detail:
-          error.message
+        requestId: req.requestId
       });
   }
 );
