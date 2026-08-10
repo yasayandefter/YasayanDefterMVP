@@ -23,6 +23,8 @@ const quizEngine = require("./brain/quizEngine");
 const learningProfile = require("./brain/learningProfile");
 const teacherProfile = require("./brain/teacherProfile");
 const quizSessions = require("./brain/quizSessions");
+const classroomStore = require("./brain/classroomStore");
+const classroomProfile = require("./brain/classroomProfile");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -324,7 +326,7 @@ function writeMainMemory(data) {
    ÖĞRENME HAFIZASI
 ======================================================== */
 
-function readLearningMemory() {
+function readAllLearningMemory() {
 
   const data =
     safeReadJSON(
@@ -346,7 +348,13 @@ function readLearningMemory() {
   return [];
 }
 
-function writeLearningMemory(items) {
+function readLearningMemory(studentId = "") {
+  const records = readAllLearningMemory();
+  if (studentId) return records.filter(item => item.studentId === studentId);
+  return records.filter(item => !item.studentId);
+}
+
+function writeLearningMemory(items, studentId = "") {
   if (fs.existsSync(LEARNING_MEMORY_FILE)) {
     try {
       JSON.parse(fs.readFileSync(LEARNING_MEMORY_FILE, "utf8"));
@@ -355,10 +363,24 @@ function writeLearningMemory(items) {
       return false;
     }
   }
-  return safeWriteJSON(
-    LEARNING_MEMORY_FILE,
-    items
-  );
+  if (!studentId) return safeWriteJSON(LEARNING_MEMORY_FILE, items);
+  const all = readAllLearningMemory().filter(item => item.studentId !== studentId);
+  return safeWriteJSON(LEARNING_MEMORY_FILE, [...all, ...items]);
+}
+
+function requestedStudentId(req, body = {}) {
+  const value = cleanText(req.query?.studentId || body.studentId || "", 100);
+  if (!value) return "";
+  return classroomStore.getStudent(value) ? value : null;
+}
+
+function requireStudentContext(req, res, body = {}) {
+  const studentId = requestedStudentId(req, body);
+  if (studentId === null) {
+    res.status(404).json({ ok: false, error: { code: "STUDENT_NOT_FOUND", message: "Öğrenci bulunamadı." }, requestId: req.requestId });
+    return null;
+  }
+  return studentId;
 }
 
 /* ========================================================
@@ -4201,11 +4223,12 @@ async function research(query, options = {}) {
 ======================================================== */
 
 function saveResearchToMemory(
-  result
+  result,
+  studentId = ""
 ) {
 
   const items =
-    readLearningMemory();
+    readLearningMemory(studentId);
 
   const topic =
     cleanText(
@@ -4329,6 +4352,7 @@ function saveResearchToMemory(
       old?.quizScore ||
       null
   };
+  if (studentId) entry.studentId = studentId;
 
   const livingEntry = livingMemory.buildEntry(result, old);
   if (livingEntry) {
@@ -4362,7 +4386,7 @@ function saveResearchToMemory(
     );
   }
 
-  const persisted = writeLearningMemory(items);
+  const persisted = writeLearningMemory(items, studentId);
   if (!persisted) {
     logger.warn("memory.write_failed", {
       memoryId: entry.id,
@@ -4439,11 +4463,12 @@ function saveQuizResult(
   weakConcepts = [],
   skipped = 0,
   xpAwarded = 0,
-  attemptId = ""
+  attemptId = "",
+  studentId = ""
 ) {
 
   const items =
-    readLearningMemory();
+    readLearningMemory(studentId);
 
   const normalized =
     normalize(topic);
@@ -4514,9 +4539,7 @@ function saveQuizResult(
       new Date().toISOString();
   }
 
-  writeLearningMemory(
-    items
-  );
+  writeLearningMemory(items, studentId);
 
   return items[index];
 }
@@ -4735,6 +4758,8 @@ app.get(
     }
 
     try {
+      const studentId = requireStudentContext(req, res);
+      if (studentId === null) return;
 
       const researchStartedAt = Date.now();
       logger.info("research.started", {
@@ -4754,8 +4779,8 @@ app.get(
       }));
 
       try {
-        const memoryEntry = saveResearchToMemory(result);
-        const memoryItems = readLearningMemory();
+        const memoryEntry = saveResearchToMemory(result, studentId);
+        const memoryItems = readLearningMemory(studentId);
         result.livingMemory = {
           recordId: memoryEntry?.id || null,
           suggestions: livingMemory.buildSuggestions(memoryEntry, memoryItems),
@@ -5000,6 +5025,8 @@ app.post(
     const body =
       req.body ||
       {};
+    const studentId = requireStudentContext(req, res, body);
+    if (studentId === null) return;
 
     const topic =
       cleanText(
@@ -5059,7 +5086,7 @@ app.post(
               ? body.facts
               : []
         }
-      });
+      }, studentId);
 
     res.json({
 
@@ -5196,39 +5223,47 @@ function quizApiError(res, status, code, message, requestId) {
 
 app.post("/api/quiz/start", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
+  const studentId = requireStudentContext(req, res, body);
+  if (studentId === null) return;
   if (!body.research || typeof body.research !== "object") return quizApiError(res, 400, "BAD_REQUEST", "Quiz araştırma verisi bulunamadı.", req.requestId);
-  const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf);
+  const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf, studentId);
   if (!started.quiz.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Bu konu için güvenli bir quiz oluşturulamadı.", req.requestId);
   res.json({ ok: true, attempt: started.quiz, requestId: req.requestId });
 });
 
 app.post("/api/quiz/answer", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
+  const studentId = requireStudentContext(req, res, body);
+  if (studentId === null) return;
   if (!body.attemptId || !body.questionId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt ve soru bilgisi gerekli.", req.requestId);
-  const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true);
+  const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true, studentId);
   if (result.error) return quizApiError(res, 409, result.error, "Bu quiz cevabı işlenemedi.", req.requestId);
   res.json({ ok: true, result: result.result, requestId: req.requestId });
 });
 
 app.post("/api/quiz/complete", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
+  const studentId = requireStudentContext(req, res, body);
+  if (studentId === null) return;
   if (!body.attemptId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt bilgisi gerekli.", req.requestId);
-  const completed = quizSessions.complete(body.attemptId);
+  const completed = quizSessions.complete(body.attemptId, studentId);
   if (completed.error) return quizApiError(res, 409, completed.error, "Bu quiz tamamlanamadı.", req.requestId);
   if (!completed.duplicate) {
     const summary = completed.summary;
-    saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId);
+    saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId, studentId);
   }
   res.json({ ok: true, summary: completed.summary, duplicate: completed.duplicate, requestId: req.requestId });
 });
 
 app.post("/api/quiz/generate", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
+  const studentId = requireStudentContext(req, res, body);
+  if (studentId === null) return;
   const researchData = body.research && typeof body.research === "object" ? body.research : body;
   const count = Math.min(10, Math.max(3, Number(body.count) || 5));
   const difficulty = quizEngine.normalizeDifficulty(body.difficulty);
   const type = quizEngine.normalizeType(body.type);
-  const started = quizSessions.start({ research: researchData, count, difficulty, type });
+  const started = quizSessions.start({ research: researchData, count, difficulty, type }, "", studentId);
   res.json({ ok: true, quiz: started.quiz, requestId: req.requestId });
 });
 
@@ -5239,12 +5274,14 @@ app.post(
     res
   ) => {
     const attemptId = cleanText(req.body?.attemptId, 100);
+    const studentId = requireStudentContext(req, res, req.body || {});
+    if (studentId === null) return;
     const session = quizSessions.get(attemptId);
-    if (!session?.completed || session.summary?.attemptId !== attemptId) {
+    if (!session?.completed || session.studentId !== studentId || session.summary?.attemptId !== attemptId) {
       return quizApiError(res, 409, "QUIZ_SERVER_REQUIRED", "Quiz sonucu yalnızca server doğrulamasıyla kaydedilebilir.", req.requestId);
     }
     const summary = session.summary;
-    const memory = saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId);
+    const memory = saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId, studentId);
 
     if (!memory) {
 
@@ -5450,13 +5487,17 @@ app.get(
 ======================================================== */
 
 app.get("/api/progress", (req, res) => {
-  const records = readLearningMemory();
+  const studentId = requireStudentContext(req, res);
+  if (studentId === null) return;
+  const records = readLearningMemory(studentId);
   const profile = learningProfile.buildProfile(records);
   res.json({ ok: true, profile, recommendations: learningProfile.buildRecommendations(profile, records) });
 });
 
 app.get("/api/progress/:topic", (req, res) => {
-  const records = readLearningMemory();
+  const studentId = requireStudentContext(req, res);
+  if (studentId === null) return;
+  const records = readLearningMemory(studentId);
   const profile = learningProfile.buildProfile(records);
   const topic = profile.topicProgress.find(item => item.topic.toLocaleLowerCase("tr-TR") === String(req.params.topic || "").toLocaleLowerCase("tr-TR"));
   if (!topic) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Bu konu için ilerleme kaydı bulunamadı." }, requestId: req.requestId });
@@ -5464,14 +5505,31 @@ app.get("/api/progress/:topic", (req, res) => {
 });
 
 app.get("/api/recommendations", (req, res) => {
-  const records = readLearningMemory();
+  const studentId = requireStudentContext(req, res);
+  if (studentId === null) return;
+  const records = readLearningMemory(studentId);
   const profile = learningProfile.buildProfile(records);
   res.json({ ok: true, recommendations: learningProfile.buildRecommendations(profile, records) });
 });
 
+function classroomApiError(res, status, code, message, requestId) { return res.status(status).json({ ok: false, error: { code, message }, requestId }); }
+
+app.get("/api/classrooms", (req, res) => { res.json({ ok: true, classrooms: classroomStore.classrooms(), requestId: req.requestId }); });
+app.post("/api/classrooms", (req, res) => { const result = classroomStore.createClassroom(req.body?.name); if (result.error === "INVALID_NAME") return classroomApiError(res, 400, "BAD_REQUEST", "Sınıf adı boş bırakılamaz.", req.requestId); if (result.error) return classroomApiError(res, 500, "STORAGE_FAILED", "Sınıf oluşturulamadı.", req.requestId); res.status(201).json({ ok: true, classroom: result.classroom, requestId: req.requestId }); });
+app.get("/api/classrooms/:id", (req, res) => { const classroom = classroomStore.getClassroom(cleanText(req.params.id, 100)); if (!classroom) return classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId); res.json({ ok: true, classroom, requestId: req.requestId }); });
+app.post("/api/classrooms/:id/students", (req, res) => { const result = classroomStore.createStudent(cleanText(req.params.id, 100), req.body?.displayName); if (result.error === "CLASSROOM_NOT_FOUND") return classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId); if (result.error === "INVALID_NAME") return classroomApiError(res, 400, "BAD_REQUEST", "Öğrenci adı boş bırakılamaz.", req.requestId); if (result.error) return classroomApiError(res, 500, "STORAGE_FAILED", "Öğrenci oluşturulamadı.", req.requestId); res.status(201).json({ ok: true, student: result.student, requestId: req.requestId }); });
+app.get("/api/classrooms/:id/students", (req, res) => { if (!classroomStore.getClassroom(cleanText(req.params.id, 100))) return classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId); res.json({ ok: true, students: classroomStore.listStudents(cleanText(req.params.id, 100)), requestId: req.requestId }); });
+app.get("/api/students/:id", (req, res) => { const student = classroomStore.getStudent(cleanText(req.params.id, 100)); if (!student) return classroomApiError(res, 404, "NOT_FOUND", "Öğrenci bulunamadı.", req.requestId); res.json({ ok: true, student, requestId: req.requestId }); });
+app.patch("/api/students/:id", (req, res) => { const result = classroomStore.updateStudent(cleanText(req.params.id, 100), req.body?.displayName); if (result.error === "STUDENT_NOT_FOUND") return classroomApiError(res, 404, "NOT_FOUND", "Öğrenci bulunamadı.", req.requestId); if (result.error === "INVALID_NAME") return classroomApiError(res, 400, "BAD_REQUEST", "Öğrenci adı boş bırakılamaz.", req.requestId); if (result.error) return classroomApiError(res, 500, "STORAGE_FAILED", "Öğrenci güncellenemedi.", req.requestId); res.json({ ok: true, student: result.student, requestId: req.requestId }); });
+app.get("/api/session/student", (req, res) => { const studentId = requestedStudentId(req); if (studentId === null) return classroomApiError(res, 404, "STUDENT_NOT_FOUND", "Öğrenci bulunamadı.", req.requestId); res.json({ ok: true, student: studentId ? classroomStore.getStudent(studentId) : null, requestId: req.requestId }); });
+app.post("/api/session/student", (req, res) => { const studentId = requireStudentContext(req, res, req.body || {}); if (studentId === null) return; res.json({ ok: true, student: studentId ? classroomStore.getStudent(studentId) : null, requestId: req.requestId }); });
+app.get("/api/classrooms/:id/summary", (req, res) => { const classroom = classroomStore.getClassroom(cleanText(req.params.id, 100)); if (!classroom) return classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId); const students = classroomStore.listStudents(classroom.id); const profiles = students.map(student => learningProfile.buildProfile(readLearningMemory(student.id))); const summary = classroomProfile.buildClassroomSummary(classroom, students, profiles); res.json({ ok: true, summary, requestId: req.requestId }); });
+
 app.get("/api/teacher/summary", (req, res) => {
   try {
-    const records = readLearningMemory();
+    const studentId = requireStudentContext(req, res);
+    if (studentId === null) return;
+    const records = readLearningMemory(studentId);
     const profile = learningProfile.buildProfile(records);
     const recommendations = learningProfile.buildRecommendations(profile, records);
     const summary = teacherProfile.buildTeacherSummary(profile, recommendations);

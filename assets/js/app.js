@@ -7,6 +7,10 @@
 
 const API = "";
 
+function activeStudentId() {
+    try { return localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) { return ""; }
+}
+
 let currentResearch = null;
 let currentAnalysis = null;
 let currentSpeech = null;
@@ -199,7 +203,7 @@ async function researchTopic() {
 
             API +
             "/api/research?q=" +
-            encodeURIComponent(question),
+            encodeURIComponent(question) + (activeStudentId() ? "&studentId=" + encodeURIComponent(activeStudentId()) : ""),
             { signal: controller.signal }
 
         );
@@ -1853,7 +1857,7 @@ function ensureProQuizSettings() {
         if (!currentResearch) return;
         start.disabled = true;
         try {
-            const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: Number($("quizProCount")?.value || 5), difficulty: $("quizProDifficulty")?.value || "medium", type: $("quizProType")?.value || "multiple-choice" }) });
+            const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: Number($("quizProCount")?.value || 5), difficulty: $("quizProDifficulty")?.value || "medium", type: $("quizProType")?.value || "multiple-choice", studentId: activeStudentId() }) });
             const payload = await response.json();
             if (!response.ok || !payload.attempt) throw new Error("Quiz oluşturulamadı.");
             if (!payload.attempt.questions?.length) throw new Error("Bu konu için güvenli soru bulunamadı.");
@@ -1921,7 +1925,7 @@ async function checkProQuizAnswer(answer, clicked, item) {
     document.querySelectorAll("#quizOptions .quiz-option, #quizOptions .quiz-pro-skip").forEach(button => { button.disabled = true; });
     let response;
     try {
-        const request = await fetch(API + "/api/quiz/answer", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz.attemptId, questionId: item.id, answer: quizText(answer), skipped: !quizText(answer) }) });
+        const request = await fetch(API + "/api/quiz/answer", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz.attemptId, questionId: item.id, answer: quizText(answer), skipped: !quizText(answer), studentId: activeStudentId() }) });
         response = await request.json();
         if (!request.ok || !response.result) throw new Error("Cevap doğrulanamadı.");
     } catch (_) {
@@ -1948,7 +1952,7 @@ async function checkProQuizAnswer(answer, clicked, item) {
 async function completeProQuiz() {
     let payload;
     try {
-        const response = await fetch(API + "/api/quiz/complete", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz?.attemptId }) });
+        const response = await fetch(API + "/api/quiz/complete", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz?.attemptId, studentId: activeStudentId() }) });
         payload = await response.json();
         if (!response.ok || !payload.summary) throw new Error("Quiz tamamlanamadı.");
     } catch (_) {
@@ -1963,7 +1967,7 @@ async function completeProQuiz() {
     question.textContent = "Quiz sonucu"; options.replaceChildren(); result.replaceChildren(); result.className = "quiz-result good";
     const summaryText = document.createElement("p"); summaryText.textContent = `${summary.correct} doğru · ${wrong} yanlış · ${skipped} atlandı · Başarı: %${summary.percentage}`; result.appendChild(summaryText);
     if (Array.isArray(summary.weakConcepts) && summary.weakConcepts.length) { const heading = document.createElement("strong"); heading.textContent = "Tekrar önerileri"; result.appendChild(heading); const list = document.createElement("ul"); summary.weakConcepts.slice(0, 8).forEach(concept => { const li = document.createElement("li"); li.textContent = `${concept}: Bu noktayı tekrar gözden geçirebilirsin.`; list.appendChild(li); }); result.appendChild(list); }
-    const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", async () => { const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: activeProQuiz.questions.length, difficulty: activeProQuiz.difficulty, type: activeProQuiz.type, retryOf: activeProQuiz.attemptId }) }); const next = await response.json(); if (response.ok && next.attempt?.questions?.length) { activeProQuiz = next.attempt; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); } }); result.appendChild(retry);
+    const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", async () => { const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: activeProQuiz.questions.length, difficulty: activeProQuiz.difficulty, type: activeProQuiz.type, retryOf: activeProQuiz.attemptId, studentId: activeStudentId() }) }); const next = await response.json(); if (response.ok && next.attempt?.questions?.length) { activeProQuiz = next.attempt; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); } }); result.appendChild(retry);
     window.dispatchEvent(new CustomEvent("learning:updated"));
     completeStep("quiz");
 }

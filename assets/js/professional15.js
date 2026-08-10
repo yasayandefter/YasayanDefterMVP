@@ -74,7 +74,8 @@
     }
 
     function loadLearningProgress() {
-        fetch("/api/progress", { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { if (payload?.profile) renderLearningProgress(payload.profile, payload.recommendations || []); }).catch(function () { /* progress is optional */ });
+        var studentId = ""; try { studentId = localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) {} var suffix = studentId ? "?studentId=" + encodeURIComponent(studentId) : "";
+        fetch("/api/progress" + suffix, { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { if (payload?.profile) renderLearningProgress(payload.profile, payload.recommendations || []); }).catch(function () { /* progress is optional */ });
     }
     function teacherNode(tag, attrs, content) { return el(tag, attrs, content); }
     function renderTeacherSummary(summary) {
@@ -87,7 +88,7 @@
         var columns = teacherNode("div", { class: "teacher-dashboard-columns" }); [["Dikkat Gerektirenler", summary.attentionNeeded || [], "teacher-attention"], ["Öğretmen Önerileri", summary.recommendations || [], "teacher-recommendation"]].forEach(function (group) { var section = teacherNode("section", { class: "teacher-dashboard-card" }); section.appendChild(teacherNode("h3", {}, group[0])); group[1].slice(0, 6).forEach(function (item) { section.appendChild(teacherNode("p", { class: group[2] }, item.text || (item.topic + " — " + item.reason))); }); if (section.children.length === 1) section.appendChild(teacherNode("p", { class: "teacher-empty-inline" }, "Henüz yeterli veri yok.")); columns.appendChild(section); }); panel.appendChild(columns);
     }
     function addTeacherPanel() { var results = document.getElementById("results"); if (!results || document.getElementById("teacherDashboard")) return; var panel = teacherNode("section", { id: "teacherDashboard", class: "teacher-dashboard pro14-panel", "aria-labelledby": "teacherDashboardTitle" }); panel.appendChild(teacherNode("p", { class: "teacher-skeleton", "aria-label": "Öğretmen özeti yükleniyor" }, "Öğretmen özeti yükleniyor…")); results.insertBefore(panel, results.firstElementChild); }
-    function loadTeacherSummary() { fetch("/api/teacher/summary", { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { var panel = document.getElementById("teacherDashboard"); if (!panel) return; if (payload?.summary) renderTeacherSummary(payload.summary); else panel.replaceChildren(teacherNode("p", { class: "teacher-empty-state" }, "Henüz yeterli öğrenme verisi yok. Öğrenci araştırma yaptıkça ve quiz çözdükçe bu panel gelişecektir.")); }).catch(function () { var panel = document.getElementById("teacherDashboard"); if (panel) panel.replaceChildren(teacherNode("p", { class: "teacher-error" }, "Öğretmen özeti şu anda yüklenemedi.")); }); }
+    function loadTeacherSummary() { var studentId = ""; try { studentId = localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) {} var suffix = studentId ? "?studentId=" + encodeURIComponent(studentId) : ""; fetch("/api/teacher/summary" + suffix, { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { var panel = document.getElementById("teacherDashboard"); if (!panel) return; if (payload?.summary) renderTeacherSummary(payload.summary); else panel.replaceChildren(teacherNode("p", { class: "teacher-empty-state" }, "Henüz yeterli öğrenme verisi yok. Öğrenci araştırma yaptıkça ve quiz çözdükçe bu panel gelişecektir.")); }).catch(function () { var panel = document.getElementById("teacherDashboard"); if (panel) panel.replaceChildren(teacherNode("p", { class: "teacher-error" }, "Öğretmen özeti şu anda yüklenemedi.")); }); }
     function editProfile() {
         var name = window.prompt("Profil adın", state.name); if (name === null) return;
         state.name = name.trim() || defaults.name; state.level = window.prompt("Öğrenme seviyen", state.level) || state.level; save(); renderProfile(); toast("Profilin güncellendi.");
@@ -117,4 +118,5 @@
     }
     document.addEventListener("DOMContentLoaded", function () { addWorkspaceNavigation(); addProfilePanel(); addTeacherPanel(); addSmartSearch(); addQuizTracking(); addSettings(); addDemoMode(); loadLearningProgress(); loadTeacherSummary(); });
     window.addEventListener("learning:updated", function () { loadLearningProgress(); loadTeacherSummary(); });
+    window.addEventListener("student:updated", function () { loadLearningProgress(); loadTeacherSummary(); });
 }());

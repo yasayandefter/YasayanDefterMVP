@@ -49,7 +49,7 @@ function publicQuizData(quiz) {
   };
 }
 
-function start(input = {}, retryOf = "") {
+function start(input = {}, retryOf = "", studentId = "") {
   const source = input && typeof input === "object" ? input : {};
   const quiz = quizEngine.buildQuiz(source.research || source, {
     count: Math.min(10, Math.max(3, Number(source.count) || 5)),
@@ -66,15 +66,16 @@ function start(input = {}, retryOf = "") {
     }
   }
   const id = crypto.randomUUID();
-  const session = { id, quiz, answers: [], completed: false, createdAt: new Date().toISOString(), completedAt: null, xpAwarded: 0 };
+  const session = { id, quiz, studentId: cleanText(studentId, 100), answers: [], completed: false, createdAt: new Date().toISOString(), completedAt: null, xpAwarded: 0 };
   sessions.set(id, session);
   while (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
   return { session, quiz: publicQuiz(session) };
 }
 
-function answer(attemptId, questionId, answer, skipped = false) {
+function answer(attemptId, questionId, answer, skipped = false, studentId = "") {
   const session = sessions.get(cleanText(attemptId, 100));
   if (!session) return { error: "UNKNOWN_ATTEMPT" };
+  if (session.studentId !== cleanText(studentId, 100)) return { error: "STUDENT_MISMATCH" };
   if (session.completed) return { error: "ATTEMPT_COMPLETED" };
   const id = cleanText(questionId, 160);
   const question = session.quiz.questions.find(item => item.id === id);
@@ -86,9 +87,10 @@ function answer(attemptId, questionId, answer, skipped = false) {
   return { result: { ...row, explanation: result.explanation } };
 }
 
-function complete(attemptId) {
+function complete(attemptId, studentId = "") {
   const session = sessions.get(cleanText(attemptId, 100));
   if (!session) return { error: "UNKNOWN_ATTEMPT" };
+  if (session.studentId !== cleanText(studentId, 100)) return { error: "STUDENT_MISMATCH" };
   if (session.completed) return { summary: session.summary, duplicate: true };
   const total = session.quiz.questions.length;
   const skippedAnswered = session.answers.filter(item => item.skipped).length;

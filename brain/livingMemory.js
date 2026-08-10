@@ -151,7 +151,7 @@ function sanitizeRecords(items) {
   for (const item of Array.isArray(items) ? items : []) {
     const record = sanitizeRecord(item);
     if (!record) continue;
-    const key = normalize(record.topic);
+    const key = `${text(record.studentId)}::${normalize(record.topic)}`;
     const previous = byTopic.get(key);
     if (!previous || new Date(record.updatedAt) >= new Date(previous.updatedAt)) {
       byTopic.set(key, previous ? { ...previous, ...record } : record);

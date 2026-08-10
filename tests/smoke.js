@@ -148,6 +148,20 @@ async function run() {
       assertNoObjectString(result);
     });
 
+    await check("Classroom and student API flow", async () => {
+      const classroom = await request(baseUrl, "POST", "/api/classrooms", JSON.stringify({ name: "Smoke Classroom" }));
+      assert.equal(classroom.response.status, 201);
+      const student = await request(baseUrl, "POST", `/api/classrooms/${classroom.json.classroom.id}/students`, JSON.stringify({ displayName: "Smoke Student" }));
+      assert.equal(student.response.status, 201);
+      const summary = await request(baseUrl, "GET", `/api/classrooms/${classroom.json.classroom.id}/summary`);
+      assert.equal(summary.response.status, 200);
+      assert.equal(summary.json.summary.classroom.studentCount, 1);
+      const progress = await request(baseUrl, "GET", `/api/progress?studentId=${encodeURIComponent(student.json.student.id)}`);
+      assert.equal(progress.response.status, 200);
+      assert.equal(progress.json.profile.researchedTopics, 0);
+      assertNoObjectString(classroom); assertNoObjectString(student); assertNoObjectString(summary); assertNoObjectString(progress);
+    });
+
     await check("GET /api/research?q=Mars", async () => {
       const result = await request(baseUrl, "GET", "/api/research?q=Mars");
       assert.equal(result.response.status, 200);
@@ -243,6 +257,7 @@ async function run() {
         child.once("exit", () => { clearTimeout(timer); resolve(); });
       });
     }
+    try { require("../brain/classroomStore").resetForTests(); } catch (_) { /* test cleanup is best effort */ }
   }
 }
 

@@ -2,3 +2,4 @@ node_modules/
 .vs/
 .env
 *.log
+data/*.json
