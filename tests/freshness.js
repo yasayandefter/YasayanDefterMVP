@@ -1,0 +1,12 @@
+"use strict";
+const assert = require("assert");
+const { detectFreshness, detectCategory } = require("../brain/freshness");
+const standard = detectFreshness("Mars nedir?");
+assert.equal(standard.mode, "standard");
+assert.equal(detectFreshness("Bugünkü bilim haberleri").mode, "current");
+assert.equal(detectFreshness("Bu haftaki eğitim haberleri").requestedWindow, "week");
+assert.equal(detectFreshness("Güncel durum nedir?").mode, "current");
+assert.equal(detectFreshness("Son deprem nerede oldu?").category, "earthquake");
+assert.equal(detectCategory("Samsung'un en son tanıttığı cihaz"), "technology");
+assert.equal(detectFreshness("1969 Ay'a iniş").mode, "standard");
+console.log("Freshness tests: 7 passed, 0 failed");

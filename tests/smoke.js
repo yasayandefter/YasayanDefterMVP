@@ -199,6 +199,17 @@ async function run() {
       assertNoObjectString(result);
     });
 
+    await check("GET /api/research?q=Bugünkü bilim haberleri", async () => {
+      const result = await request(baseUrl, "GET", "/api/research?q=Bugünkü%20bilim%20haberleri");
+      assert.equal(result.response.status, 200);
+      assert.equal(result.json.ok, true);
+      assert.equal(result.json.researchMode, "current");
+      assert.ok(result.json.freshness);
+      assert.ok(Array.isArray(result.json.currentItems));
+      assert.ok(Array.isArray(result.json.currentSources));
+      assertNoObjectString(result);
+    });
+
     await check("Quiz server-authoritative flow", async () => {
       const research = { query: "SmokeTopic", structuredContent: { keyFacts: [
         { text: "SmokeTopic, güvenli test için kullanılan örnek bir konudur.", concept: "Tanım" },

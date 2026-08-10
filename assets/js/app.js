@@ -11,6 +11,11 @@ function activeStudentId() {
     try { return localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) { return ""; }
 }
 
+function clearStaleStudentContext() {
+    try { localStorage.removeItem("yasayan-defter-active-student"); } catch (_) {}
+    window.dispatchEvent(new CustomEvent("student:updated", { detail: { studentId: "" } }));
+}
+
 let currentResearch = null;
 let currentAnalysis = null;
 let currentSpeech = null;
@@ -93,6 +98,12 @@ url,
  requestId: data?.requestId || ""
 }
 );
+if (errorPayload && typeof errorPayload === "object") {
+    const requestError = new Error(errorMessage || "Sunucu isteği reddetti.");
+    requestError.code = errorPayload.code || "API_ERROR";
+    requestError.requestId = data?.requestId || "";
+    throw requestError;
+}
 throw new Error(
  errorMessage ||
  data?.message ||
@@ -169,6 +180,7 @@ async function researchTopic() {
 
     let index = 0;
     let progress = 0;
+    let staleContextRecovery = false;
 
     const timer = setInterval(() => {
 
@@ -315,6 +327,13 @@ async function researchTopic() {
     catch (error) {
 
         if (error && error.name === "AbortError") return;
+        if (error && error.code === "STUDENT_NOT_FOUND" && !staleContextRecovery) {
+            staleContextRecovery = true;
+            clearStaleStudentContext();
+            if (statusText) statusText.textContent = "Varsayılan öğrenme profiline dönülüyor...";
+            setTimeout(() => researchTopic(), 0);
+            return;
+        }
         console.error("Araştırma isteği başarısız:", error?.message || "Bilinmeyen hata");
 
         showError(
@@ -514,6 +533,13 @@ function renderProfessionalResult(data) {
     const meta = createSafeElement("div", "professional-result-meta");
     const audience = createSafeElement("span", "professional-badge", `Seviye: ${model.audienceLevel}`);
     meta.appendChild(audience);
+    if (data && data.researchMode === "current") {
+        meta.appendChild(createSafeElement("span", "professional-badge professional-current-badge", "⚡ Güncel Bilgi"));
+        const checkedAt = data.freshness && data.freshness.checkedAt ? new Date(data.freshness.checkedAt) : null;
+        const checkedText = checkedAt && !Number.isNaN(checkedAt.getTime()) ? `Son kontrol: ${checkedAt.toLocaleString("tr-TR")}` : "Son kontrol: Tarih belirtilmemiş";
+        meta.appendChild(createSafeElement("span", "professional-result-freshness", checkedText));
+        meta.appendChild(createSafeElement("span", "professional-result-freshness", `${Number(data.freshness && data.freshness.sourceCount) || 0} güncel kaynak`));
+    }
     if (model.usedFallback) meta.appendChild(createSafeElement("span", "professional-badge is-muted", "Yerel fallback içeriği"));
     head.append(titleGroup, meta);
     host.appendChild(head);
@@ -630,6 +656,10 @@ function renderProfessionalResult(data) {
             source.appendChild(createSafeElement("h4", "professional-source-title", titleText));
             const domain = (() => { try { return url ? new URL(url).hostname.replace(/^www\./, "") : (article.source || "Kaynak"); } catch (_) { return article.source || "Kaynak"; } })();
             source.appendChild(createSafeElement("p", "professional-source-domain", domain));
+            if (data && data.researchMode === "current") {
+                const published = article.publishedAt && !Number.isNaN(Date.parse(article.publishedAt)) ? new Date(article.publishedAt).toLocaleString("tr-TR") : "Tarih belirtilmemiş";
+                source.appendChild(createSafeElement("p", "professional-source-date", published));
+            }
             if (article.text || article.summary) source.appendChild(createSafeElement("p", "professional-readable-text", String(article.text || article.summary).slice(0, 280)));
             if (article.reliabilityLevel) {
                 const score = model.finiteScore(article.reliabilityScore);

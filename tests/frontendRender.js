@@ -161,5 +161,12 @@ assert.doesNotMatch(appSource, /livingMemory.*innerHTML\s*=/i);
 assert.match(styleSource, /living-memory-workspace/);
 assert.match(styleSource, /@media \(max-width:600px\).*living-memory-rail/);
 assert.match(styleSource, /prefers-reduced-motion:reduce.*living-memory-skeleton/);
+assert.match(appSource, /researchMode === "current"/);
+assert.match(appSource, /Güncel Bilgi/);
+assert.match(appSource, /Son kontrol/);
+assert.match(styleSource, /professional-current-badge/);
+assert.match(appSource, /clearStaleStudentContext/);
+assert.match(appSource, /STUDENT_NOT_FOUND/);
+assert.match(appSource, /localStorage\.removeItem\("yasayan-defter-active-student"\)/);
 
 console.log("PASS  frontend result model, URL safety, fallbacks, allowlists, and deduplication");

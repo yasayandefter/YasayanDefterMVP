@@ -3243,3 +3243,7 @@ html{scroll-behavior:smooth}.landing-page,.engine-workspace{contain:layout paint
 @media (max-width:900px){.living-memory-workspace{width:min(100% - 28px,760px)}.living-memory-grid{grid-template-columns:1fr}.living-memory-rail>*{flex-basis:clamp(220px,42vw,290px)}}
 @media (max-width:600px){.living-memory-workspace{width:calc(100% - 20px);padding:14px;border-radius:18px}.living-memory-heading{display:grid;gap:10px}.living-memory-status{justify-self:start}.living-memory-rail>*{flex-basis:82vw}.living-memory-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.living-memory-result-banner{margin-inline:16px}.living-memory-timeline-node{min-width:140px}}
 @media (prefers-reduced-motion:reduce){.living-memory-skeleton{animation:none}.living-memory-item{transition:none}}
+/* Current information metadata */
+.professional-current-badge{border-color:rgba(255,193,7,.45);color:#ffe7a0;background:rgba(255,193,7,.1)}
+.professional-result-freshness{align-self:center;color:#9faac3;font-size:11px}
+.professional-source-date{margin:6px 0 0;color:#9feaff;font-size:10px}

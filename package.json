@@ -16,7 +16,9 @@
     "test:progress": "node tests/learningProfile.js",
     "test:teacher": "node tests/teacherProfile.js",
     "test:classroom": "node tests/classroom.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:frontend && npm run test:smoke"
+    "test:freshness": "node tests/freshness.js",
+    "test:current": "node tests/current.js",
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

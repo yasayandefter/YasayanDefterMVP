@@ -25,6 +25,8 @@ const teacherProfile = require("./brain/teacherProfile");
 const quizSessions = require("./brain/quizSessions");
 const classroomStore = require("./brain/classroomStore");
 const classroomProfile = require("./brain/classroomProfile");
+const freshness = require("./brain/freshness");
+const currentProviders = require("./brain/currentProviders");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -4734,6 +4736,35 @@ function getRecentConversationContext(
    API — RESEARCH
 ======================================================== */
 
+function applyCurrentResult(result, current, detection) {
+  const items = Array.isArray(current.items) ? current.items : [];
+  const safeItems = items.map(item => ({
+    title: item.title,
+    text: item.text || "",
+    summary: item.text || "",
+    url: item.url || null,
+    link: item.url || null,
+    source: item.source,
+    publishedAt: item.publishedAt || null,
+    trust: item.trust || null,
+    magnitude: item.magnitude ?? null
+  }));
+  const message = items.length
+    ? `Güncel bilgi için ${items.length} kaynak incelendi.`
+    : "Bu konu için güncel ve doğrulanabilir bir kaynak şu anda bulunamadı. Lütfen daha sonra tekrar deneyin.";
+  result.researchMode = "current";
+  result.freshness = { ...detection, checkedAt: current.checkedAt, sourceCount: current.sources.length, newestSourceAt: current.newestSourceAt || null, providerErrors: current.providerErrors };
+  result.currentItems = safeItems;
+  result.currentSources = current.sources;
+  result.articles = safeItems;
+  result.sources = current.sources;
+  result.summary = message;
+  result.text = message;
+  result.structuredContent = { ...(result.structuredContent || {}), summary: message, keyFacts: safeItems.slice(0, 6).map(item => ({ text: item.text || item.title, concept: item.title })), sections: safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş." })) };
+  if (!items.length) result.quizPro = null;
+  return result;
+}
+
 app.get(
   "/api/research",
   async (
@@ -4762,21 +4793,46 @@ app.get(
       if (studentId === null) return;
 
       const researchStartedAt = Date.now();
+      const detection = freshness.detectFreshness(query);
       logger.info("research.started", {
         requestId: req.requestId,
         queryLength: query.length
       });
 
-      const result =
-        await research(query, {
-          audienceLevel: req.query?.audienceLevel
-        });
+      let result;
+      try {
+        result = await research(query, { audienceLevel: req.query?.audienceLevel });
+      } catch (researchError) {
+        if (!detection.requiresFreshness) throw researchError;
+        logger.warn("current.standard_pipeline_failed", { requestId: req.requestId, errorName: researchError.name });
+        result = {
+          ok: true,
+          version: VERSION,
+          engine: ENGINE_NAME,
+          query,
+          articles: [], images: [], related: [], sources: [],
+          summary: "", text: "", title: query,
+          structuredContent: { version: "current-v1", summary: "", sections: [], keyConcepts: [], keyFacts: [], followUpQuestions: [], generatedFrom: "current" }
+        };
+      }
+
+      if (detection.requiresFreshness) {
+        logger.info("current.mode_selected", { requestId: req.requestId, category: detection.category, window: detection.requestedWindow });
+        const current = await currentProviders.searchCurrent(query, detection);
+        if (current.providerErrors.length) logger.warn("current.provider_failure", { requestId: req.requestId, failedCount: current.providerErrors.length });
+        if (current.items.length) logger.info("current.provider_success", { requestId: req.requestId, itemCount: current.items.length, sourceCount: current.sources.length });
+        applyCurrentResult(result, current, detection);
+      } else {
+        result.researchMode = "standard";
+        result.freshness = { ...detection, checkedAt: null, sourceCount: 0, newestSourceAt: null };
+      }
 
       result.quizPro = quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
         count: 5,
         difficulty: "medium",
         type: "multiple-choice"
       }));
+      if (detection.requiresFreshness && (!Array.isArray(result.currentItems) || !result.currentItems.length)) result.quizPro = null;
 
       try {
         const memoryEntry = saveResearchToMemory(result, studentId);
