@@ -4,6 +4,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "result-renderers.js"), "utf8");
 const appSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "app.js"), "utf8");
+const professionalSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "professional15.js"), "utf8");
 const styleSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "css", "style.css"), "utf8");
 const htmlSource = fs.readFileSync(require("node:path").join(__dirname, "..", "index.html"), "utf8");
 const htmlIdPosition = id => htmlSource.indexOf(`id="${id}"`);
@@ -118,6 +119,9 @@ assert.match(appSource, /\/api\/memory\/stats/);
 assert.match(appSource, /function renderLivingMemoryWorkspace/);
 assert.match(appSource, /function renderLivingMemoryResult/);
 assert.match(appSource, /function renderKnowledgeGraph/);
+assert.match(professionalSource, /teacherDashboard/);
+assert.match(professionalSource, /\/api\/teacher\/summary/);
+assert.match(professionalSource, /Öğretmen Modu|Ã–ÄŸretmen Modu/);
 assert.match(appSource, /function renderProQuiz/);
 assert.match(appSource, /function completeProQuiz/);
 assert.match(appSource, /\/api\/quiz\/start/);

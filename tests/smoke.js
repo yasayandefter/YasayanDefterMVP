@@ -136,6 +136,18 @@ async function run() {
       assertNoObjectString(result);
     });
 
+    await check("GET /api/teacher/summary", async () => {
+      const result = await request(baseUrl, "GET", "/api/teacher/summary");
+      assert.equal(result.response.status, 200);
+      assert.equal(result.json.ok, true);
+      assert.ok(result.json.summary);
+      assert.ok(result.json.summary.overview);
+      assert.ok(Array.isArray(result.json.summary.attentionNeeded));
+      assert.ok(requestIdOf(result));
+      assert.equal(requestIdOf(result), result.json.requestId);
+      assertNoObjectString(result);
+    });
+
     await check("GET /api/research?q=Mars", async () => {
       const result = await request(baseUrl, "GET", "/api/research?q=Mars");
       assert.equal(result.response.status, 200);

@@ -21,6 +21,7 @@ const contentStructurer = require("./brain/contentStructurer");
 const livingMemory = require("./brain/livingMemory");
 const quizEngine = require("./brain/quizEngine");
 const learningProfile = require("./brain/learningProfile");
+const teacherProfile = require("./brain/teacherProfile");
 const quizSessions = require("./brain/quizSessions");
 
 // Legacy backend messages are routed through the central redacting logger.
@@ -5466,6 +5467,19 @@ app.get("/api/recommendations", (req, res) => {
   const records = readLearningMemory();
   const profile = learningProfile.buildProfile(records);
   res.json({ ok: true, recommendations: learningProfile.buildRecommendations(profile, records) });
+});
+
+app.get("/api/teacher/summary", (req, res) => {
+  try {
+    const records = readLearningMemory();
+    const profile = learningProfile.buildProfile(records);
+    const recommendations = learningProfile.buildRecommendations(profile, records);
+    const summary = teacherProfile.buildTeacherSummary(profile, recommendations);
+    res.json({ ok: true, summary, requestId: req.requestId });
+  } catch (error) {
+    logger.error("teacher.summary.failed", { requestId: req.requestId, error: error?.message || "unknown" });
+    res.status(500).json({ ok: false, error: { code: "TEACHER_SUMMARY_FAILED", message: "Öğretmen özeti şu anda oluşturulamadı." }, requestId: req.requestId });
+  }
 });
 
 app.get(
