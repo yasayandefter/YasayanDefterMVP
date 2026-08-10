@@ -2,10 +2,12 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const metrics = require("../metrics");
 
 function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
 
 function createJsonStore(file, options = {}) {
+  const storeId = options.id || path.basename(file, path.extname(file));
   const expected = options.expected || "array";
   const fallback = clone(options.fallback !== undefined ? options.fallback : expected === "array" ? [] : {});
   const version = Number(options.version || 1);
@@ -26,18 +28,20 @@ function createJsonStore(file, options = {}) {
   }
   function ensureDir() { fs.mkdirSync(path.dirname(file), { recursive: true }); }
   function read() {
+    const startedAt = Date.now();
     ensureDir();
     const primary = parse(file);
-    if (primary !== null) return { value: primary, recovered: false, source: "primary" };
+    if (primary !== null) { metrics.recordStorage(storeId, "read", Date.now() - startedAt, true, false); return { value: primary, recovered: false, source: "primary" }; }
     const backup = parse(`${file}.bak`);
     if (backup !== null) {
       try { fs.copyFileSync(`${file}.bak`, file); } catch (_) {}
-      return { value: backup, recovered: true, source: "backup" };
+      metrics.recordStorage(storeId, "recovery", Date.now() - startedAt, true, true); return { value: backup, recovered: true, source: "backup" };
     }
-    return { value: clone(fallback), recovered: false, source: "fallback" };
+    metrics.recordStorage(storeId, "read", Date.now() - startedAt, true, false); return { value: clone(fallback), recovered: false, source: "fallback" };
   }
   function write(value, options = {}) {
-    if (!valid(value)) return { ok: false, error: "INVALID_ROOT" };
+    const startedAt = Date.now();
+    if (!valid(value)) { metrics.recordStorage(storeId, "write", Date.now() - startedAt, false); return { ok: false, error: "INVALID_ROOT" }; }
     ensureDir();
     const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
     const backup = `${file}.bak`;
@@ -47,10 +51,10 @@ function createJsonStore(file, options = {}) {
       try { fs.writeFileSync(descriptor, JSON.stringify(payload, null, 2), "utf8"); fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
       if (fs.existsSync(file)) fs.copyFileSync(file, backup);
       fs.renameSync(temp, file);
-      return { ok: true };
+      metrics.recordStorage(storeId, "write", Date.now() - startedAt, true); return { ok: true };
     } catch (error) {
       try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch (_) {}
-      return { ok: false, error: error.code || "WRITE_FAILED" };
+      metrics.recordStorage(storeId, "write", Date.now() - startedAt, false); return { ok: false, error: error.code || "WRITE_FAILED" };
     }
   }
   function update(mutator) {

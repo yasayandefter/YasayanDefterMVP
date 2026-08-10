@@ -27,6 +27,7 @@ const classroomStore = require("./brain/classroomStore");
 const classroomProfile = require("./brain/classroomProfile");
 const freshness = require("./brain/freshness");
 const currentProviders = require("./brain/currentProviders");
+const metrics = require("./brain/metrics");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -138,6 +139,7 @@ function installResponseContract(req, res, next) {
   const started = Date.now();
   const isApiRequest = req.path.startsWith("/api");
   if (isApiRequest) {
+    metrics.requestStarted(req.path);
     logger.info("request.started", {
       requestId: req.requestId,
       method: req.method,
@@ -156,6 +158,7 @@ function installResponseContract(req, res, next) {
         statusCode: res.statusCode,
         durationMs: Date.now() - started
       });
+      metrics.requestCompleted(req.path, res.statusCode, Date.now() - started);
     }
   });
   return logger.runWithRequest(req.requestId, next);
@@ -4865,6 +4868,12 @@ app.get(
         result
       );
 
+      const researchMetric = metrics.state.research;
+      researchMetric[detection.requiresFreshness ? "current" : "standard"] += 1;
+      metrics.duration(researchMetric.durationsMs, Date.now() - researchStartedAt);
+      if (detection.requiresFreshness && result.freshness?.providerErrors?.length) researchMetric.providerFailures += result.freshness.providerErrors.length;
+      if (result.usedFallback || result.fallbackUsed) researchMetric.fallback += 1;
+
       logger.info("research.completed", {
         requestId: req.requestId,
         durationMs: Date.now() - researchStartedAt,
@@ -5288,6 +5297,7 @@ function quizApiError(res, status, code, message, requestId) {
 }
 
 app.post("/api/quiz/start", (req, res) => {
+  const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
@@ -5295,32 +5305,39 @@ app.post("/api/quiz/start", (req, res) => {
   const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf, studentId);
   if (started.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId);
   if (!started.quiz.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Bu konu için güvenli bir quiz oluşturulamadı.", req.requestId);
+  metrics.state.quiz.starts += 1; metrics.duration(metrics.state.quiz.durationsMs, Date.now() - quizStartedAt);
   res.json({ ok: true, attempt: started.quiz, requestId: req.requestId });
 });
 
 app.post("/api/quiz/answer", (req, res) => {
+  const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
   if (!body.attemptId || !body.questionId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt ve soru bilgisi gerekli.", req.requestId);
   const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true, studentId);
-  if (result.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kalıcı olarak kaydedilemedi.", req.requestId);
+  if (result.error === "STORAGE_FAILED") { metrics.state.quiz.storageFailures += 1; return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kalıcı olarak kaydedilemedi.", req.requestId); }
+  if (result.error === "DUPLICATE_ANSWER") metrics.state.quiz.duplicateAnswers += 1;
+  if (!result.error) { metrics.state.quiz.answers += 1; metrics.duration(metrics.state.quiz.durationsMs, Date.now() - quizStartedAt); }
   if (result.error) return quizApiError(res, 409, result.error, "Bu quiz cevabı işlenemedi.", req.requestId);
   res.json({ ok: true, result: result.result, requestId: req.requestId });
 });
 
 app.post("/api/quiz/complete", (req, res) => {
+  const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
   if (!body.attemptId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt bilgisi gerekli.", req.requestId);
   const completed = quizSessions.complete(body.attemptId, studentId);
   if (completed.error) return quizApiError(res, 409, completed.error, "Bu quiz tamamlanamadı.", req.requestId);
+  if (completed.duplicate) metrics.state.quiz.duplicateCompletions += 1;
   if (!completed.duplicate) {
     const summary = completed.summary;
     const memory = saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId, studentId);
-    if (memory === false) return quizApiError(res, 503, "STORAGE_FAILED", "Quiz sonucu kalıcı olarak kaydedilemedi.", req.requestId);
+    if (memory === false) { metrics.state.quiz.storageFailures += 1; return quizApiError(res, 503, "STORAGE_FAILED", "Quiz sonucu kalıcı olarak kaydedilemedi.", req.requestId); }
   }
+  metrics.state.quiz.completions += completed.duplicate ? 0 : 1; metrics.duration(metrics.state.quiz.durationsMs, Date.now() - quizStartedAt);
   res.json({ ok: true, summary: completed.summary, duplicate: completed.duplicate, requestId: req.requestId });
 });
 
@@ -5982,7 +5999,12 @@ app.get(
       conversations:
         mainMemory
           .conversations
-          .length
+          .length,
+
+      status: "ok",
+      uptimeSec: Math.round(process.uptime()),
+      storageHealth: "ok",
+      observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }
 
     });
   }

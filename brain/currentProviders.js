@@ -2,6 +2,7 @@
 
 const { SOURCES, sourcesFor, isAllowedProviderUrl } = require("./currentSources");
 const { WINDOWS, normalize } = require("./freshness");
+const metrics = require("./metrics");
 
 const cache = new Map();
 const TRUST = { official: 3, institutional: 2, trusted_feed: 1, fallback: 0 };
@@ -53,10 +54,11 @@ async function fetchProvider(source, fetcher, timeoutMs = 8000) {
 }
 async function searchCurrent(query, detection, options = {}) {
   const category = detection?.category || "general"; const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(category); const key = `${normalize(query)}|${category}|${windowName}`; const now = Date.now(); const cached = cache.get(key); const ttl = Math.min(...selected.map(source => source.ttlMs), 180_000);
-  if (cached && now - cached.createdAt < ttl) return { ...cached.value, cacheHit: true };
+  if (cached && now - cached.createdAt < ttl) { metrics.state.cache.hit += 1; selected.forEach(source => metrics.recordProvider(source.id, 0, true, 0, true)); return { ...cached.value, cacheHit: true }; }
+  metrics.state.cache.miss += 1;
   const fetcher = options.fetcher || global.fetch; const results = await Promise.allSettled(selected.map(source => fetchProvider(source, fetcher, options.timeoutMs || 8000)));
   const errors = []; let items = [];
-  results.forEach((result, index) => result.status === "fulfilled" ? (items = items.concat(result.value)) : errors.push({ source: selected[index].id, message: result.reason?.message || "Provider unavailable" }));
+  results.forEach((result, index) => result.status === "fulfilled" ? (items = items.concat(result.value), metrics.recordProvider(selected[index].id, 0, true, result.value.length, false)) : (errors.push({ source: selected[index].id, message: "Provider unavailable" }), metrics.recordProvider(selected[index].id, 0, false, 0, false)));
   const cutoff = now - (WINDOWS[windowName] || 30) * 86400000;
   items = dedupe(items.filter(item => relevant(item, query, category)).filter(item => !item.publishedAt || Date.parse(item.publishedAt) >= cutoff).sort((a, b) => (TRUST[b.trust] || 0) - (TRUST[a.trust] || 0) || (Date.parse(b.publishedAt || 0) || 0) - (Date.parse(a.publishedAt || 0) || 0))).slice(0, 24);
   const sources = [...new Set(items.map(item => item.source))]; const value = { items, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category, window: windowName, newestSourceAt: items.find(item => item.publishedAt)?.publishedAt || null };
