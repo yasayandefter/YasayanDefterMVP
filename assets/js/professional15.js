@@ -57,6 +57,7 @@
         if (!panel) return;
         var authoritative = { commercialResearchCount: Number(profile.researchedTopics) || 0, commercialQuizCount: Number(profile.completedQuizzes) || 0, commercialXp: (Number(profile.totalXP) || 0) + " XP", commercialProfileLevel: "Seviye " + (Number(profile.level) || 1) };
         Object.keys(authoritative).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = authoritative[id]; });
+        var researched = Number(profile.researchedTopics) || 0; var goalProgress = document.getElementById("commercialGoalProgress"); if (goalProgress) goalProgress.style.width = Math.min(100, researched * 20) + "%"; var goalLabel = document.getElementById("commercialGoalLabel"); if (goalLabel) goalLabel.textContent = Math.min(5, researched) + " / 5 araştırma"; var badges = document.getElementById("commercialBadges"); if (badges) { badges.replaceChildren(); [["İlk adım", researched > 0], ["Meraklı zihin", researched >= 3], ["Quiz ustası", (Number(profile.completedQuizzes) || 0) > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
         var existing = document.getElementById("learningProgressPanel");
         if (existing) existing.remove();
         var section = el("section", { id: "learningProgressPanel", class: "learning-progress-panel", "aria-labelledby": "learningProgressTitle" });

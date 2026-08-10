@@ -252,6 +252,7 @@ async function researchTopic() {
         renderResearch(data);
         renderLivingMemoryResult(data);
         refreshLivingMemoryWorkspace(true);
+        window.dispatchEvent(new CustomEvent("learning:updated"));
 
         /*
         ŞİMDİLİK KAPALI
@@ -1917,6 +1918,7 @@ function renderProQuizQuestion() {
 async function checkProQuizAnswer(answer, clicked, item) {
     if (activeProQuizChecked) return;
     activeProQuizChecked = true;
+    document.querySelectorAll("#quizOptions .quiz-option, #quizOptions .quiz-pro-skip").forEach(button => { button.disabled = true; });
     let response;
     try {
         const request = await fetch(API + "/api/quiz/answer", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ attemptId: activeProQuiz.attemptId, questionId: item.id, answer: quizText(answer), skipped: !quizText(answer) }) });
@@ -1924,6 +1926,7 @@ async function checkProQuizAnswer(answer, clicked, item) {
         if (!request.ok || !response.result) throw new Error("Cevap doğrulanamadı.");
     } catch (_) {
         activeProQuizChecked = false;
+        document.querySelectorAll("#quizOptions .quiz-option, #quizOptions .quiz-pro-skip").forEach(button => { button.disabled = false; });
         const error = $("quizResult");
         if (error) { error.className = "quiz-result bad"; error.textContent = "Cevap şu anda doğrulanamadı. Lütfen tekrar dene."; }
         return;
@@ -3748,6 +3751,7 @@ function showLoading(show){
 
     loading.classList.toggle("active", show);
     loading.classList.toggle("hidden", !show);
+    loading.setAttribute("aria-busy", String(Boolean(show)));
 
 }
 function showError(message){
