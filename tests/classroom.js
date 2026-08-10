@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
+process.env.YASAYAN_CLASSROOM_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "yasayan-classroom-"));
 const store = require("../brain/classroomStore");
 const profile = require("../brain/learningProfile");
 const classroomProfile = require("../brain/classroomProfile");
@@ -43,6 +45,9 @@ const isolated = livingMemory.sanitizeRecords([{ topic: "Mars", studentId: stude
 assert.equal(isolated.length, 2);
 
 fs.writeFileSync(path.join(store.DATA_DIR, "classrooms.json"), "{broken", "utf8");
-assert.deepEqual(store.classrooms(), []);
+assert.equal(store.classrooms().length, 1);
+fs.writeFileSync(path.join(store.DATA_DIR, "classrooms.json"), JSON.stringify([{ id: "orphan-class", name: "Orphan", studentIds: ["missing-student"] }]), "utf8");
+assert.deepEqual(store.classrooms()[0].studentIds, []);
 store.resetForTests();
+fs.rmSync(process.env.YASAYAN_CLASSROOM_DATA_DIR, { recursive: true, force: true });
 console.log("PASS  classroom CRUD, student isolation, quiz isolation, summary ranking, and malformed storage fallback");

@@ -22,7 +22,13 @@ const TOPIC_GROUPS = [
 function recoverAtomicFile(file) {
   const backup = `${file}.bak`;
   try {
-    if (!fs.existsSync(file) && fs.existsSync(backup)) fs.renameSync(backup, file);
+    let primaryValid = false;
+    if (fs.existsSync(file)) {
+      try { JSON.parse(fs.readFileSync(file, "utf8")); primaryValid = true; } catch (_) {}
+    }
+    if (!primaryValid && fs.existsSync(backup)) {
+      try { JSON.parse(fs.readFileSync(backup, "utf8")); fs.copyFileSync(backup, file); } catch (_) {}
+    }
   } catch (_) {
     // Reads remain safe; callers receive their normal fallback if recovery fails.
   }
@@ -46,7 +52,7 @@ function writeJSONAtomic(file, data) {
       movedOriginal = true;
     }
     fs.renameSync(temporary, file);
-    if (movedOriginal && fs.existsSync(backup)) fs.unlinkSync(backup);
+    // Keep the last known-good backup for crash recovery.
     return true;
   } catch (_) {
     try {

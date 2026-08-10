@@ -285,6 +285,7 @@ function ensureMemoryFiles() {
 }
 
 ensureMemoryFiles();
+try { classroomStore.ensureFiles(); } catch (error) { logger.warn("storage_read_failed", { store: "classroom", errorName: error.name }); }
 
 /* ========================================================
    ANA HAFIZA
@@ -4541,7 +4542,7 @@ function saveQuizResult(
       new Date().toISOString();
   }
 
-  writeLearningMemory(items, studentId);
+  if (!writeLearningMemory(items, studentId)) return false;
 
   return items[index];
 }
@@ -5283,6 +5284,7 @@ app.post("/api/quiz/start", (req, res) => {
   if (studentId === null) return;
   if (!body.research || typeof body.research !== "object") return quizApiError(res, 400, "BAD_REQUEST", "Quiz araştırma verisi bulunamadı.", req.requestId);
   const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf, studentId);
+  if (started.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId);
   if (!started.quiz.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Bu konu için güvenli bir quiz oluşturulamadı.", req.requestId);
   res.json({ ok: true, attempt: started.quiz, requestId: req.requestId });
 });
@@ -5293,6 +5295,7 @@ app.post("/api/quiz/answer", (req, res) => {
   if (studentId === null) return;
   if (!body.attemptId || !body.questionId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt ve soru bilgisi gerekli.", req.requestId);
   const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true, studentId);
+  if (result.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kalıcı olarak kaydedilemedi.", req.requestId);
   if (result.error) return quizApiError(res, 409, result.error, "Bu quiz cevabı işlenemedi.", req.requestId);
   res.json({ ok: true, result: result.result, requestId: req.requestId });
 });
@@ -5306,7 +5309,8 @@ app.post("/api/quiz/complete", (req, res) => {
   if (completed.error) return quizApiError(res, 409, completed.error, "Bu quiz tamamlanamadı.", req.requestId);
   if (!completed.duplicate) {
     const summary = completed.summary;
-    saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId, studentId);
+    const memory = saveQuizResult(summary.topic, summary.correct, summary.total, summary.weakConcepts, summary.skipped, summary.xpAwarded, summary.attemptId, studentId);
+    if (memory === false) return quizApiError(res, 503, "STORAGE_FAILED", "Quiz sonucu kalıcı olarak kaydedilemedi.", req.requestId);
   }
   res.json({ ok: true, summary: completed.summary, duplicate: completed.duplicate, requestId: req.requestId });
 });
@@ -5320,6 +5324,7 @@ app.post("/api/quiz/generate", (req, res) => {
   const difficulty = quizEngine.normalizeDifficulty(body.difficulty);
   const type = quizEngine.normalizeType(body.type);
   const started = quizSessions.start({ research: researchData, count, difficulty, type }, "", studentId);
+  if (started.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId);
   res.json({ ok: true, quiz: started.quiz, requestId: req.requestId });
 });
 
