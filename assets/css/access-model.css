@@ -1,0 +1,7 @@
+.auth-secondary-actions{display:grid;gap:10px;margin-top:2px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1)}
+.auth-demo{border:1px solid rgba(101,224,189,.55);border-radius:12px;padding:12px 14px;background:rgba(101,224,189,.08);color:#bff8e7;font:inherit;font-weight:800;cursor:pointer}
+.auth-demo:hover{background:rgba(101,224,189,.16)}
+.auth-demo:focus-visible{outline:3px solid #65e0bd;outline-offset:3px}
+.auth-demo-badge{border:1px solid rgba(101,224,189,.5);border-radius:999px;padding:4px 4px 4px 12px;background:rgba(6,19,31,.9);color:#65e0bd}
+html[data-access-mode="demo"] #livingMemoryWorkspace,html[data-access-mode="demo"] [data-classroom="true"],html[data-access-mode="user"] [data-classroom="true"]{display:none!important}
+@media(max-width:480px){.auth-secondary-actions{gap:8px}.auth-demo{padding:11px 12px}.auth-demo-badge{font-size:.75rem}}

@@ -1,8 +1,13 @@
 (function () {
   "use strict";
 
-  var state = { production: false, authenticated: false, user: null };
+  var state = { production: false, authenticated: false, user: null, demo: false };
   var shell;
+
+  window.YasayanDefterAccess = {
+    isDemoMode: function () { return state.demo === true; },
+    canUsePersistentApi: function () { return state.demo !== true && (state.authenticated === true || window.YasayanDefterAuth?.local === true); }
+  };
 
   function el(tag, attrs, text) {
     var node = document.createElement(tag);
@@ -41,16 +46,19 @@
 
   function loginForm() {
     var form = el("form", { class: "auth-form", "data-login-form": "", novalidate: "" });
-    form.appendChild(el("p", { class: "auth-kicker" }, "Güvenli hesap erişimi"));
-    form.appendChild(el("h1", {}, "Yaşayan Defter'e giriş"));
-    form.appendChild(el("p", { class: "auth-lede" }, "Öğretmenler e-posta, öğrenciler kullanıcı adı ile giriş yapabilir."));
+    form.appendChild(el("p", { class: "auth-kicker" }, "Öğrenme yolculuğun"));
+    form.appendChild(el("h1", {}, "Yaşayan Defter'e Giriş"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Araştırmalarına, hafızana ve öğrenme yolculuğuna kaldığın yerden devam et."));
     form.appendChild(field("Kullanıcı adı veya e-posta", "identifier", "text", "username"));
     form.appendChild(field("Parola", "password", "password", "current-password"));
     var submit = el("button", { type: "submit", class: "auth-primary" }, "Giriş yap");
     form.appendChild(submit);
     form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
-    var claim = el("button", { type: "button", class: "auth-link", "data-show-claim": "" }, "İlk kez mi geliyorsun? Öğrenci hesabını oluştur");
-    form.appendChild(claim);
+    var actions = el("div", { class: "auth-secondary-actions" });
+    var register = el("button", { type: "button", class: "auth-link", "data-show-register": "" }, "Hesabın yok mu? Hesap oluştur");
+    var demo = el("button", { type: "button", class: "auth-demo", "data-open-demo": "" }, "Yaşayan Defter'i önce keşfetmek ister misin? Demoyu aç");
+    var claim = el("button", { type: "button", class: "auth-link", "data-show-claim": "" }, "Okul veya sınıfa mı katılıyorsun? Davet kodunu kullan");
+    actions.append(register, demo, claim); form.appendChild(actions);
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -63,16 +71,41 @@
       } catch (error) { message(form, error.message, "is-error"); }
       finally { submit.disabled = false; submit.textContent = "Giriş yap"; }
     });
+    register.addEventListener("click", renderRegister);
+    demo.addEventListener("click", activateDemo);
     claim.addEventListener("click", function () { renderClaim(); });
+    return form;
+  }
+
+  function registerForm() {
+    var form = el("form", { class: "auth-form", "data-register-form": "", novalidate: "" });
+    form.appendChild(el("p", { class: "auth-kicker" }, "Bireysel hesap"));
+    form.appendChild(el("h1", {}, "Hesap oluştur"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Okul veya sınıf bağlantısı olmadan kendi öğrenme alanını oluştur."));
+    form.appendChild(field("Kullanıcı adı", "username", "text", "username"));
+    var emailField = field("E-posta (opsiyonel)", "email", "email", "email"); emailField.querySelector("input").removeAttribute("required"); form.appendChild(emailField);
+    form.appendChild(field("Parola", "newPassword", "password", "new-password"));
+    form.appendChild(field("Parola tekrar", "confirmPassword", "password", "new-password"));
+    var submit = el("button", { type: "submit", class: "auth-primary" }, "Hesap oluştur"); form.appendChild(submit);
+    form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
+    var back = el("button", { type: "button", class: "auth-link" }, "Giriş ekranına dön"); form.appendChild(back); back.addEventListener("click", renderLogin);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault(); if (!form.reportValidity()) return; var data = new FormData(form);
+      if (data.get("newPassword") !== data.get("confirmPassword")) { message(form, "Parolalar eşleşmiyor.", "is-error"); return; }
+      submit.disabled = true; message(form, "", "");
+      try { var payload = await request("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ username: data.get("username"), email: data.get("email"), password: data.get("newPassword") }) }); activate(payload.user); }
+      catch (error) { message(form, error.message, "is-error"); }
+      finally { submit.disabled = false; }
+    });
     return form;
   }
 
   function claimForm() {
     var form = el("form", { class: "auth-form", "data-claim-form": "", novalidate: "" });
-    form.appendChild(el("p", { class: "auth-kicker" }, "Öğrenci hesabı"));
-    form.appendChild(el("h1", {}, "Profilini sahiplen"));
-    form.appendChild(el("p", { class: "auth-lede" }, "Öğretmeninden aldığın claim koduyla güvenli hesabını oluştur."));
-    form.appendChild(field("Claim kodu", "claimCode", "text", "one-time-code"));
+    form.appendChild(el("p", { class: "auth-kicker" }, "Okul / Sınıfa Katıl"));
+    form.appendChild(el("h1", {}, "Davet kodunu kullan"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Okulun veya öğretmenin tarafından verilen davet/claim kodunu kullan."));
+    form.appendChild(field("Davet / claim kodu", "claimCode", "text", "one-time-code"));
     form.appendChild(field("Kullanıcı adı", "username", "text", "username"));
     form.appendChild(field("Parola", "newPassword", "password", "new-password"));
     form.appendChild(field("Parola tekrar", "confirmPassword", "password", "new-password"));
@@ -98,10 +131,31 @@
   }
 
   function renderLogin() { shell.querySelector(".auth-card").replaceChildren(loginForm()); }
+  function renderRegister() { shell.querySelector(".auth-card").replaceChildren(registerForm()); }
   function renderClaim() { shell.querySelector(".auth-card").replaceChildren(claimForm()); }
 
+  function applyAccessVisibility(role) {
+    document.documentElement.dataset.accessMode = role === "DEMO" ? "demo" : String(role || "user").toLowerCase();
+    document.querySelectorAll('[data-classroom="true"], #teacherDashboard, #classroomDashboard').forEach(function (node) { if (role !== "TEACHER") node.hidden = true; });
+  }
+
+  function activateDemo() {
+    state.authenticated = false; state.user = null; state.demo = true;
+    sessionStorage.setItem("yasayan-defter-demo", "true");
+    var demoSession = sessionStorage.getItem("yasayan-defter-demo-session") || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    sessionStorage.setItem("yasayan-defter-demo-session", demoSession);
+    var nativeFetch = window.fetch.bind(window);
+    window.fetch = function (input, options) { var next = Object.assign({}, options || {}); next.headers = new Headers(next.headers || {}); next.headers.set("X-Demo-Mode", "true"); next.headers.set("X-Demo-Session", demoSession); return nativeFetch(input, next); };
+    document.documentElement.classList.remove("auth-locked"); shell.hidden = true; applyAccessVisibility("DEMO");
+    var badge = el("div", { class: "auth-user auth-demo-badge", "data-auth-user": "" }, "Demo Modu");
+    var exit = el("button", { type: "button" }, "Demodan çık"); exit.addEventListener("click", function () { sessionStorage.removeItem("yasayan-defter-demo"); window.location.reload(); }); badge.appendChild(exit);
+    var header = document.querySelector(".header"); if (header) header.appendChild(badge);
+    window.YasayanDefterAuth = { demo: true, authenticated: false, user: null };
+    window.dispatchEvent(new CustomEvent("yasayan-auth-ready", { detail: window.YasayanDefterAuth }));
+  }
+
   function activate(user) {
-    state.authenticated = true; state.user = user || null;
+    state.authenticated = true; state.user = user || null; state.demo = false;
     document.documentElement.classList.remove("auth-locked");
     shell.hidden = true;
     var badge = document.querySelector("[data-auth-user]");
@@ -114,10 +168,12 @@
     logout.addEventListener("click", async function () { logout.disabled = true; try { await request("/api/auth/logout", { method: "POST" }); } finally { state.authenticated = false; state.user = null; badge.remove(); lock(); } });
     badge.appendChild(logout);
     window.YasayanDefterAuth = { authenticated: true, user: user };
+    applyAccessVisibility(user && user.role);
     window.dispatchEvent(new CustomEvent("yasayan-auth-ready", { detail: window.YasayanDefterAuth }));
   }
 
   function lock() {
+    state.authenticated = false; state.user = null; state.demo = false;
     document.documentElement.classList.add("auth-locked"); shell.hidden = false; renderLogin();
     window.YasayanDefterAuth = { authenticated: false, user: null };
   }
@@ -127,6 +183,7 @@
     shell.appendChild(el("div", { class: "auth-backdrop", "aria-hidden": "true" }));
     shell.appendChild(el("div", { class: "auth-card" }));
     document.body.prepend(shell);
+    if (sessionStorage.getItem("yasayan-defter-demo") === "true") { state.production = true; activateDemo(); return; }
     try {
       var session = await request("/api/auth/session");
       state.production = true;

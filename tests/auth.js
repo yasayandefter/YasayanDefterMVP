@@ -59,6 +59,22 @@ loginResult.then(result => {
   assert.equal(result.token, createdToken);
   return assert.rejects(() => authService.login("teacher@example.test", "wrong password", { config: local, users: { findByIdentifier: async () => fakeUser }, sessions: { createSession: async () => ({ token: "x" }) } }), error => error.code === "INVALID_CREDENTIALS");
 }).then(async () => {
+  const originalTransactionForRegister = db.withTransaction;
+  db.withTransaction = async callback => callback({ marker: "register-client" });
+  try {
+    const registered = await authService.register({ username: "individual.user", email: "individual@example.test", rawPassword: "correct horse battery" }, {
+      config: local,
+      users: {
+        findByUsername: async () => null,
+        findByEmail: async () => null,
+        createGeneralUser: async input => ({ id: input.id, role: "USER", username: input.username, email: input.email, status: "ACTIVE" })
+      },
+      sessions: { createSession: async () => ({ token: "individual-session-token" }) }
+    });
+    assert.equal(registered.user.role, "USER");
+    assert.equal(registered.user.studentId, null);
+    assert.equal(registered.token, "individual-session-token");
+  } finally { db.withTransaction = originalTransactionForRegister; }
   const originalTransaction = db.withTransaction;
   db.withTransaction = async callback => callback({});
   try {

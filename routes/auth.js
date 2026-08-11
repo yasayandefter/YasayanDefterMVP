@@ -8,14 +8,20 @@ const authService = require("../services/authService");
 
 const router = express.Router();
 function enabled(res) { const config = getConfig(); if (config.authMode === "production") return config; res.status(404).json({ ok: false, error: { code: "AUTH_DISABLED", message: "Bu pilot modunda kimlik doğrulama etkin değil." } }); return null; }
-function safeAuthError(error) { const allowed = new Set(["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "INVALID_PASSWORD"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
-function authMessage(code) { return ({ INVALID_CREDENTIALS: "Kimlik bilgileri geçersiz.", ACCOUNT_DISABLED: "Hesap devre dışı.", CLAIM_INVALID: "Claim kodu geçersiz.", CLAIM_EXPIRED: "Claim kodunun süresi dolmuş.", CLAIM_USED: "Claim kodu daha önce kullanılmış.", CLAIM_LOCKED: "Claim kodu geçici olarak kilitlendi.", USERNAME_TAKEN: "Kullanıcı adı kullanılıyor.", INVALID_PASSWORD: "Parola kurallara uygun değil.", AUTH_FAILED: "Kimlik doğrulama tamamlanamadı." })[code] || "Kimlik doğrulama tamamlanamadı."; }
+function safeAuthError(error) { const allowed = new Set(["INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "EMAIL_TAKEN", "INVALID_USERNAME", "INVALID_EMAIL", "INVALID_PASSWORD"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
+function authMessage(code) { return ({ INVALID_CREDENTIALS: "Kimlik bilgileri geçersiz.", ACCOUNT_DISABLED: "Hesap devre dışı.", CLAIM_INVALID: "Davet kodu geçersiz.", CLAIM_EXPIRED: "Davet kodunun süresi dolmuş.", CLAIM_USED: "Davet kodu daha önce kullanılmış.", CLAIM_LOCKED: "Davet kodu geçici olarak kilitlendi.", USERNAME_TAKEN: "Kullanıcı adı kullanılıyor.", EMAIL_TAKEN: "E-posta adresi kullanılıyor.", INVALID_USERNAME: "Kullanıcı adı geçersiz.", INVALID_EMAIL: "E-posta adresi geçersiz.", INVALID_PASSWORD: "Parola kurallara uygun değil.", AUTH_FAILED: "Kimlik doğrulama tamamlanamadı." })[code] || "Kimlik doğrulama tamamlanamadı."; }
 function originGuard(req, res) { if (validateAuthOrigin(req, getConfig())) return true; res.status(403).json({ ok: false, error: { code: "CSRF_ORIGIN_REJECTED", message: "İstek kaynağına izin verilmiyor." } }); return false; }
 
 router.post("/login", async (req, res) => {
   const config = enabled(res); if (!config || !originGuard(req, res)) return;
   try { const result = await authService.login(req.body?.identifier, req.body?.password, { config }); setSessionCookie(res, result.token, config); return res.json({ ok: true, user: result.user }); }
   catch (error) { const code = safeAuthError(error); return res.status(code === "AUTH_FAILED" ? 500 : 401).json({ ok: false, error: { code, message: authMessage(code) } }); }
+});
+
+router.post("/register", async (req, res) => {
+  const config = enabled(res); if (!config || !originGuard(req, res)) return;
+  try { const result = await authService.register({ username: req.body?.username, email: req.body?.email, rawPassword: req.body?.password }, { config }); setSessionCookie(res, result.token, config); return res.status(201).json({ ok: true, user: result.user }); }
+  catch (error) { const code = safeAuthError(error); const status = ["USERNAME_TAKEN", "EMAIL_TAKEN"].includes(code) ? 409 : code === "AUTH_FAILED" ? 500 : 400; return res.status(status).json({ ok: false, error: { code, message: authMessage(code) } }); }
 });
 
 router.post("/logout", async (req, res) => {

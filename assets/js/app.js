@@ -7,7 +7,16 @@
 
 const API = "";
 
+function isDemoMode() {
+    return window.YasayanDefterAccess?.isDemoMode() === true;
+}
+
+function canUsePersistentApi() {
+    return window.YasayanDefterAccess?.canUsePersistentApi() === true;
+}
+
 function activeStudentId() {
+    if (isDemoMode()) return "";
     try { return localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) { return ""; }
 }
 
@@ -223,7 +232,7 @@ async function researchTopic() {
         if (sequence !== researchSequence) return;
         currentResearch = data;
 
-        try {
+        if (!isDemoMode()) try {
 
             const analysisData = await getJSON(
 
@@ -267,7 +276,7 @@ async function researchTopic() {
 
         renderResearch(data);
         renderLivingMemoryResult(data);
-        refreshLivingMemoryWorkspace(true);
+        if (canUsePersistentApi()) refreshLivingMemoryWorkspace(true);
         window.dispatchEvent(new CustomEvent("learning:updated"));
 
         /*
@@ -2728,6 +2737,11 @@ function renderLivingMemoryError() {
 }
 
 async function refreshLivingMemoryWorkspace(force = false) {
+    if (!canUsePersistentApi()) {
+        livingMemoryData = { history: [], connections: [], review: [], stats: {} };
+        renderLivingMemoryWorkspace(livingMemoryData);
+        return livingMemoryData;
+    }
     if (livingMemoryRequest && !force) return livingMemoryRequest;
     if (force && livingMemoryController) livingMemoryController.abort();
     const sequence = ++livingMemorySequence;
@@ -3574,6 +3588,8 @@ error.message
 
 async function awaitMemorySave(){
 
+if (isDemoMode()) return;
+
 const payload = {
 
 title:
@@ -3832,7 +3848,7 @@ console.warn("Status endpoint:",error);
 
 }
 
-try{
+if (!isDemoMode()) try{
 
 const data =
 await getJSON(
@@ -3868,7 +3884,7 @@ function initializeApp() {
     renderNotebook();
 
     checkStatus();
-    refreshLivingMemoryWorkspace();
+    if (canUsePersistentApi()) refreshLivingMemoryWorkspace();
 
     if (typeof updateClock === "function") {
         updateClock();
@@ -3883,6 +3899,10 @@ function initializeApp() {
     console.log("🧠 Yaşayan Defter 13 Professional Hazır");
 
 }
+
+window.addEventListener("yasayan-auth-ready", function () {
+    if (canUsePersistentApi() || isDemoMode()) refreshLivingMemoryWorkspace();
+});
 
 /* =========================================================
    PREMIUM BUTTON EFFECT

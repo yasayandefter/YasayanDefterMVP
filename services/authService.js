@@ -25,6 +25,22 @@ async function login(identifier, rawPassword, dependencies = {}) {
 async function logout(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; await sessionRepository.revokeSession(token); return { ok: true }; }
 async function session(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; const row = await sessionRepository.findValidSession(token); return row ? { authenticated: true, user: publicUser(row) } : { authenticated: false }; }
 
+async function register({ username, email, rawPassword }, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const sessionRepository = dependencies.sessions || sessions;
+  const config = dependencies.config || getConfig();
+  let normalizedUsername;
+  try { normalizedUsername = users.validateUsername(username); if (email) users.validateEmail(email); password.validatePassword(rawPassword); }
+  catch (error) { throw authError(error.message); }
+  return db.withTransaction(async client => {
+    if (await userRepository.findByUsername(normalizedUsername, client)) throw authError("USERNAME_TAKEN");
+    if (email && await userRepository.findByEmail(email, client)) throw authError("EMAIL_TAKEN");
+    const user = await userRepository.createGeneralUser({ id: crypto.randomUUID(), username: normalizedUsername, email, passwordHash: password.hashPassword(rawPassword) }, client);
+    const created = await sessionRepository.createSession(user.id, config.sessionTtlSeconds, client);
+    return { token: created.token, user: publicUser(user) };
+  });
+}
+
 async function claimStudent({ claimCode, username, rawPassword }, dependencies = {}) {
   const userRepository = dependencies.users || users;
   const claimRepository = dependencies.claims || claims;
@@ -49,4 +65,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { authError, login, logout, session, claimStudent };
+module.exports = { authError, login, register, logout, session, claimStudent };

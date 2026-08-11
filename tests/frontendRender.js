@@ -8,6 +8,7 @@ const professionalSource = fs.readFileSync(require("node:path").join(__dirname, 
 const classroomSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "classroom.js"), "utf8");
 const styleSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "css", "style.css"), "utf8");
 const htmlSource = fs.readFileSync(require("node:path").join(__dirname, "..", "index.html"), "utf8");
+const authSource = fs.readFileSync(require("node:path").join(__dirname, "..", "assets", "js", "auth.js"), "utf8");
 const htmlIdPosition = id => htmlSource.indexOf(`id="${id}"`);
 const context = { window: { location: { href: "http://localhost/" } }, URL, Set, console };
 vm.runInNewContext(source, context);
@@ -168,5 +169,11 @@ assert.match(styleSource, /professional-current-badge/);
 assert.match(appSource, /clearStaleStudentContext/);
 assert.match(appSource, /STUDENT_NOT_FOUND/);
 assert.match(appSource, /localStorage\.removeItem\("yasayan-defter-active-student"\)/);
+assert.doesNotMatch(authSource, /Öğretmenler e-posta, öğrenciler kullanıcı adı/);
+assert.match(authSource, /Yaşayan Defter'e Giriş/);
+assert.match(authSource, /\/api\/auth\/register/);
+assert.match(authSource, /data-open-demo/);
+assert.match(authSource, /X-Demo-Mode/);
+assert.match(authSource, /Okul \/ Sınıfa Katıl/);
 
 console.log("PASS  frontend result model, URL safety, fallbacks, allowlists, and deduplication");

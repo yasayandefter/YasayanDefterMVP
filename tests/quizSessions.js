@@ -41,4 +41,9 @@ const retry = sessions.start({ research, count: 5, difficulty: "medium", type: "
 assert.ok(retry.quiz.questions.every(item => item.id !== first.id));
 assert.equal(sessions.answer("missing", first.id, correctAnswer).error, "UNKNOWN_ATTEMPT");
 
-console.log("PASS  server quiz sessions, hidden answers, duplicate guards, retry, and server XP");
+const demo = sessions.start({ research, count: 5 }, "", "demo:test-session", { ephemeral: true });
+assert.ok(sessions.get(demo.quiz.attemptId));
+sessions.reloadForTests();
+assert.equal(sessions.get(demo.quiz.attemptId), null);
+
+console.log("PASS  server quiz sessions, hidden answers, duplicate guards, retry, server XP, and ephemeral demo safety");
