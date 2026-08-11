@@ -18,13 +18,15 @@ function getConfig(env = process.env) {
   if (authMode === "production" && database.storageMode !== "postgres") throw new Error("AUTH_REQUIRES_POSTGRES");
   const nodeEnv = String(env.NODE_ENV || "development");
   const production = authMode === "production" || nodeEnv === "production";
+  const appOrigins = normalizeOrigins(env.APP_ORIGIN);
+  if (authMode === "production" && !appOrigins.length) throw new Error("APP_ORIGIN_REQUIRED");
   return Object.freeze({
     authMode,
     sessionTtlSeconds: numberEnv(env, "SESSION_TTL_SECONDS", 7 * 86400, 300, 90 * 86400),
     cookieName: "yd_session",
     cookieSecure: production ? true : String(env.COOKIE_SECURE || "").toLowerCase() === "true",
     cookieSameSite: String(env.COOKIE_SAMESITE || "lax").toLowerCase() === "strict" ? "Strict" : "Lax",
-    appOrigins: normalizeOrigins(env.APP_ORIGIN),
+    appOrigins,
     nodeEnv,
     database
   });

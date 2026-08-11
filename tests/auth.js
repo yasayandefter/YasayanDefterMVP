@@ -31,7 +31,7 @@ assert.equal(local.cookieSecure, false);
 assert.throws(() => getConfig({ AUTH_MODE: "production", STORAGE_MODE: "json" }), /AUTH_REQUIRES_POSTGRES/);
 const prod = getConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted", APP_ORIGIN: "https://app.example" });
 assert.equal(prod.cookieSecure, true);
-assert.equal(publicConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://secret" }).database, undefined);
+assert.equal(publicConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://secret", APP_ORIGIN: "https://app.example" }).database, undefined);
 
 const response = { setHeader(name, value) { this[name] = value; } };
 cookies.setSessionCookie(response, "opaque-token", local);

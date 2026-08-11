@@ -11,6 +11,10 @@ assert.equal(config.getConfig({}).storageMode, "json");
 assert.equal(config.getConfig({ STORAGE_MODE: "json" }).storageMode, "json");
 assert.throws(() => config.getConfig({ STORAGE_MODE: "postgres" }), /DATABASE_URL_REQUIRED/);
 assert.equal(config.getConfig({ STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted" }).storageMode, "postgres");
+const bounded = config.getConfig({ STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted", PG_POOL_MAX: "9999", PG_IDLE_TIMEOUT_MS: "-1", PG_CONNECTION_TIMEOUT_MS: "invalid" });
+assert.equal(bounded.poolMax, 50);
+assert.equal(bounded.idleTimeoutMillis, 1000);
+assert.equal(bounded.connectionTimeoutMillis, 10000);
 assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005", "006"]);
 assert.ok(migrations.listMigrations().every(item => item.sql.length > 100));
 for (const repository of ["studentsRepository", "classroomsRepository", "memoryRepository", "quizRepository", "sessionRepository", "usersRepository", "claimRepository", "membershipRepository"]) {

@@ -37,6 +37,7 @@
     "test:postgres-integration": "node tests/postgresIntegration.js",
     "test:postgres-http": "node tests/postgresHttpE2E.js",
     "test:browser-auth": "node tests/browserAuthE2E.js",
+    "test:production-acceptance": "node tests/productionAcceptance.js",
     "db:migration:dry-run": "node scripts/migrateJsonToPostgres.js",
     "test:migration-dry-run": "node tests/migrationDryRun.js",
     "db:migrate": "node db/migrate.js migrate",

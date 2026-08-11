@@ -208,7 +208,7 @@ app.use((req, res, next) => {
   }
   return next();
 });
-app.use(express.static(__dirname));
+app.use("/assets", express.static(path.join(__dirname, "assets"), { dotfiles: "deny", index: false }));
 
 /* ========================================================
    DOSYALAR
@@ -6072,7 +6072,7 @@ app.get(
 
 app.get(
   "/api/status",
-  (
+  async (
     req,
     res
   ) => {
@@ -6083,7 +6083,8 @@ app.get(
     const mainMemory =
       readMainMemory();
 
-    res.json({
+    const health = await database.health();
+    res.status(health.ok ? 200 : 503).json({
 
       ok:
         true,
@@ -6186,10 +6187,10 @@ app.get(
           .conversations
           .length,
 
-        status: "ok",
+        status: health.ok ? "ok" : "degraded",
         storageMode: databaseConfig.getConfig().storageMode,
         uptimeSec: Math.round(process.uptime()),
-      storageHealth: "ok",
+      storageHealth: health.ok ? "ok" : "unavailable",
       observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }
 
     });
@@ -6251,6 +6252,10 @@ app.use(
     res,
     next
   ) => {
+
+    if (error && error.type === "entity.too.large") {
+      return res.status(413).json({ ok: false, error: { code: "PAYLOAD_TOO_LARGE", message: "İstek gövdesi izin verilen boyutu aşıyor." } });
+    }
 
     if (error && error.type === "entity.parse.failed") {
       logger.error("request.invalid_json", error, {

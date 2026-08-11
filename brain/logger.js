@@ -13,7 +13,9 @@ function currentLevel() {
 }
 
 function safeString(value) {
-  const text = String(value);
+  const text = String(value)
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]")
+    .replace(/(password|token|secret|api[_-]?key)\s*[=:]\s*[^\s,;]+/gi, "$1=[REDACTED]");
   return text.length > 500 ? `${text.slice(0, 497)}...` : text;
 }
 
