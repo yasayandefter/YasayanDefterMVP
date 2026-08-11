@@ -3496,6 +3496,15 @@ function saveCurrentTopic(){
 
 if(!currentResearch) return;
 
+if(isDemoMode()){
+learningState.save = true;
+$("stepSave").classList.add("done");
+updateProgress();
+$("saveTopicButton").textContent = "Bu oturumda hazır";
+$("saveTopicButton").classList.add("saved");
+return;
+}
+
 const saved =
 getSavedTopics();
 

@@ -14,6 +14,8 @@ function normalizeOrigins(value) {
 function getConfig(env = process.env) {
   const authMode = String(env.AUTH_MODE || "local").trim().toLowerCase();
   if (!["local", "production"].includes(authMode)) throw new Error("AUTH_MODE_INVALID");
+  const accessMode = String(env.ACCESS_MODE || (env.VERCEL ? "public-demo" : "local-pilot")).trim().toLowerCase();
+  if (!["local-pilot", "public-demo"].includes(accessMode)) throw new Error("ACCESS_MODE_INVALID");
   const database = getDatabaseConfig(env);
   if (authMode === "production" && database.storageMode !== "postgres") throw new Error("AUTH_REQUIRES_POSTGRES");
   const nodeEnv = String(env.NODE_ENV || "development");
@@ -22,6 +24,7 @@ function getConfig(env = process.env) {
   if (authMode === "production" && !appOrigins.length) throw new Error("APP_ORIGIN_REQUIRED");
   return Object.freeze({
     authMode,
+    accessMode,
     sessionTtlSeconds: numberEnv(env, "SESSION_TTL_SECONDS", 7 * 86400, 300, 90 * 86400),
     cookieName: "yd_session",
     cookieSecure: production ? true : String(env.COOKIE_SECURE || "").toLowerCase() === "true",
@@ -34,7 +37,7 @@ function getConfig(env = process.env) {
 
 function publicConfig(env = process.env) {
   const config = getConfig(env);
-  return { authMode: config.authMode, cookieName: config.cookieName, cookieSecure: config.cookieSecure, cookieSameSite: config.cookieSameSite, sessionTtlSeconds: config.sessionTtlSeconds, appOrigins: config.appOrigins };
+  return { authMode: config.authMode, accessMode: config.accessMode, cookieName: config.cookieName, cookieSecure: config.cookieSecure, cookieSameSite: config.cookieSameSite, sessionTtlSeconds: config.sessionTtlSeconds, appOrigins: config.appOrigins };
 }
 
 module.exports = { getConfig, publicConfig, normalizeOrigins };

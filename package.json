@@ -3,6 +3,9 @@
   "version": "11.0.0",
   "description": "Yaşayan Defter Brain Engine",
   "main": "server.js",
+  "engines": {
+    "node": ">=20 <25"
+  },
   "scripts": {
     "start": "node server.js",
     "test:smoke": "node tests/smoke.js",
@@ -37,6 +40,7 @@
     "test:postgres-integration": "node tests/postgresIntegration.js",
     "test:postgres-http": "node tests/postgresHttpE2E.js",
     "test:browser-auth": "node tests/browserAuthE2E.js",
+    "test:public-first": "node tests/publicFirstE2E.js",
     "test:production-acceptance": "node tests/productionAcceptance.js",
     "staging:check": "node scripts/stagingCheck.js",
     "test:staging": "node tests/stagingAcceptance.js",

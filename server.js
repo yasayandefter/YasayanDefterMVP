@@ -435,6 +435,8 @@ function requestedStudentId(req, body = {}) {
 }
 
 function requireStudentContext(req, res, body = {}) {
+  const accessConfig = authConfig.getConfig();
+  if (accessConfig.accessMode === "public-demo" && req.demo) return `demo:${req.demoSession || "anonymous"}`;
   if (authConfig.getConfig().authMode === "production") {
     if (req.demo) return `demo:${req.demoSession}`;
     if (!req.auth) {
@@ -6086,14 +6088,9 @@ app.get(
     res
   ) => {
 
-    const learningMemory =
-      readLearningMemory();
-
-    const mainMemory =
-      readMainMemory();
-
     const health = await database.health();
-    res.status(health.ok ? 200 : 503).json({
+    const publicAccess = authConfig.getConfig().accessMode === "public-demo" || !req.auth;
+    res.status(200).json({
 
       ok:
         true,
@@ -6106,6 +6103,15 @@ app.get(
 
       engine:
         ENGINE_NAME,
+
+      appReady:
+        true,
+
+      mode:
+        publicAccess ? "public-demo" : "authenticated",
+
+      researchAvailable:
+        true,
 
       internet:
         true,
@@ -6188,16 +6194,7 @@ app.get(
       paidAI:
         false,
 
-      memoryTopics:
-        learningMemory.length,
-
-      conversations:
-        mainMemory
-          .conversations
-          .length,
-
-        status: health.ok ? "ok" : "degraded",
-        storageMode: databaseConfig.getConfig().storageMode,
+        status: "ok",
         uptimeSec: Math.round(process.uptime()),
       storageHealth: health.ok ? "ok" : "unavailable",
       observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }

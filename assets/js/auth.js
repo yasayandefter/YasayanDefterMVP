@@ -1,8 +1,10 @@
 (function () {
   "use strict";
 
-  var state = { production: false, authenticated: false, user: null, demo: false };
+  var state = { production: false, authenticated: false, user: null, demo: true };
   var shell;
+  var nativeFetch = window.fetch.bind(window);
+  var publicHeadersInstalled = false;
 
   window.YasayanDefterAccess = {
     isDemoMode: function () { return state.demo === true; },
@@ -57,7 +59,7 @@
     var actions = el("div", { class: "auth-secondary-actions" });
     var register = el("button", { type: "button", class: "auth-link", "data-show-register": "" }, "Hesabın yok mu? Hesap oluştur");
     var demo = el("button", { type: "button", class: "auth-demo", "data-open-demo": "" }, "Yaşayan Defter'i önce keşfetmek ister misin? Demoyu aç");
-    var claim = el("button", { type: "button", class: "auth-link", "data-show-claim": "" }, "Okul veya sınıfa mı katılıyorsun? Davet kodunu kullan");
+    var claim = el("button", { type: "button", class: "auth-link", "data-show-claim": "", "data-open-claim": "" }, "Okul veya sınıfa mı katılıyorsun? Davet kodunu kullan");
     actions.append(register, demo, claim); form.appendChild(actions);
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
@@ -130,27 +132,54 @@
     return form;
   }
 
-  function renderLogin() { shell.querySelector(".auth-card").replaceChildren(loginForm()); }
-  function renderRegister() { shell.querySelector(".auth-card").replaceChildren(registerForm()); }
-  function renderClaim() { shell.querySelector(".auth-card").replaceChildren(claimForm()); }
+  function setPublicActionsHidden(hidden) {
+    document.querySelectorAll(".auth-public-actions").forEach(function (node) { node.remove(); });
+    if (!hidden && state.demo === true) { var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions()); }
+  }
+  function closeAuth() { shell.hidden = true; setPublicActionsHidden(false); }
+  function addCloseButton(form) {
+    var close = el("button", { type: "button", class: "auth-close", "aria-label": "Hesap penceresini kapat" }, "×");
+    close.addEventListener("click", closeAuth); form.prepend(close); return form;
+  }
+  function renderLogin() { setPublicActionsHidden(true); shell.hidden = false; shell.querySelector(".auth-card").replaceChildren(addCloseButton(loginForm())); }
+  function renderRegister() { setPublicActionsHidden(true); shell.querySelector(".auth-card").replaceChildren(registerForm()); }
+  function renderClaim() { setPublicActionsHidden(true); shell.querySelector(".auth-card").replaceChildren(claimForm()); }
 
   function applyAccessVisibility(role) {
     document.documentElement.dataset.accessMode = role === "DEMO" ? "demo" : String(role || "user").toLowerCase();
     document.querySelectorAll('[data-classroom="true"], #teacherDashboard, #classroomDashboard').forEach(function (node) { if (role !== "TEACHER") node.hidden = true; });
   }
 
+  function installPublicHeaders() {
+    if (publicHeadersInstalled) return;
+    publicHeadersInstalled = true;
+    var demoSession = sessionStorage.getItem("yasayan-defter-public-session") || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    sessionStorage.setItem("yasayan-defter-public-session", demoSession);
+    window.fetch = function (input, options) {
+      var next = Object.assign({}, options || {}); next.headers = new Headers(next.headers || {});
+      if (state.demo === true) { next.headers.set("X-Demo-Mode", "true"); next.headers.set("X-Demo-Session", demoSession); }
+      return nativeFetch(input, next);
+    };
+  }
+
+  function accountActions() {
+    var actions = el("div", { class: "auth-user auth-public-actions", "data-auth-user": "" });
+    var login = el("button", { type: "button", "data-open-login": "" }, "Giriş Yap");
+    var register = el("button", { type: "button", "data-open-register": "", "aria-label": "Hesap oluştur" }, "Hesap Oluştur");
+    var claim = el("button", { type: "button", "data-open-claim": "" }, "Okul / Sınıfa Katıl");
+    login.addEventListener("click", renderLogin);
+    register.addEventListener("click", function () { shell.hidden = false; renderRegister(); });
+    claim.addEventListener("click", function () { shell.hidden = false; renderClaim(); });
+    actions.append(login, register, claim); return actions;
+  }
+
   function activateDemo() {
     state.authenticated = false; state.user = null; state.demo = true;
-    sessionStorage.setItem("yasayan-defter-demo", "true");
-    var demoSession = sessionStorage.getItem("yasayan-defter-demo-session") || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-    sessionStorage.setItem("yasayan-defter-demo-session", demoSession);
-    var nativeFetch = window.fetch.bind(window);
-    window.fetch = function (input, options) { var next = Object.assign({}, options || {}); next.headers = new Headers(next.headers || {}); next.headers.set("X-Demo-Mode", "true"); next.headers.set("X-Demo-Session", demoSession); return nativeFetch(input, next); };
+    installPublicHeaders();
     document.documentElement.classList.remove("auth-locked"); shell.hidden = true; applyAccessVisibility("DEMO");
-    var badge = el("div", { class: "auth-user auth-demo-badge", "data-auth-user": "" }, "Demo Modu");
-    var exit = el("button", { type: "button" }, "Demodan çık"); exit.addEventListener("click", function () { sessionStorage.removeItem("yasayan-defter-demo"); window.location.reload(); }); badge.appendChild(exit);
-    var header = document.querySelector(".header"); if (header) header.appendChild(badge);
-    window.YasayanDefterAuth = { demo: true, authenticated: false, user: null };
+    document.querySelectorAll("[data-auth-user]").forEach(function (node) { node.remove(); });
+    var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions());
+    window.YasayanDefterAuth = { demo: true, public: true, authenticated: false, user: null };
     window.dispatchEvent(new CustomEvent("yasayan-auth-ready", { detail: window.YasayanDefterAuth }));
   }
 
@@ -163,19 +192,14 @@
       badge = el("div", { class: "auth-user", "data-auth-user": "" });
       var header = document.querySelector(".header"); if (header) header.appendChild(badge);
     }
+    badge.hidden = false; badge.className = "auth-user";
     badge.replaceChildren(el("span", {}, (user && (user.displayName || user.username || user.email)) || "Hesap"));
     var logout = el("button", { type: "button" }, "Çıkış yap");
-    logout.addEventListener("click", async function () { logout.disabled = true; try { await request("/api/auth/logout", { method: "POST" }); } finally { state.authenticated = false; state.user = null; badge.remove(); lock(); } });
+    logout.addEventListener("click", async function () { logout.disabled = true; try { await request("/api/auth/logout", { method: "POST" }); } finally { window.location.reload(); } });
     badge.appendChild(logout);
     window.YasayanDefterAuth = { authenticated: true, user: user };
     applyAccessVisibility(user && user.role);
     window.dispatchEvent(new CustomEvent("yasayan-auth-ready", { detail: window.YasayanDefterAuth }));
-  }
-
-  function lock() {
-    state.authenticated = false; state.user = null; state.demo = false;
-    document.documentElement.classList.add("auth-locked"); shell.hidden = false; renderLogin();
-    window.YasayanDefterAuth = { authenticated: false, user: null };
   }
 
   async function init() {
@@ -183,14 +207,13 @@
     shell.appendChild(el("div", { class: "auth-backdrop", "aria-hidden": "true" }));
     shell.appendChild(el("div", { class: "auth-card" }));
     document.body.prepend(shell);
-    if (sessionStorage.getItem("yasayan-defter-demo") === "true") { state.production = true; activateDemo(); return; }
     try {
       var session = await request("/api/auth/session");
       state.production = true;
-      if (session.authenticated) activate(session.user); else lock();
+      if (session.authenticated) activate(session.user); else activateDemo();
     } catch (error) {
       if (error.code === "AUTH_DISABLED") { shell.remove(); window.YasayanDefterAuth = { local: true }; }
-      else lock();
+      else activateDemo();
     }
   }
 

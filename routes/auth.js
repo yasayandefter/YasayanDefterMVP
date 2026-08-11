@@ -31,6 +31,8 @@ router.post("/logout", async (req, res) => {
 });
 
 router.get("/session", async (req, res) => {
+  const rawConfig = getConfig();
+  if (rawConfig.authMode !== "production" && rawConfig.accessMode === "public-demo") return res.json({ ok: true, authenticated: false, accessMode: "public-demo" });
   const config = enabled(res); if (!config) return;
   try { const token = parseCookies(req.headers.cookie || "")[config.cookieName]; return res.json({ ok: true, ...(await authService.session(token)) }); }
   catch (_) { return res.json({ ok: true, authenticated: false }); }
