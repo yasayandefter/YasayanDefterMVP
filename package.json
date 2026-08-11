@@ -32,11 +32,12 @@
     "test:pilot-restart": "node tests/pilotRestart.js",
     "test:postgres-foundation": "node tests/postgresFoundation.js",
     "test:auth": "node tests/auth.js",
+    "test:authorization": "node tests/authorization.js",
     "db:migrate": "node db/migrate.js migrate",
     "db:status": "node db/migrate.js status",
     "db:check": "node -e \"require('./db').health().then(result => { console.log(JSON.stringify(result)); process.exitCode = result.ok ? 0 : 1; })\"",
     "auth:create-teacher": "node scripts/createTeacher.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:frontend && npm run test:smoke"
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:authorization && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

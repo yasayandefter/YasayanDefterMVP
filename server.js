@@ -32,6 +32,8 @@ const database = require("./db");
 const databaseConfig = require("./db/config");
 const authConfig = require("./auth/config");
 const authRoutes = require("./routes/auth");
+const { optionalAuth } = require("./middleware/auth");
+const { authorizationGuard } = require("./middleware/authorization");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -98,6 +100,21 @@ app.use(installSecurityHeaders);
 app.use(installResponseContract);
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/auth", authRoutes);
+app.use(optionalAuth);
+app.use(authorizationGuard);
+app.use((req, res, next) => {
+  try {
+    if (authConfig.getConfig().authMode !== "production") return next();
+    if (req.path === "/api/classrooms" && req.method === "GET") {
+      const allowed = new Set((req.authorizedClassrooms || []).map(item => String(item.classroom_id)));
+      return res.json({ ok: true, classrooms: classroomStore.classrooms().filter(item => allowed.has(String(item.id))), requestId: req.requestId });
+    }
+    if (req.path === "/api/session/student" && req.method === "GET" && req.auth?.role === "STUDENT") {
+      req.query.studentId = req.auth.studentId;
+    }
+    return next();
+  } catch (_) { return next(); }
+});
 
 function createRequestId() {
   return typeof crypto.randomUUID === "function"
@@ -403,6 +420,29 @@ function requestedStudentId(req, body = {}) {
 }
 
 function requireStudentContext(req, res, body = {}) {
+  if (authConfig.getConfig().authMode === "production") {
+    if (!req.auth) {
+      res.status(401).json({ ok: false, error: { code: "UNAUTHENTICATED", message: "Oturum açmanız gerekiyor." }, requestId: req.requestId });
+      return null;
+    }
+    if (req.auth.role === "STUDENT") {
+      if (!req.auth.studentId) {
+        res.status(403).json({ ok: false, error: { code: "ACCOUNT_NOT_LINKED", message: "Hesabınız bir öğrenci profiline bağlı değil." }, requestId: req.requestId });
+        return null;
+      }
+      const requested = cleanText(req.query?.studentId || body.studentId || "", 100);
+      if (requested && requested !== req.auth.studentId) {
+        res.status(403).json({ ok: false, error: { code: "FORBIDDEN", message: "Bu kaynağa erişim yetkiniz yok." }, requestId: req.requestId });
+        return null;
+      }
+      return req.auth.studentId;
+    }
+    const requested = cleanText(req.query?.studentId || body.studentId || "", 100);
+    if (req.auth.role === "TEACHER" && requested) return requested;
+    if (req.auth.role === "TEACHER") return "";
+    res.status(403).json({ ok: false, error: { code: "FORBIDDEN", message: "Bu kaynağa erişim yetkiniz yok." }, requestId: req.requestId });
+    return null;
+  }
   const studentId = requestedStudentId(req, body);
   if (studentId === null) {
     res.status(404).json({ ok: false, error: { code: "STUDENT_NOT_FOUND", message: "Öğrenci bulunamadı." }, requestId: req.requestId });
@@ -4861,13 +4901,16 @@ app.get(
       if (detection.requiresFreshness && (!Array.isArray(result.currentItems) || !result.currentItems.length)) result.quizPro = null;
 
       try {
-        const memoryEntry = saveResearchToMemory(result, studentId);
-        const memoryItems = readLearningMemory(studentId);
-        result.livingMemory = {
-          recordId: memoryEntry?.id || null,
-          suggestions: livingMemory.buildSuggestions(memoryEntry, memoryItems),
-          chainPosition: livingMemory.buildHistory(memoryItems).find(item => item.id === memoryEntry?.id)?.sequence || null
-        };
+        const productionTeacher = authConfig.getConfig().authMode === "production" && req.auth?.role === "TEACHER";
+        if (!productionTeacher) {
+          const memoryEntry = saveResearchToMemory(result, studentId);
+          const memoryItems = readLearningMemory(studentId);
+          result.livingMemory = {
+            recordId: memoryEntry?.id || null,
+            suggestions: livingMemory.buildSuggestions(memoryEntry, memoryItems),
+            chainPosition: livingMemory.buildHistory(memoryItems).find(item => item.id === memoryEntry?.id)?.sequence || null
+          };
+        }
       } catch (memoryError) {
         logger.warn("memory.save_failed", {
           errorName: memoryError.name,
