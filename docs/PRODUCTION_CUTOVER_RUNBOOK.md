@@ -47,6 +47,10 @@ HTTPS is mandatory. The production session cookie is `HttpOnly`, `Secure`, `Same
 4. Review active and quarantine counts. Quarantine must not produce users, memberships, XP, mastery, progress, or teacher summaries.
 5. The current importer reports `APPLY_DISABLED_IN_PHASE_4`. Do not bypass it. Production apply requires a separately reviewed implementation and the safeguards declared by the source contract: `--apply`, `--snapshot-hash`, `--confirm`, `--confirm-legacy-owner`, `--confirm-orphan-reconciliation`, `--quarantine-unresolved-legacy`, and `--confirm-quarantine`.
 
+The implementation task must also require a current source checksum match, verified pre-cutover backup, empty/explicitly expected target-state gate, blockers equal to zero, dropped records equal to zero, explicit quarantine approval, transactional writes, post-import count/constraint verification, and tested rollback instructions. These requirements are sufficiently defined to implement under a separate reviewed change; apply remains unavailable now.
+
+STOP before apply on backup or restore failure, checksum mismatch, pending migrations, unexpected target state, DB health failure, any active blocker or dropped record, failed auth/authorization/IDOR acceptance, or failed real-browser smoke.
+
 ## Cutover sequence (only after apply is implemented and approved)
 
 1. Reconfirm the source snapshot hash and maintenance window.
@@ -72,3 +76,5 @@ Rollback on any count mismatch, dropped record, active blocker, authentication/a
 Use structured application logs and `/api/status` for minimum readiness monitoring. Keep metrics internal; no public detailed metrics endpoint is provided. Alert on health 503, auth failures, authorization denials, storage errors, provider failures, pool exhaustion, and shutdown timeouts. Logs must not contain credentials, session/claim tokens, raw research queries, memory text, or database URLs.
 
 Before a real school deployment, complete non-code approval for KVKK/privacy notice, lawful basis and school authorization, retention periods, deletion/export workflows, operator access controls, incident response, and processor/subprocessor records.
+
+See `STAGING_DEPLOYMENT.md` for the reverse-proxy, HTTPS, rate-limit, staging rehearsal, supervision, DNS, and backup-retention contract; use `GO_LIVE_CHECKLIST.md` as the final operational gate.

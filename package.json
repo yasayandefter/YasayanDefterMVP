@@ -38,6 +38,8 @@
     "test:postgres-http": "node tests/postgresHttpE2E.js",
     "test:browser-auth": "node tests/browserAuthE2E.js",
     "test:production-acceptance": "node tests/productionAcceptance.js",
+    "staging:check": "node scripts/stagingCheck.js",
+    "test:staging": "node tests/stagingAcceptance.js",
     "db:migration:dry-run": "node scripts/migrateJsonToPostgres.js",
     "test:migration-dry-run": "node tests/migrationDryRun.js",
     "db:migrate": "node db/migrate.js migrate",
