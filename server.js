@@ -28,6 +28,8 @@ const classroomProfile = require("./brain/classroomProfile");
 const freshness = require("./brain/freshness");
 const currentProviders = require("./brain/currentProviders");
 const metrics = require("./brain/metrics");
+const database = require("./db");
+const databaseConfig = require("./db/config");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -6008,8 +6010,9 @@ app.get(
           .conversations
           .length,
 
-      status: "ok",
-      uptimeSec: Math.round(process.uptime()),
+        status: "ok",
+        storageMode: databaseConfig.getConfig().storageMode,
+        uptimeSec: Math.round(process.uptime()),
       storageHealth: "ok",
       observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }
 
@@ -6259,7 +6262,7 @@ if (require.main === module) {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("server.shutdown", { signal });
-    server.close(() => process.exit(0));
+    server.close(() => database.closePool().finally(() => process.exit(0)));
     setTimeout(() => process.exit(1), 5000).unref();
   };
   process.once("SIGINT", () => shutdown("SIGINT"));

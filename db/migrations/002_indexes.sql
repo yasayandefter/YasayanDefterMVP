@@ -1,0 +1,17 @@
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (LOWER(email)) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (LOWER(username)) WHERE username IS NOT NULL;
+CREATE INDEX IF NOT EXISTS classrooms_school_idx ON classrooms (school_id);
+CREATE INDEX IF NOT EXISTS classrooms_creator_idx ON classrooms (created_by);
+CREATE INDEX IF NOT EXISTS memberships_user_role_idx ON classroom_memberships (user_id, role);
+CREATE INDEX IF NOT EXISTS memberships_classroom_role_idx ON classroom_memberships (classroom_id, role);
+CREATE INDEX IF NOT EXISTS memory_student_updated_idx ON memory_records (student_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS memory_student_topic_idx ON memory_records (student_id, normalized_topic);
+CREATE INDEX IF NOT EXISTS attempts_student_created_idx ON quiz_attempts (student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS attempts_student_status_idx ON quiz_attempts (student_id, status);
+CREATE INDEX IF NOT EXISTS questions_attempt_idx ON quiz_attempt_questions (attempt_id);
+CREATE INDEX IF NOT EXISTS answers_attempt_idx ON quiz_attempt_answers (attempt_id);
+CREATE INDEX IF NOT EXISTS sessions_hash_idx ON sessions (session_hash);
+CREATE INDEX IF NOT EXISTS sessions_user_revoked_idx ON sessions (user_id, revoked_at);
+CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions (expires_at);
+CREATE INDEX IF NOT EXISTS password_reset_token_idx ON password_reset_tokens (token_hash);
+CREATE INDEX IF NOT EXISTS password_reset_expiry_idx ON password_reset_tokens (expires_at);
