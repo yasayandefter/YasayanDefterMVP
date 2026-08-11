@@ -31,6 +31,13 @@ assert.equal(local.cookieSecure, false);
 assert.throws(() => getConfig({ AUTH_MODE: "production", STORAGE_MODE: "json" }), /AUTH_REQUIRES_POSTGRES/);
 const prod = getConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted", APP_ORIGIN: "https://app.example" });
 assert.equal(prod.cookieSecure, true);
+const vercelPublic = getConfig({ VERCEL: "1", AUTH_MODE: "production", STORAGE_MODE: "postgres" });
+assert.equal(vercelPublic.accessMode, "public-demo");
+assert.equal(vercelPublic.authMode, "local");
+assert.equal(vercelPublic.database.storageMode, "json");
+assert.throws(() => getConfig({ VERCEL: "1", ACCESS_MODE: "authenticated", AUTH_MODE: "production", STORAGE_MODE: "postgres" }), /DATABASE_URL_REQUIRED/);
+const vercelAuthenticated = getConfig({ VERCEL: "1", ACCESS_MODE: "authenticated", AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted", APP_ORIGIN: "https://app.example" });
+assert.equal(vercelAuthenticated.authMode, "production");
 assert.equal(publicConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://secret", APP_ORIGIN: "https://app.example" }).database, undefined);
 
 const response = { setHeader(name, value) { this[name] = value; } };

@@ -9,7 +9,8 @@ function numberEnv(env, name, fallback, minimum, maximum) {
 }
 
 function getConfig(env = process.env) {
-  const storageMode = String(env.STORAGE_MODE || "json").trim().toLowerCase();
+  const accessMode = String(env.ACCESS_MODE || (env.VERCEL ? "public-demo" : "local-pilot")).trim().toLowerCase();
+  const storageMode = accessMode === "public-demo" ? "json" : String(env.STORAGE_MODE || "json").trim().toLowerCase();
   if (!MODES.has(storageMode)) throw new Error("STORAGE_MODE_INVALID");
   const databaseUrl = String(env.DATABASE_URL || "").trim();
   if (storageMode === "postgres" && !databaseUrl) throw new Error("DATABASE_URL_REQUIRED");

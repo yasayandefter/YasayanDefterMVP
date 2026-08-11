@@ -41,6 +41,7 @@
     "test:postgres-http": "node tests/postgresHttpE2E.js",
     "test:browser-auth": "node tests/browserAuthE2E.js",
     "test:public-first": "node tests/publicFirstE2E.js",
+    "test:vercel-public": "node tests/vercelPublic.js",
     "test:production-acceptance": "node tests/productionAcceptance.js",
     "staging:check": "node scripts/stagingCheck.js",
     "test:staging": "node tests/stagingAcceptance.js",

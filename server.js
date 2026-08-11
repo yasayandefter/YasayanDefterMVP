@@ -6088,8 +6088,9 @@ app.get(
     res
   ) => {
 
-    const health = await database.health();
-    const publicAccess = authConfig.getConfig().accessMode === "public-demo" || !req.auth;
+    const runtimeConfig = authConfig.getConfig();
+    const publicAccess = runtimeConfig.accessMode === "public-demo" || !req.auth;
+    const health = runtimeConfig.accessMode === "public-demo" ? { ok: true, ephemeral: true } : await database.health();
     res.status(200).json({
 
       ok:
@@ -6109,6 +6110,12 @@ app.get(
 
       mode:
         publicAccess ? "public-demo" : "authenticated",
+
+      accessMode:
+        runtimeConfig.accessMode,
+
+      storageMode:
+        runtimeConfig.accessMode === "public-demo" ? "ephemeral" : databaseConfig.getConfig().storageMode,
 
       researchAvailable:
         true,
@@ -6196,7 +6203,7 @@ app.get(
 
         status: "ok",
         uptimeSec: Math.round(process.uptime()),
-      storageHealth: health.ok ? "ok" : "unavailable",
+      storageHealth: health.ephemeral ? "ephemeral" : health.ok ? "ok" : "unavailable",
       observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }
 
     });

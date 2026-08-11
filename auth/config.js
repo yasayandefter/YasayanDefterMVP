@@ -12,10 +12,11 @@ function normalizeOrigins(value) {
 }
 
 function getConfig(env = process.env) {
-  const authMode = String(env.AUTH_MODE || "local").trim().toLowerCase();
-  if (!["local", "production"].includes(authMode)) throw new Error("AUTH_MODE_INVALID");
   const accessMode = String(env.ACCESS_MODE || (env.VERCEL ? "public-demo" : "local-pilot")).trim().toLowerCase();
-  if (!["local-pilot", "public-demo"].includes(accessMode)) throw new Error("ACCESS_MODE_INVALID");
+  if (!["local-pilot", "public-demo", "authenticated"].includes(accessMode)) throw new Error("ACCESS_MODE_INVALID");
+  const requestedAuthMode = String(env.AUTH_MODE || "local").trim().toLowerCase();
+  const authMode = accessMode === "public-demo" ? "local" : requestedAuthMode;
+  if (!["local", "production"].includes(authMode)) throw new Error("AUTH_MODE_INVALID");
   const database = getDatabaseConfig(env);
   if (authMode === "production" && database.storageMode !== "postgres") throw new Error("AUTH_REQUIRES_POSTGRES");
   const nodeEnv = String(env.NODE_ENV || "development");
