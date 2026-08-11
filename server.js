@@ -34,6 +34,9 @@ const authConfig = require("./auth/config");
 const authRoutes = require("./routes/auth");
 const { optionalAuth } = require("./middleware/auth");
 const { authorizationGuard } = require("./middleware/authorization");
+const repositoryFactory = require("./repositories");
+
+app.locals.repositoryFactory = repositoryFactory;
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -102,6 +105,10 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api/auth", authRoutes);
 app.use(optionalAuth);
 app.use(authorizationGuard);
+app.use((req, res, next) => {
+  try { req.repositories = repositoryFactory.getRepositories(); } catch (_) { req.repositories = null; }
+  return next();
+});
 app.use((req, res, next) => {
   try {
     if (authConfig.getConfig().authMode !== "production") return next();
@@ -5628,9 +5635,13 @@ app.get(
    API — LEARNING STATS
 ======================================================== */
 
-app.get("/api/progress", (req, res) => {
+app.get("/api/progress", async (req, res) => {
   const studentId = requireStudentContext(req, res);
   if (studentId === null) return;
+  if (req.repositories?.mode === "postgres") {
+    try { const source = await require("./services/domainSources").progress(studentId, req.repositories); return res.json({ ok: true, ...source, requestId: req.requestId }); }
+    catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "İlerleme verisi şu anda alınamadı." }, requestId: req.requestId }); }
+  }
   const records = readLearningMemory(studentId);
   const profile = learningProfile.buildProfile(records);
   res.json({ ok: true, profile, recommendations: learningProfile.buildRecommendations(profile, records) });
@@ -5646,9 +5657,13 @@ app.get("/api/progress/:topic", (req, res) => {
   res.json({ ok: true, progress: topic });
 });
 
-app.get("/api/recommendations", (req, res) => {
+app.get("/api/recommendations", async (req, res) => {
   const studentId = requireStudentContext(req, res);
   if (studentId === null) return;
+  if (req.repositories?.mode === "postgres") {
+    try { const source = await require("./services/domainSources").progress(studentId, req.repositories); return res.json({ ok: true, recommendations: source.recommendations, requestId: req.requestId }); }
+    catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Öneriler şu anda alınamadı." }, requestId: req.requestId }); }
+  }
   const records = readLearningMemory(studentId);
   const profile = learningProfile.buildProfile(records);
   res.json({ ok: true, recommendations: learningProfile.buildRecommendations(profile, records) });
@@ -5667,10 +5682,14 @@ app.get("/api/session/student", (req, res) => { const studentId = requestedStude
 app.post("/api/session/student", (req, res) => { const studentId = requireStudentContext(req, res, req.body || {}); if (studentId === null) return; res.json({ ok: true, student: studentId ? classroomStore.getStudent(studentId) : null, requestId: req.requestId }); });
 app.get("/api/classrooms/:id/summary", (req, res) => { const classroom = classroomStore.getClassroom(cleanText(req.params.id, 100)); if (!classroom) return classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId); const students = classroomStore.listStudents(classroom.id); const profiles = students.map(student => learningProfile.buildProfile(readLearningMemory(student.id))); const summary = classroomProfile.buildClassroomSummary(classroom, students, profiles); res.json({ ok: true, summary, requestId: req.requestId }); });
 
-app.get("/api/teacher/summary", (req, res) => {
+app.get("/api/teacher/summary", async (req, res) => {
   try {
     const studentId = requireStudentContext(req, res);
     if (studentId === null) return;
+    if (req.repositories?.mode === "postgres") {
+      const summary = await require("./services/domainSources").teacherSummary(studentId, req.repositories);
+      return res.json({ ok: true, summary, requestId: req.requestId });
+    }
     const records = readLearningMemory(studentId);
     const profile = learningProfile.buildProfile(records);
     const recommendations = learningProfile.buildRecommendations(profile, records);

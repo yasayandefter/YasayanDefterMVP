@@ -1,8 +1,16 @@
 "use strict";
 
-module.exports = {
-  name: "students",
-  // Phase 1 interface only. JSON and PostgreSQL implementations arrive in later phases.
-  async findById() { throw new Error("STUDENT_REPOSITORY_NOT_IMPLEMENTED"); },
-  async listForClassroom() { throw new Error("STUDENT_REPOSITORY_NOT_IMPLEMENTED"); }
-};
+const crypto = require("node:crypto");
+const db = require("../db");
+const { mapDatabaseError, page } = require("./errors");
+
+function mapStudent(row) { return row ? { id: row.id, userId: row.user_id || null, displayName: row.display_name || "", createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at || null, updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at || null } : null; }
+async function findById(id, client = db) { try { const result = await client.query("SELECT id, user_id, display_name, created_at, updated_at FROM students WHERE id = $1", [id]); return mapStudent(result.rows[0]); } catch (error) { throw mapDatabaseError(error, "STUDENT_LOOKUP_FAILED"); } }
+async function findByUserId(userId, client = db) { try { const result = await client.query("SELECT id, user_id, display_name, created_at, updated_at FROM students WHERE user_id = $1", [userId]); return mapStudent(result.rows[0]); } catch (error) { throw mapDatabaseError(error, "STUDENT_LOOKUP_FAILED"); } }
+async function create({ id = crypto.randomUUID(), displayName, userId = null }, client = db) { const name = typeof displayName === "string" ? displayName.replace(/\s+/g, " ").trim().slice(0, 100) : ""; if (!name) throw new Error("INVALID_STUDENT_NAME"); try { const result = await client.query("INSERT INTO students (id, user_id, display_name) VALUES ($1, $2, $3) RETURNING id, user_id, display_name, created_at, updated_at", [id, userId, name]); return mapStudent(result.rows[0]); } catch (error) { throw mapDatabaseError(error, "STUDENT_CREATE_FAILED"); } }
+async function updateDisplayName(id, displayName, client = db) { const name = typeof displayName === "string" ? displayName.replace(/\s+/g, " ").trim().slice(0, 100) : ""; if (!name) throw new Error("INVALID_STUDENT_NAME"); try { const result = await client.query("UPDATE students SET display_name = $2, updated_at = NOW() WHERE id = $1 RETURNING id, user_id, display_name, created_at, updated_at", [id, name]); return mapStudent(result.rows[0]); } catch (error) { throw mapDatabaseError(error, "STUDENT_UPDATE_FAILED"); } }
+async function listByClassroom(classroomId, options = {}, client = db) { const limit = page(options.limit); const offset = Math.max(0, Number.parseInt(options.offset, 10) || 0); try { const result = await client.query("SELECT s.id, s.user_id, s.display_name, s.created_at, s.updated_at FROM students s JOIN classroom_memberships m ON m.user_id = s.user_id WHERE m.classroom_id = $1 AND m.role = 'STUDENT' ORDER BY s.created_at, s.id LIMIT $2 OFFSET $3", [classroomId, limit, offset]); return result.rows.map(mapStudent); } catch (error) { throw mapDatabaseError(error, "STUDENT_LIST_FAILED"); } }
+async function linkUser(studentId, userId, client = db) { try { const result = await client.query("UPDATE students SET user_id = $2, updated_at = NOW() WHERE id = $1 AND user_id IS NULL RETURNING id, user_id, display_name, created_at, updated_at", [studentId, userId]); return mapStudent(result.rows[0]); } catch (error) { throw mapDatabaseError(error, "STUDENT_LINK_FAILED"); } }
+async function exists(id, client = db) { const result = await client.query("SELECT 1 FROM students WHERE id = $1 LIMIT 1", [id]); return Boolean(result.rows[0]); }
+
+module.exports = { name: "students", mapStudent, findById, findByUserId, create, updateDisplayName, listByClassroom, listForClassroom: listByClassroom, linkUser, exists };

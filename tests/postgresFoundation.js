@@ -11,7 +11,7 @@ assert.equal(config.getConfig({}).storageMode, "json");
 assert.equal(config.getConfig({ STORAGE_MODE: "json" }).storageMode, "json");
 assert.throws(() => config.getConfig({ STORAGE_MODE: "postgres" }), /DATABASE_URL_REQUIRED/);
 assert.equal(config.getConfig({ STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted" }).storageMode, "postgres");
-assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004"]);
+assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005"]);
 assert.ok(migrations.listMigrations().every(item => item.sql.length > 100));
 for (const repository of ["studentsRepository", "classroomsRepository", "memoryRepository", "quizRepository", "sessionRepository", "usersRepository", "claimRepository", "membershipRepository"]) {
   const loaded = require(path.join("..", "repositories", repository));
