@@ -20,6 +20,7 @@ async function authorizationGuard(req, res, next) {
   let config;
   try { config = getConfig(); } catch (_) { return sendError(res, { code: "UNAUTHENTICATED" }); }
   if (config.authMode !== "production") return next();
+  if (!req.path.startsWith("/api")) return next();
   if (req.path.startsWith("/api/auth") || req.path === "/api/status" || req.path === "/api/health") return next();
   try {
     authorization.requireAuthenticated(req.auth);

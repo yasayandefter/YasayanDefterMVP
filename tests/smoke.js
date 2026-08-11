@@ -2,12 +2,20 @@ const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const path = require("node:path");
+const fs = require("node:fs");
+const os = require("node:os");
 
 const ROOT = path.resolve(__dirname, "..");
 const HOST = "127.0.0.1";
 const PORT_START = 3100;
 const REQUEST_TIMEOUT_MS = 15_000;
 const observedRequestIds = new Set();
+const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "yasayan-smoke-"));
+const TEMP_DATA = path.join(TEMP_ROOT, "data");
+fs.mkdirSync(TEMP_DATA, { recursive: true });
+fs.writeFileSync(path.join(TEMP_ROOT, "memory.json"), JSON.stringify({ user: {}, memories: [], conversations: [] }));
+fs.writeFileSync(path.join(TEMP_ROOT, "learning.json"), "[]");
+for (const file of ["classrooms.json", "students.json", "quiz-attempts.json"]) fs.writeFileSync(path.join(TEMP_DATA, file), "[]");
 
 async function findPort() {
   for (let port = PORT_START; port < PORT_START + 100; port += 1) {
@@ -24,7 +32,7 @@ async function findPort() {
 function startServer(port) {
   const child = spawn(process.execPath, ["server.js"], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, PORT: String(port), YASAYAN_MEMORY_FILE: path.join(TEMP_ROOT, "memory.json"), YASAYAN_LEARNING_MEMORY_FILE: path.join(TEMP_ROOT, "learning.json"), YASAYAN_CLASSROOM_DATA_DIR: TEMP_DATA, YASAYAN_QUIZ_ATTEMPTS_FILE: path.join(TEMP_DATA, "quiz-attempts.json") },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";
@@ -268,7 +276,7 @@ async function run() {
         child.once("exit", () => { clearTimeout(timer); resolve(); });
       });
     }
-    try { require("../brain/classroomStore").resetForTests(); } catch (_) { /* test cleanup is best effort */ }
+    try { fs.rmSync(TEMP_ROOT, { recursive: true, force: true }); } catch (_) { /* test cleanup is best effort */ }
   }
 }
 

@@ -7,7 +7,7 @@ function username(value) { return typeof value === "string" ? value.trim().toLow
 function displayName(value) { return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 120) : ""; }
 function validateEmail(value) { const normalized = email(value); if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("INVALID_EMAIL"); return normalized; }
 function validateUsername(value) { const normalized = username(value); if (!normalized || normalized.length < 3 || !/^[a-z0-9._-]+$/.test(normalized)) throw new Error("INVALID_USERNAME"); return normalized; }
-function safeUser(row) { return row ? { id: row.id, role: row.role, email: row.email || null, username: row.username || null, displayName: row.display_name || row.displayName || "", status: row.status } : null; }
+function safeUser(row) { return row ? { id: row.id, role: row.role, email: row.email || null, username: row.username || null, displayName: row.display_name || row.displayName || "", status: row.status, studentId: row.student_id || row.studentId || null } : null; }
 
 async function findById(id, client = db) { const result = await client.query("SELECT u.*, s.id AS student_id FROM users u LEFT JOIN students s ON s.user_id = u.id WHERE u.id = $1", [id]); return result.rows[0] || null; }
 async function findByEmail(value, client = db) { const result = await client.query("SELECT u.*, s.id AS student_id FROM users u LEFT JOIN students s ON s.user_id = u.id WHERE LOWER(u.email) = LOWER($1)", [email(value)]); return result.rows[0] || null; }

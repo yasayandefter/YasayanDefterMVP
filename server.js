@@ -32,6 +32,7 @@ const database = require("./db");
 const databaseConfig = require("./db/config");
 const authConfig = require("./auth/config");
 const authRoutes = require("./routes/auth");
+const { validateAuthOrigin } = require("./auth/origin");
 const { optionalAuth } = require("./middleware/auth");
 const { authorizationGuard } = require("./middleware/authorization");
 const repositoryFactory = require("./repositories");
@@ -102,10 +103,18 @@ function installSecurityHeaders(req, res, next) {
 app.use(installSecurityHeaders);
 app.use(installResponseContract);
 app.use(express.json({ limit: "1mb" }));
+app.use((req, res, next) => {
+  try {
+    const config = authConfig.getConfig();
+    if (config.authMode !== "production" || !req.path.startsWith("/api") || req.path.startsWith("/api/auth") || !["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+    if (validateAuthOrigin(req, config)) return next();
+    return res.status(403).json({ ok: false, error: { code: "CSRF_ORIGIN_REJECTED", message: "İstek kaynağına izin verilmiyor." } });
+  } catch (_) { return res.status(403).json({ ok: false, error: { code: "CSRF_ORIGIN_REJECTED", message: "İstek kaynağına izin verilmiyor." } }); }
+});
 app.use("/api/auth", authRoutes);
 app.use(optionalAuth);
 app.use(authorizationGuard);
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   try { req.repositories = repositoryFactory.getRepositories(); } catch (_) { req.repositories = null; }
   return next();
 });
@@ -113,8 +122,7 @@ app.use((req, res, next) => {
   try {
     if (authConfig.getConfig().authMode !== "production") return next();
     if (req.path === "/api/classrooms" && req.method === "GET") {
-      const allowed = new Set((req.authorizedClassrooms || []).map(item => String(item.classroom_id)));
-      return res.json({ ok: true, classrooms: classroomStore.classrooms().filter(item => allowed.has(String(item.id))), requestId: req.requestId });
+      return next();
     }
     if (req.path === "/api/session/student" && req.method === "GET" && req.auth?.role === "STUDENT") {
       req.query.studentId = req.auth.studentId;
@@ -4910,8 +4918,25 @@ app.get(
       try {
         const productionTeacher = authConfig.getConfig().authMode === "production" && req.auth?.role === "TEACHER";
         if (!productionTeacher) {
-          const memoryEntry = saveResearchToMemory(result, studentId);
-          const memoryItems = readLearningMemory(studentId);
+          const memoryEntry = req.repositories?.mode === "postgres"
+            ? await require("./services/domainSources").saveResearch(studentId, {
+                id: crypto.randomUUID(),
+                topic: cleanText(result.title || result.query || query, 240),
+                normalizedTopic: normalize(result.title || result.query || query).slice(0, 240),
+                title: cleanText(result.title || result.query || query, 240),
+                summary: cleanText(result.summary || result.text || "", 4000),
+                confidence: Number(result.confidence || 0),
+                sourceCount: Array.isArray(result.sources) ? result.sources.length : 0,
+                audienceLevel: cleanText(req.query?.audienceLevel || "general", 40),
+                keyConcepts: result.structuredContent?.keyConcepts || [],
+                keyFacts: result.structuredContent?.keyFacts || [],
+                relatedTopics: result.related || [],
+                reliabilitySummary: result.reliability || {}, quizSummary: {}
+              }, req.repositories)
+            : saveResearchToMemory(result, studentId);
+          const memoryItems = req.repositories?.mode === "postgres"
+            ? await req.repositories.memory.findByStudent(studentId)
+            : readLearningMemory(studentId);
           result.livingMemory = {
             recordId: memoryEntry?.id || null,
             suggestions: livingMemory.buildSuggestions(memoryEntry, memoryItems),
@@ -5091,6 +5116,22 @@ app.get("/api/images", async (req, res) => {
 /* ========================================================
    API — MEMORY LIST
 ======================================================== */
+
+app.get("/api/memory/list", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const studentId = requireStudentContext(req, res); if (studentId === null) return;
+  try { return res.json({ ok: true, memories: await req.repositories.memory.findByStudent(studentId), requestId: req.requestId }); }
+  catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Hafıza kayıtları şu anda alınamadı." }, requestId: req.requestId }); }
+});
+app.post("/api/memory/save", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const studentId = requireStudentContext(req, res, req.body || {}); if (studentId === null) return;
+  try {
+    const topic = cleanText(req.body?.topic || req.body?.title || "", 240); if (!topic) return res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "Konu belirtilmelidir." }, requestId: req.requestId });
+    const memory = await req.repositories.memory.upsertTopic({ id: crypto.randomUUID(), studentId, topic, normalizedTopic: normalize(topic).slice(0, 240), title: cleanText(req.body?.title || topic, 240), summary: cleanText(req.body?.summary || "", 4000), keyConcepts: Array.isArray(req.body?.keyConcepts) ? req.body.keyConcepts : [], keyFacts: Array.isArray(req.body?.keyFacts) ? req.body.keyFacts : [], relatedTopics: Array.isArray(req.body?.relatedTopics) ? req.body.relatedTopics : [] });
+    return res.json({ ok: true, memory, requestId: req.requestId });
+  } catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Hafıza kaydı şu anda saklanamadı." }, requestId: req.requestId }); }
+});
 
 app.get("/api/memory/history", (req, res) => {
   const memories = readLearningMemory();
@@ -5358,12 +5399,21 @@ function quizApiError(res, status, code, message, requestId) {
   return res.status(status).json({ ok: false, error: { code, message }, requestId });
 }
 
-app.post("/api/quiz/start", (req, res) => {
+app.post("/api/quiz/start", async (req, res) => {
   const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
   if (!body.research || typeof body.research !== "object") return quizApiError(res, 400, "BAD_REQUEST", "Quiz araştırma verisi bulunamadı.", req.requestId);
+  if (req.repositories?.mode === "postgres") {
+    try {
+      const built = quizEngine.buildQuiz(body.research, { count: body.count, difficulty: body.difficulty, type: body.type });
+      if (!built.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Quiz oluşturulamadı.", req.requestId);
+      const attempt = await req.repositories.quiz.createAttempt({ studentId, topic: built.topic, difficulty: built.difficulty, questionType: built.type });
+      const questions = await req.repositories.quiz.insertQuestions(attempt.id, built.questions.map(item => ({ prompt: item.prompt, options: item.options, correct: item.correctAnswer, concept: item.concept })));
+      return res.json({ ok: true, attempt: { id: built.id, attemptId: attempt.id, topic: built.topic, difficulty: built.difficulty, type: built.type, requestedCount: built.requestedCount, questions: questions.map((item, index) => ({ id: item.id, prompt: item.prompt, options: item.options, concept: item.concept, order: index })) }, requestId: req.requestId });
+    } catch (_) { return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId); }
+  }
   const started = quizSessions.start({ research: body.research, count: body.count, difficulty: body.difficulty, type: body.type }, body.retryOf, studentId);
   if (started.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId);
   if (!started.quiz.questions.length) return quizApiError(res, 422, "QUIZ_UNAVAILABLE", "Bu konu için güvenli bir quiz oluşturulamadı.", req.requestId);
@@ -5371,12 +5421,24 @@ app.post("/api/quiz/start", (req, res) => {
   res.json({ ok: true, attempt: started.quiz, requestId: req.requestId });
 });
 
-app.post("/api/quiz/answer", (req, res) => {
+app.post("/api/quiz/answer", async (req, res) => {
   const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
   if (!body.attemptId || !body.questionId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt ve soru bilgisi gerekli.", req.requestId);
+  if (req.repositories?.mode === "postgres") {
+    try {
+      const attempt = await req.repositories.quiz.findAttemptForStudent(body.attemptId, studentId);
+      if (!attempt) return quizApiError(res, 403, "FORBIDDEN", "Bu quiz attempt için yetkiniz yok.", req.requestId);
+      const question = await req.repositories.quiz.findQuestion(body.attemptId, body.questionId);
+      if (!question) return quizApiError(res, 404, "UNKNOWN_QUESTION", "Quiz sorusu bulunamadı.", req.requestId);
+      const answer = cleanText(body.answer || "", 500); const skipped = body.skipped === true || !answer;
+      const saved = await req.repositories.quiz.recordAnswer({ attemptId: body.attemptId, questionId: body.questionId, answer, skipped, isCorrect: !skipped && normalize(answer) === normalize(question.correct_option_private) });
+      if (!saved) return quizApiError(res, 409, "DUPLICATE_ANSWER", "Bu soru daha önce yanıtlandı.", req.requestId);
+      return res.json({ ok: true, result: { questionId: saved.question_id, correct: saved.is_correct, skipped: saved.skipped }, requestId: req.requestId });
+    } catch (_) { return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kaydedilemedi.", req.requestId); }
+  }
   const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true, studentId);
   if (result.error === "STORAGE_FAILED") { metrics.state.quiz.storageFailures += 1; return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kalıcı olarak kaydedilemedi.", req.requestId); }
   if (result.error === "DUPLICATE_ANSWER") metrics.state.quiz.duplicateAnswers += 1;
@@ -5385,12 +5447,23 @@ app.post("/api/quiz/answer", (req, res) => {
   res.json({ ok: true, result: result.result, requestId: req.requestId });
 });
 
-app.post("/api/quiz/complete", (req, res) => {
+app.post("/api/quiz/complete", async (req, res) => {
   const quizStartedAt = Date.now();
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const studentId = requireStudentContext(req, res, body);
   if (studentId === null) return;
   if (!body.attemptId) return quizApiError(res, 400, "BAD_REQUEST", "Quiz attempt bilgisi gerekli.", req.requestId);
+  if (req.repositories?.mode === "postgres") {
+    try {
+      const attempt = await req.repositories.quiz.findAttemptForStudent(body.attemptId, studentId);
+      if (!attempt) return quizApiError(res, 403, "FORBIDDEN", "Bu quiz attempt için yetkiniz yok.", req.requestId);
+      const questions = await req.repositories.quiz.listQuestions(body.attemptId); const answers = await req.repositories.quiz.listAnswers(body.attemptId);
+      const correct = answers.filter(item => item.is_correct).length; const total = questions.length;
+      const xp = correct * 8 + (total ? 10 : 0) + (total && correct === total ? 15 : 0);
+      const completed = await req.repositories.quiz.completeAttempt({ attemptId: body.attemptId, studentId, score: total ? Math.round(correct / total * 100) : 0, xpAmount: xp });
+      return res.json({ ok: true, summary: completed.attempt, duplicate: completed.duplicate, requestId: req.requestId });
+    } catch (_) { return quizApiError(res, 503, "STORAGE_FAILED", "Quiz tamamlanamadı.", req.requestId); }
+  }
   const completed = quizSessions.complete(body.attemptId, studentId);
   if (completed.error) return quizApiError(res, 409, completed.error, "Bu quiz tamamlanamadı.", req.requestId);
   if (completed.duplicate) metrics.state.quiz.duplicateCompletions += 1;
@@ -5670,6 +5743,44 @@ app.get("/api/recommendations", async (req, res) => {
 });
 
 function classroomApiError(res, status, code, message, requestId) { return res.status(status).json({ ok: false, error: { code, message }, requestId }); }
+
+// Production storage handlers run before the unchanged local JSON pilot handlers.
+app.get("/api/classrooms", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  try { return res.json({ ok: true, classrooms: await req.repositories.classrooms.listForUser(req.auth.userId), requestId: req.requestId }); }
+  catch (_) { return classroomApiError(res, 503, "STORAGE_UNAVAILABLE", "Sınıflar şu anda alınamadı.", req.requestId); }
+});
+app.post("/api/classrooms", (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  return classroomApiError(res, 403, "FORBIDDEN", "Sınıf oluşturma yetkisi okul yönetimi tarafından verilir.", req.requestId);
+});
+app.get("/api/classrooms/:id", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const classroom = await req.repositories.classrooms.findById(cleanText(req.params.id, 100));
+  return classroom ? res.json({ ok: true, classroom, requestId: req.requestId }) : classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId);
+});
+app.get("/api/classrooms/:id/students", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const students = await req.repositories.students.listByClassroom(cleanText(req.params.id, 100));
+  return res.json({ ok: true, students, requestId: req.requestId });
+});
+app.get("/api/classrooms/:id/summary", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const summary = await require("./services/domainSources").classroomSummary(cleanText(req.params.id, 100), req.repositories);
+  return summary ? res.json({ ok: true, summary, requestId: req.requestId }) : classroomApiError(res, 404, "NOT_FOUND", "Sınıf bulunamadı.", req.requestId);
+});
+app.get("/api/students/:id", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const student = await req.repositories.students.findById(cleanText(req.params.id, 100));
+  return student ? res.json({ ok: true, student, requestId: req.requestId }) : classroomApiError(res, 404, "NOT_FOUND", "Öğrenci bulunamadı.", req.requestId);
+});
+app.patch("/api/students/:id", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  try {
+    const student = await req.repositories.students.updateDisplayName(cleanText(req.params.id, 100), req.body?.displayName);
+    return student ? res.json({ ok: true, student, requestId: req.requestId }) : classroomApiError(res, 404, "NOT_FOUND", "Öğrenci bulunamadı.", req.requestId);
+  } catch (_) { return classroomApiError(res, 400, "BAD_REQUEST", "Öğrenci adı güncellenemedi.", req.requestId); }
+});
 
 app.get("/api/classrooms", (req, res) => { res.json({ ok: true, classrooms: classroomStore.classrooms(), requestId: req.requestId }); });
 app.post("/api/classrooms", (req, res) => { const result = classroomStore.createClassroom(req.body?.name); if (result.error === "INVALID_NAME") return classroomApiError(res, 400, "BAD_REQUEST", "Sınıf adı boş bırakılamaz.", req.requestId); if (result.error) return classroomApiError(res, 500, "STORAGE_FAILED", "Sınıf oluşturulamadı.", req.requestId); res.status(201).json({ ok: true, classroom: result.classroom, requestId: req.requestId }); });
