@@ -27,7 +27,7 @@ write(path.join(root, "data", "students.json"), [
 ]);
 write(path.join(root, "data", "quiz-attempts.json"), { version: 1, data: [
   { id: "attempt-1", studentId: "student-1", completed: true, xpAwarded: 10, quiz: { topic: "Mars", questions: [{ id: "q1", prompt: "p" }] }, answers: [{ questionId: "q1" }, { questionId: "q1" }] },
-  { id: "attempt-orphan", studentId: "missing-student", quiz: { questions: [] }, answers: [] }
+  { id: "attempt-orphan", quiz: { questions: [] }, answers: [] }
 ] });
 
 const sourceFile = path.join(root, "yasayan_deefter_memory.json");
@@ -43,4 +43,13 @@ assert.ok(first.conflicts.some(item => item.code === "STUDENT_CLASSROOM_NOT_FOUN
 assert.ok(first.conflicts.some(item => item.code === "DUPLICATE_MEMORY_TOPIC"));
 assert.equal(checksum(sourceFile), before);
 assert.notEqual(buildDryRun(root, { capturedAt: "2026-01-02T00:00:00.000Z" }).snapshot[0].capturedAt, first.snapshot[0].capturedAt);
+const mapped = buildDryRun(root, { capturedAt: "2026-01-01T00:00:00.000Z", mapLegacyDefault: true });
+assert.equal(mapped.ownership.enabled, true);
+assert.equal(mapped.ownership.createsUser, false);
+assert.equal(mapped.targetCounts.students, 4);
+assert.equal(mapped.targetCounts.memoryRecords, 3);
+assert.equal(mapped.targetCounts.quizAttempts, 2);
+assert.equal(mapped.conflicts.some(item => item.code === "QUIZ_STUDENT_NOT_FOUND"), false);
+assert.equal(mapped.conflicts.some(item => item.code === "UNASSIGNED_LEGACY_MEMORY"), false);
+assert.equal(mapped.ownership.legacyStudentId, buildDryRun(root, { capturedAt: "2026-01-01T00:00:00.000Z", mapLegacyDefault: true }).ownership.legacyStudentId);
 console.log("PASS  migration normalization, counts, orphan/duplicate/default-memory, deterministic mapping, checksum, and immutability checks");
