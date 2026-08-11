@@ -83,6 +83,7 @@ assert.match(appSource, /initializeHorizontalRails\(\)/);
 assert.match(appSource, /\.professional-concept-grid/);
 assert.match(appSource, /\.professional-interesting-list/);
 assert.match(appSource, /#imagesContainer/);
+assert.doesNotMatch(appSource, /https:\/\/commons\.wikimedia\.org\/w\/api\.php/);
 assert.match(appSource, /#flashcardsContainer/);
 assert.match(appSource, /#relatedContainer/);
 assert.match(appSource, /#sourcesContainer/);

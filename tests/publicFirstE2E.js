@@ -19,9 +19,10 @@ async function ready() { for (let i = 0; i < 80; i += 1) { try { if ((await fetc
   child = spawn(process.execPath, ["server.js"], { cwd: root, env: { ...process.env, PORT: String(port), VERCEL: "1", NODE_ENV: "production", AUTH_MODE: "", STORAGE_MODE: "", DATABASE_URL: "", ACCESS_MODE: "" }, stdio: ["ignore", "pipe", "pipe"] });
   await ready(); browser = await chromium.launch({ executablePath: EDGE, headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); const page = await context.newPage();
-  const consoleErrors = []; const failed = []; const apiResponses = [];
+  const consoleErrors = []; const failed = []; const apiResponses = []; const directWikimediaApiRequests = [];
   page.on("console", m => { if (m.type() === "error") consoleErrors.push(m.text()); });
   page.on("requestfailed", r => failed.push(r.url()));
+  page.on("request", r => { if (/^https:\/\/commons\.wikimedia\.org\/w\/api\.php/i.test(r.url())) directWikimediaApiRequests.push(r.url()); });
   page.on("response", r => { if (r.url().startsWith(`${base}/api/`)) apiResponses.push({ url: r.url(), status: r.status(), method: r.request().method() }); });
   await page.goto(base, { waitUntil: "networkidle" });
   assert.equal(await page.locator("#brainEngineWorkspace").isVisible(), true); assert.equal(await page.locator(".auth-shell").isVisible(), false);
@@ -30,10 +31,11 @@ async function ready() { for (let i = 0; i < 80; i += 1) { try { if ((await fetc
   await page.locator("#questionInput").fill("Mars gezegeni");
   await Promise.all([page.waitForResponse(r => r.url().includes("/api/research") && r.status() === 200), page.locator("#searchButton").click()]);
   await page.locator("#results.visible").waitFor(); assert.ok((await page.locator("#summaryText").textContent()).trim().length > 0);
+  assert.ok(await page.locator("#imagesContainer .image-card, #imagesContainer .fact").count() > 0, "gallery should render images or a graceful fallback");
   await page.locator("#questionInput").fill("2026 güncel uzay araştırmaları"); const currentResponse = page.waitForResponse(r => r.url().includes("/api/research") && r.status() === 200); await page.locator("#searchButton").click(); assert.equal((await currentResponse).status(), 200); await page.locator("#results.visible").waitFor();
   assert.deepEqual(apiResponses.filter(x => /\/api\/(analyze|memory|progress|recommendations|classrooms|teacher)/.test(x.url)), []);
-  assert.deepEqual(apiResponses.filter(x => x.status === 401 || x.status === 403), []); assert.deepEqual(failed, []); assert.deepEqual(consoleErrors, []);
+  assert.deepEqual(apiResponses.filter(x => x.status === 401 || x.status === 403), []); assert.deepEqual(directWikimediaApiRequests, []); assert.deepEqual(failed, []); assert.deepEqual(consoleErrors, []);
   assert.deepEqual(Object.fromEntries(persistenceFiles.map(file => [file, digest(file)])), Object.fromEntries(before));
   await page.getByRole("button", { name: "Giriş Yap", exact: true }).click(); assert.equal(await page.locator(".auth-shell").isVisible(), true); assert.equal(await page.locator("[data-login-form]").isVisible(), true);
-  console.log(`PASS  public-first Edge E2E; API=${apiResponses.length}; unexpected401403=0; consoleErrors=0`);
+  console.log(`PASS  public-first Edge E2E; API=${apiResponses.length}; wikimediaApiFetches=0; unexpected401403=0; consoleErrors=0`);
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); if (child && child.exitCode === null) child.kill("SIGTERM"); });

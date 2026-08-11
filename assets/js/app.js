@@ -1345,47 +1345,8 @@ box.innerHTML =
 ========================================================= */
 
 async function loadWikimediaImage(topic){
-
-if(!topic) return "";
-
-try{
-
-const url =
-"https://commons.wikimedia.org/w/api.php?" +
-"action=query&generator=search&gsrsearch=" +
-encodeURIComponent(topic) +
-"&gsrnamespace=6&gsrlimit=8" +
-"&prop=imageinfo&iiprop=url|mime" +
-"&iiurlwidth=900&format=json&origin=*";
-
-const data = await fetch(url).then(r=>r.json());
-
-const pages =
-Object.values(data.query?.pages || {});
-
-for(const page of pages){
-
-const info = page.imageinfo?.[0];
-
-if(
-info &&
-info.thumburl &&
-info.mime &&
-info.mime.startsWith("image/")
-){
-
-return info.thumburl;
-
-}
-
-}
-
-}catch(error){
-
-console.warn("Wikimedia fallback:",error);
-
-}
-
+// Wikimedia lookup belongs to the server-side research pipeline. Browser
+// fallbacks must never call the Commons API cross-origin.
 return "";
 
 }
@@ -1711,14 +1672,7 @@ if (currentResearch) {
 if (heroImages) heroImages.textContent = String(normalized.length);
 
 if(!normalized.length){
-
-const topic =
-currentAnalysis?.topic ||
-currentResearch?.title ||
-currentResearch?.query ||
-"";
-
-loadWikimediaGallery(topic);
+loadWikimediaGallery();
 
 return;
 
@@ -1781,59 +1735,9 @@ container.appendChild(card);
 
 }
 
-async function loadWikimediaGallery(topic){
+function loadWikimediaGallery(){
 
 const container = $("imagesContainer");
-
-try{
-
-const url =
-"https://commons.wikimedia.org/w/api.php?" +
-"action=query&generator=search&gsrsearch=" +
-encodeURIComponent(topic) +
-"&gsrnamespace=6&gsrlimit=12" +
-"&prop=imageinfo&iiprop=url|mime" +
-"&iiurlwidth=700&format=json&origin=*";
-
-const data =
-await fetch(url).then(r=>r.json());
-
-const pages =
-Object.values(data.query?.pages || {});
-
-const images =
-pages
-.map(page=>{
-const info = page.imageinfo?.[0];
-
-return {
-url:info?.thumburl || info?.url || "",
-title:page.title?.replace(/^File:/,"") || ""
-};
-
-})
-.filter(x=>x.url);
-
-if(images.length){
-
-const uniqueImages = getUniqueImages(images).slice(0, 6);
-
-if (currentResearch) {
-    currentResearch.images = uniqueImages;
-    renderStats(currentResearch);
-}
-
-renderImages(uniqueImages);
-
-return;
-
-}
-
-}catch(error){
-
-console.warn("Wikimedia gallery:",error);
-
-}
 
 container.innerHTML =
 '<div class="fact" style="grid-column:1/-1">' +
