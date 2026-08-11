@@ -32,7 +32,7 @@ async function findPort() {
 function startServer(port) {
   const child = spawn(process.execPath, ["server.js"], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), YASAYAN_MEMORY_FILE: path.join(TEMP_ROOT, "memory.json"), YASAYAN_LEARNING_MEMORY_FILE: path.join(TEMP_ROOT, "learning.json"), YASAYAN_CLASSROOM_DATA_DIR: TEMP_DATA, YASAYAN_QUIZ_ATTEMPTS_FILE: path.join(TEMP_DATA, "quiz-attempts.json") },
+    env: { ...process.env, PORT: String(port), ACCESS_MODE: "local-pilot", AUTH_MODE: "local", STORAGE_MODE: "json", DATABASE_URL: "", YASAYAN_MEMORY_FILE: path.join(TEMP_ROOT, "memory.json"), YASAYAN_LEARNING_MEMORY_FILE: path.join(TEMP_ROOT, "learning.json"), YASAYAN_CLASSROOM_DATA_DIR: TEMP_DATA, YASAYAN_QUIZ_ATTEMPTS_FILE: path.join(TEMP_DATA, "quiz-attempts.json") },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let output = "";

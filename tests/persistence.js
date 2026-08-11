@@ -25,6 +25,9 @@ fs.writeFileSync(versioned.file, JSON.stringify({ version: 99, data: [{ id: "fut
 assert.deepEqual(versioned.read().value, []);
 
 process.env.YASAYAN_QUIZ_ATTEMPTS_FILE = path.join(dir, "quiz-attempts.json");
+process.env.ACCESS_MODE = "local-pilot";
+process.env.AUTH_MODE = "local";
+process.env.STORAGE_MODE = "json";
 const sessions = require("../brain/quizSessions");
 const research = { query: "Mars", structuredContent: { keyFacts: [{ text: "Mars kayalık bir gezegendir.", concept: "Gezegen" }, { text: "Mars'ın iki uydusu vardır.", concept: "Uydular" }, { text: "Mars atmosferi incedir.", concept: "Atmosfer" }] } };
 const started = sessions.start({ research, count: 5, difficulty: "medium", type: "multiple-choice" }, "", "student-a");

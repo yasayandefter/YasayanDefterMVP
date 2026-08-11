@@ -11,6 +11,9 @@ function createJsonStore(file, options = {}) {
   const expected = options.expected || "array";
   const fallback = clone(options.fallback !== undefined ? options.fallback : expected === "array" ? [] : {});
   const version = Number(options.version || 1);
+  const persistenceEnabled = typeof options.persistenceEnabled === "function"
+    ? options.persistenceEnabled
+    : () => options.persistenceEnabled === undefined ? true : options.persistenceEnabled === true;
   const migrate = typeof options.migrate === "function" ? options.migrate : raw => {
     if (raw && !Array.isArray(raw) && raw.version && Object.prototype.hasOwnProperty.call(raw, "data")) return raw.version > version ? { unsupported: true } : raw.data;
     return raw;
@@ -29,7 +32,10 @@ function createJsonStore(file, options = {}) {
   function ensureDir() { fs.mkdirSync(path.dirname(file), { recursive: true }); }
   function read() {
     const startedAt = Date.now();
-    ensureDir();
+    if (!persistenceEnabled()) {
+      metrics.recordStorage(storeId, "read", Date.now() - startedAt, true, false);
+      return { value: clone(fallback), recovered: false, source: "fallback" };
+    }
     const primary = parse(file);
     if (primary !== null) { metrics.recordStorage(storeId, "read", Date.now() - startedAt, true, false); return { value: primary, recovered: false, source: "primary" }; }
     const backup = parse(`${file}.bak`);
@@ -42,6 +48,7 @@ function createJsonStore(file, options = {}) {
   function write(value, options = {}) {
     const startedAt = Date.now();
     if (!valid(value)) { metrics.recordStorage(storeId, "write", Date.now() - startedAt, false); return { ok: false, error: "INVALID_ROOT" }; }
+    if (!persistenceEnabled()) { metrics.recordStorage(storeId, "write", Date.now() - startedAt, true); return { ok: true, ephemeral: true }; }
     ensureDir();
     const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
     const backup = `${file}.bak`;

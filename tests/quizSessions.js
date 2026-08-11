@@ -1,3 +1,6 @@
+process.env.ACCESS_MODE = "local-pilot";
+process.env.AUTH_MODE = "local";
+process.env.STORAGE_MODE = "json";
 const assert = require("node:assert/strict");
 const sessions = require("../brain/quizSessions");
 

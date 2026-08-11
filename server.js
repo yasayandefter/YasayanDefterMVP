@@ -36,6 +36,7 @@ const { validateAuthOrigin } = require("./auth/origin");
 const { optionalAuth } = require("./middleware/auth");
 const { authorizationGuard } = require("./middleware/authorization");
 const repositoryFactory = require("./repositories");
+const { filesystemPersistenceEnabled } = require("./runtime/storagePolicy");
 
 app.locals.repositoryFactory = repositoryFactory;
 
@@ -271,6 +272,7 @@ function uniqueStrings(items) {
 }
 
 function safeReadJSON(file, fallback) {
+  if (!filesystemPersistenceEnabled()) return JSON.parse(JSON.stringify(fallback));
   try {
     livingMemory.recoverAtomicFile(file);
     if (!fs.existsSync(file)) {
@@ -299,6 +301,7 @@ function safeReadJSON(file, fallback) {
 }
 
 function safeWriteJSON(file, data) {
+  if (!filesystemPersistenceEnabled()) return true;
   try {
     return livingMemory.writeJSONAtomic(file, data);
   }
@@ -341,8 +344,10 @@ function ensureMemoryFiles() {
   }
 }
 
-ensureMemoryFiles();
-try { classroomStore.ensureFiles(); } catch (error) { logger.warn("storage_read_failed", { store: "classroom", errorName: error.name }); }
+if (filesystemPersistenceEnabled()) {
+  ensureMemoryFiles();
+  try { classroomStore.ensureFiles(); } catch (error) { logger.warn("storage_read_failed", { store: "classroom", errorName: error.name }); }
+}
 
 /* ========================================================
    ANA HAFIZA
@@ -415,6 +420,7 @@ function readLearningMemory(studentId = "") {
 }
 
 function writeLearningMemory(items, studentId = "") {
+  if (!filesystemPersistenceEnabled()) return true;
   if (fs.existsSync(LEARNING_MEMORY_FILE)) {
     try {
       JSON.parse(fs.readFileSync(LEARNING_MEMORY_FILE, "utf8"));
@@ -5495,7 +5501,7 @@ app.post("/api/quiz/generate", (req, res) => {
   const count = Math.min(10, Math.max(3, Number(body.count) || 5));
   const difficulty = quizEngine.normalizeDifficulty(body.difficulty);
   const type = quizEngine.normalizeType(body.type);
-  const started = quizSessions.start({ research: researchData, count, difficulty, type }, "", studentId);
+  const started = quizSessions.start({ research: researchData, count, difficulty, type }, "", studentId, { ephemeral: authConfig.getConfig().accessMode === "public-demo" || req.demo === true });
   if (started.error === "STORAGE_FAILED") return quizApiError(res, 503, "STORAGE_FAILED", "Quiz kalıcı olarak başlatılamadı.", req.requestId);
   res.json({ ok: true, quiz: started.quiz, requestId: req.requestId });
 });

@@ -3,13 +3,14 @@
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { createJsonStore } = require("./storage/jsonStore");
+const { filesystemPersistenceEnabled } = require("../runtime/storagePolicy");
 
 const DATA_DIR = process.env.YASAYAN_CLASSROOM_DATA_DIR || path.join(__dirname, "..", "data");
 const CLASSROOMS_FILE = path.join(DATA_DIR, "classrooms.json");
 const STUDENTS_FILE = path.join(DATA_DIR, "students.json");
 const LIMITS = Object.freeze({ classroomName: 120, studentName: 100 });
-const classroomStore = createJsonStore(CLASSROOMS_FILE, { expected: "array", fallback: [] });
-const studentStore = createJsonStore(STUDENTS_FILE, { expected: "array", fallback: [] });
+const classroomStore = createJsonStore(CLASSROOMS_FILE, { expected: "array", fallback: [], persistenceEnabled: filesystemPersistenceEnabled });
+const studentStore = createJsonStore(STUDENTS_FILE, { expected: "array", fallback: [], persistenceEnabled: filesystemPersistenceEnabled });
 
 function ensureFiles() { classroomStore.read(); studentStore.read(); }
 function clean(value, limit) { return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, limit) : ""; }

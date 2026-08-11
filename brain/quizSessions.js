@@ -4,11 +4,13 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const quizEngine = require("./quizEngine");
 const { createJsonStore } = require("./storage/jsonStore");
+const { filesystemPersistenceEnabled } = require("../runtime/storagePolicy");
 
 const sessions = new Map();
 const MAX_SESSIONS = 200;
 const RETENTION_MS = Object.freeze({ completed: 90 * 86400000, active: 180 * 86400000 });
-const attemptStore = createJsonStore(process.env.YASAYAN_QUIZ_ATTEMPTS_FILE || path.join(__dirname, "..", "data", "quiz-attempts.json"), { expected: "array", fallback: [] });
+const attemptStore = createJsonStore(process.env.YASAYAN_QUIZ_ATTEMPTS_FILE || path.join(__dirname, "..", "data", "quiz-attempts.json"), { expected: "array", fallback: [], persistenceEnabled: filesystemPersistenceEnabled });
+let persistenceInitialized = false;
 
 function cleanText(value, limit = 240) { if (typeof value !== "string" && typeof value !== "number") return ""; return String(value).replace(/\s+/g, " ").trim().slice(0, limit); }
 function publicQuestion(question) { return { id: question.id, type: question.type, difficulty: question.difficulty, prompt: question.prompt, options: Array.isArray(question.options) ? question.options.slice(0, 4) : [], concept: question.concept, order: question.order }; }
@@ -16,17 +18,19 @@ function publicQuiz(session) { return { id: session.quiz.id, attemptId: session.
 function publicQuizData(quiz) { return { id: quiz.id, attemptId: null, topic: quiz.topic, difficulty: quiz.difficulty, type: quiz.type, requestedCount: quiz.requestedCount, questions: Array.isArray(quiz.questions) ? quiz.questions.map(publicQuestion) : [], notice: quiz.notice || "" }; }
 function serialize(session) { return { ...session, quiz: { ...session.quiz, questions: session.quiz.questions.map(item => ({ ...item })) }, answers: session.answers.map(item => ({ ...item })) }; }
 function retain(items, now = Date.now()) { return items.filter(item => { const age = now - Date.parse(item.completedAt || item.createdAt || 0); return age <= (item.completed ? RETENTION_MS.completed : RETENTION_MS.active); }).slice(-MAX_SESSIONS); }
-function persist() { const result = attemptStore.write(retain([...sessions.values()].filter(item => !item.ephemeral).map(serialize)), { envelope: true }); return result.ok; }
-function restore() { const rows = retain(attemptStore.read().value); rows.forEach(item => { if (item && item.id && item.quiz && Array.isArray(item.quiz.questions)) sessions.set(item.id, item); }); if (rows.length !== attemptStore.read().value.length) persist(); }
-restore();
+function persist() { if (!filesystemPersistenceEnabled()) return true; const result = attemptStore.write(retain([...sessions.values()].filter(item => !item.ephemeral).map(serialize)), { envelope: true }); return result.ok; }
+function restore() { if (!filesystemPersistenceEnabled()) return; const stored = attemptStore.read().value; const rows = retain(stored); rows.forEach(item => { if (item && item.id && item.quiz && Array.isArray(item.quiz.questions)) sessions.set(item.id, item); }); if (rows.length !== stored.length) persist(); }
+function initializePersistence() { if (!persistenceInitialized && filesystemPersistenceEnabled()) { persistenceInitialized = true; restore(); } }
 
 function start(input = {}, retryOf = "", studentId = "", options = {}) {
+  const ephemeral = options.ephemeral === true || !filesystemPersistenceEnabled();
+  if (!ephemeral) initializePersistence();
   const source = input && typeof input === "object" ? input : {};
   const quiz = quizEngine.buildQuiz(source.research || source, { count: Math.min(10, Math.max(3, Number(source.count) || 5)), difficulty: quizEngine.normalizeDifficulty(source.difficulty), type: quizEngine.normalizeType(source.type) });
   let questions = quiz.questions;
   if (retryOf) { const previous = sessions.get(cleanText(retryOf, 100)); if (previous?.completed) { const wrongIds = new Set(previous.answers.filter(item => !item.correct).map(item => item.questionId)); questions = questions.filter(question => wrongIds.has(question.id)); quiz.questions = questions.map((question, index) => ({ ...question, order: index })); } }
   const id = crypto.randomUUID();
-  const session = { id, quiz, studentId: cleanText(studentId, 100), answers: [], completed: false, createdAt: new Date().toISOString(), completedAt: null, xpAwarded: 0, ephemeral: options.ephemeral === true };
+  const session = { id, quiz, studentId: cleanText(studentId, 100), answers: [], completed: false, createdAt: new Date().toISOString(), completedAt: null, xpAwarded: 0, ephemeral };
   sessions.set(id, session); while (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
   if (!session.ephemeral && !persist()) { sessions.delete(id); return { error: "STORAGE_FAILED" }; }
   return { session, quiz: publicQuiz(session) };
@@ -47,7 +51,7 @@ function complete(attemptId, studentId = "") {
   return { summary, duplicate: false };
 }
 function get(attemptId) { return sessions.get(cleanText(attemptId, 100)) || null; }
-function resetForTests() { sessions.clear(); attemptStore.write([], { envelope: true }); }
-function reloadForTests() { sessions.clear(); restore(); }
+function resetForTests() { sessions.clear(); persistenceInitialized = false; attemptStore.write([], { envelope: true }); }
+function reloadForTests() { sessions.clear(); persistenceInitialized = false; initializePersistence(); }
 
 module.exports = { start, answer, complete, get, publicQuiz, publicQuizData, resetForTests, reloadForTests, RETENTION_MS };
