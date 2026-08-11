@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { buildDryRun } = require("../scripts/migrateJsonToPostgres");
+const { analyzeOrphans } = require("../migration/orphanAnalysis");
 
 function write(file, value) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(value), "utf8"); }
 function checksum(file) { return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"); }
@@ -32,6 +33,17 @@ write(path.join(root, "data", "quiz-attempts.json"), { version: 1, data: [
 
 const sourceFile = path.join(root, "yasayan_deefter_memory.json");
 const before = checksum(sourceFile);
+const orphanAnalysis = analyzeOrphans(root, [{ studentId: "orphan-a" }, { studentId: "orphan-a" }, { studentId: "orphan-b" }], new Set(["student-1"]));
+assert.equal(orphanAnalysis.missingStudentIdCount, 2);
+assert.equal(orphanAnalysis.consistentOrphans, 1);
+assert.equal(orphanAnalysis.unresolvedOrphans, 1);
+const evidenceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "yasayan-orphan-evidence-"));
+write(path.join(evidenceRoot, "data", "students.json.bak"), [{ id: "orphan-recovered", classroomId: null, userId: null }, { id: "orphan-conflict", classroomId: "class-a" }, { id: "orphan-conflict", classroomId: "class-b" }]);
+const evidenceAnalysis = analyzeOrphans(evidenceRoot, [{ studentId: "orphan-recovered" }, { studentId: "orphan-consistent" }, { studentId: "orphan-consistent" }, { studentId: "orphan-unresolved" }, { studentId: "orphan-conflict" }], new Set());
+assert.equal(evidenceAnalysis.recoverableFromBackup, 1);
+assert.equal(evidenceAnalysis.consistentOrphans, 1);
+assert.equal(evidenceAnalysis.unresolvedOrphans, 1);
+assert.equal(evidenceAnalysis.conflictingOrphans, 1);
 const first = buildDryRun(root, { capturedAt: "2026-01-01T00:00:00.000Z" });
 const second = buildDryRun(root, { capturedAt: "2026-01-01T00:00:00.000Z" });
 assert.deepEqual(first.snapshot, second.snapshot);
