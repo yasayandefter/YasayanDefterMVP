@@ -1,0 +1,74 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
+const { getConfig, publicConfig } = require("../auth/config");
+const password = require("../auth/password");
+const cookies = require("../auth/cookies");
+const { validateAuthOrigin } = require("../auth/origin");
+const sessions = require("../repositories/sessionRepository");
+const claims = require("../repositories/claimRepository");
+const users = require("../repositories/usersRepository");
+const authService = require("../services/authService");
+const db = require("../db");
+
+const hash = password.hashPassword("correct horse battery");
+assert.notEqual(hash, "correct horse battery");
+assert.equal(password.verifyPassword("correct horse battery", hash), true);
+assert.equal(password.verifyPassword("wrong password", hash), false);
+assert.throws(() => password.validatePassword("short"), /INVALID_PASSWORD/);
+
+const token = sessions.createToken();
+assert.equal(token.length > 30, true);
+assert.notEqual(sessions.hashToken(token), token);
+assert.equal(sessions.hashToken(token), sessions.hashToken(token));
+assert.notEqual(sessions.createToken(), token);
+
+const local = getConfig({ AUTH_MODE: "local", STORAGE_MODE: "json", SESSION_TTL_SECONDS: "600" });
+assert.equal(local.authMode, "local");
+assert.equal(local.sessionTtlSeconds, 600);
+assert.equal(local.cookieSecure, false);
+assert.throws(() => getConfig({ AUTH_MODE: "production", STORAGE_MODE: "json" }), /AUTH_REQUIRES_POSTGRES/);
+const prod = getConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://redacted", APP_ORIGIN: "https://app.example" });
+assert.equal(prod.cookieSecure, true);
+assert.equal(publicConfig({ AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: "postgres://secret" }).database, undefined);
+
+const response = { setHeader(name, value) { this[name] = value; } };
+cookies.setSessionCookie(response, "opaque-token", local);
+assert.match(response["Set-Cookie"], /HttpOnly/);
+assert.match(response["Set-Cookie"], /SameSite=Lax/);
+assert.doesNotMatch(response["Set-Cookie"], /Secure/);
+const secureResponse = { setHeader(name, value) { this[name] = value; } };
+cookies.setSessionCookie(secureResponse, "opaque-token", prod);
+assert.match(secureResponse["Set-Cookie"], /Secure/);
+assert.equal(cookies.parseCookies("yd_session=abc%2B123; other=value").yd_session, "abc+123");
+
+const request = { get(name) { return name === "origin" ? "https://app.example" : undefined; } };
+assert.equal(validateAuthOrigin(request, prod), true);
+assert.equal(validateAuthOrigin({ get: () => "https://evil.example" }, prod), false);
+
+const fakeUser = { id: crypto.randomUUID(), role: "TEACHER", email: "teacher@example.test", status: "ACTIVE", password_hash: hash };
+let createdToken;
+const loginResult = authService.login("teacher@example.test", "correct horse battery", {
+  config: local,
+  users: { findByIdentifier: async () => fakeUser, safeUser: users.safeUser },
+  sessions: { createSession: async () => ({ token: (createdToken = sessions.createToken()) }) }
+});
+loginResult.then(result => {
+  assert.equal(result.user.role, "TEACHER");
+  assert.equal(result.token, createdToken);
+  return assert.rejects(() => authService.login("teacher@example.test", "wrong password", { config: local, users: { findByIdentifier: async () => fakeUser }, sessions: { createSession: async () => ({ token: "x" }) } }), error => error.code === "INVALID_CREDENTIALS");
+}).then(async () => {
+  const originalTransaction = db.withTransaction;
+  db.withTransaction = async callback => callback({});
+  try {
+    await assert.rejects(() => authService.claimStudent({ claimCode: "abc", username: "", rawPassword: "correct horse battery" }), error => error.code === "CLAIM_INVALID");
+  } finally {
+    db.withTransaction = originalTransaction;
+  }
+  assert.equal(claims.hashClaim("ABC"), claims.hashClaim("ABC"));
+  assert.equal(claims.hashClaim("ABC").includes("ABC"), false);
+  assert.equal(users.email(" Teacher@Example.TEST "), "teacher@example.test");
+  assert.equal(users.username(" Student One "), "student one");
+  console.log("PASS  password, session, cookie, origin, config, auth service, claim, and normalization checks");
+}).catch(error => { console.error(error); process.exitCode = 1; });

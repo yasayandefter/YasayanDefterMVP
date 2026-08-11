@@ -30,6 +30,8 @@ const currentProviders = require("./brain/currentProviders");
 const metrics = require("./brain/metrics");
 const database = require("./db");
 const databaseConfig = require("./db/config");
+const authConfig = require("./auth/config");
+const authRoutes = require("./routes/auth");
 
 // Legacy backend messages are routed through the central redacting logger.
 // Only the fixed first message is retained; query values and objects are not logged.
@@ -95,6 +97,7 @@ function installSecurityHeaders(req, res, next) {
 app.use(installSecurityHeaders);
 app.use(installResponseContract);
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/auth", authRoutes);
 
 function createRequestId() {
   return typeof crypto.randomUUID === "function"
@@ -6117,6 +6120,8 @@ app.use(
 ======================================================== */
 
 if (require.main === module) {
+
+  try { authConfig.getConfig(); } catch (_) { console.error("auth.config_invalid"); process.exit(1); }
 
   const server = app.listen(PORT, () => {
 
