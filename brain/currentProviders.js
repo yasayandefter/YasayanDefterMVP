@@ -6,6 +6,8 @@ const { fetchProvider } = require("./feedProviders");
 const { WINDOWS, normalize } = require("./freshness");
 const metrics = require("./metrics");
 const currentQuality = require("./currentContentQuality");
+const currentClaims = require("./currentClaims");
+const providerHealth = require("./providerHealth");
 
 const queryCache = new Map(); const feedCache = new Map();
 const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
@@ -56,8 +58,12 @@ function diversify(items, limit = 20) {
 function clusterEvents(items, limit = 10) {
   const clusters = [];
   for (const item of items) {
-    const cluster = clusters.find(value => Math.abs(Date.parse(value.publishedAt) - Date.parse(item.publishedAt)) <= 3 * 86400000 && similarity(value.headline, item.title) >= 0.58);
-    const sourceRef = { providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url: item.url, publishedAt: item.publishedAt };
+    const itemNumber = currentClaims.numericValue(`${item.title} ${item.summary || ""}`);
+    const cluster = clusters.find(value => {
+      const clusterNumber = currentClaims.numericValue(`${value.headline} ${value.summary || ""}`);
+      return Math.abs(Date.parse(value.publishedAt) - Date.parse(item.publishedAt)) <= 3 * 86400000 && similarity(value.headline, item.title) >= 0.58 && (itemNumber === null || clusterNumber === null || itemNumber === clusterNumber);
+    });
+    const sourceRef = { providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url: item.url, publishedAt: item.publishedAt, title: item.title, summary: item.summary, authority: item.authority };
     if (cluster) { if (!cluster.sources.some(source => source.url === item.url)) cluster.sources.push(sourceRef); cluster.crossSourceSupport = new Set(cluster.sources.map(source => source.domain)).size; cluster.sourceCount = cluster.sources.length; }
     else clusters.push({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory, publishedAt: item.publishedAt, facts: [item.summary || item.title].filter(Boolean), sources: [sourceRef], sourceName: item.sourceName, sourceRefs: [item.url], sourceCount: 1, crossSourceSupport: 1 });
   }
@@ -74,16 +80,17 @@ async function providerItems(source, fetcher, options, categoryKey, windowName) 
   const value = await fetchProvider(source, fetcher, options); feedCache.set(key, { createdAt: now, value }); return { ...value, cacheHit: false };
 }
 async function searchCurrent(query, detection, options = {}) {
-  const categories = routeCategories(query, detection); const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(categories); const providerIds = selected.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${categories.join("+")}|${windowName}|${providerIds}`; const now = Number(options.now) || Date.now(); const cached = queryCache.get(key); const ttl = selected.length ? Math.min(...selected.map(source => source.ttlMs), 180_000) : 30_000;
+  const categories = routeCategories(query, detection); const windowName = detection?.requestedWindow || "latest"; const available = providerHealth.ordered(sourcesFor(categories), options); const selected = available.filter(source => providerHealth.shouldAttempt(source.id, options)); const skipped = available.filter(source => !providerHealth.shouldAttempt(source.id, options)); const providerIds = available.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${categories.join("+")}|${windowName}|${providerIds}`; const now = Number(options.now) || Date.now(); const cached = queryCache.get(key); const ttl = selected.length ? Math.min(...selected.map(source => source.ttlMs), 180_000) : 30_000;
   if (cached && now - cached.createdAt < ttl) { metrics.state.cache.hit += 1; return { ...cached.value, cacheHit: true }; }
   metrics.state.cache.miss += 1; const fetcher = options.fetcher || global.fetch;
-  const results = await mapLimit(selected, Math.min(Number(options.concurrency) || 4, 5), source => providerItems(source, fetcher, options, categories.join("+"), windowName));
-  const errors = []; let items = [];
-  results.forEach((result, index) => { const source = selected[index]; if (result.status === "fulfilled") { items.push(...result.value.items); metrics.recordProvider(source.id, result.value.durationMs, true, result.value.items.length, result.value.cacheHit); } else { errors.push({ source: source.id, code: String(result.reason?.message || "PROVIDER_UNAVAILABLE").replace(/[^A-Z0-9_\-]/gi, "_").slice(0, 80), message: "Provider unavailable" }); metrics.recordProvider(source.id, 0, false, 0, false); } });
+  const concurrency = Math.min(Number(options.concurrency) || 4, 5); const overallDeadlineMs = Math.max(1000, Math.min(Number(options.overallDeadlineMs) || 8000, 12_000)); const batches = Math.max(1, Math.ceil(selected.length / concurrency)); const perProviderBudget = Math.max(500, Math.floor(overallDeadlineMs / batches)); const requestOptions = { ...options, timeoutMs: Math.min(Number(options.timeoutMs) || perProviderBudget, perProviderBudget) };
+  const results = await mapLimit(selected, concurrency, async source => { const feedKey = `${source.id}|${categories.join("+")}|${windowName}`; const cachedFeed = feedCache.get(feedKey); if (cachedFeed && Date.now() - cachedFeed.createdAt < source.ttlMs) return providerItems(source, fetcher, requestOptions, categories.join("+"), windowName); const started = Date.now(); providerHealth.begin(source.id); try { const result = await providerItems(source, fetcher, requestOptions, categories.join("+"), windowName); providerHealth.success(source.id, result.durationMs, options); return result; } catch (error) { providerHealth.failure(source.id, error, Date.now() - started, options); throw error; } });
+  const errors = skipped.map(source => ({ source: source.id, code: "PROVIDER_COOLDOWN", message: "Provider temporarily unavailable" })); let items = [];
+  results.forEach((result, index) => { const source = selected[index]; if (result.status === "fulfilled") { items.push(...result.value.items); metrics.recordProvider(source.id, result.value.durationMs, true, result.value.items.length, result.value.cacheHit, providerHealth.snapshot(source.id, options)); } else { errors.push({ source: source.id, code: String(result.reason?.message || "PROVIDER_UNAVAILABLE").replace(/[^A-Z0-9_\-]/gi, "_").slice(0, 80), message: "Provider unavailable" }); metrics.recordProvider(source.id, providerHealth.snapshot(source.id, options).recentLatency, false, 0, false, providerHealth.snapshot(source.id, options)); } });
   const cutoff = now - (WINDOWS[windowName] || 7) * 86400000;
   items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff).filter(item => relevant(item, query, categories)).map(item => ({ ...currentQuality.qualityItem(item), currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
   items = currentQuality.rankDiverse(items, { limit: 20, genericTechnology: categories.length === 1 && categories[0] === "technology", specificCategory: ["cybersecurity", "ai"].includes(categories[0]) }); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => item.domain)).size;
-  const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains };
+  const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains, providerHealthSummary: providerHealth.summary(options) };
   metrics.recordCurrentCoverage(items.length, events.length, independentDomains);
   queryCache.set(key, { createdAt: now, value }); return value;
 }

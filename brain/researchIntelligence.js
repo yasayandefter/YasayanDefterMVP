@@ -2,6 +2,8 @@
 
 const sourceReliability = require("./sourceReliability");
 const currentQuality = require("./currentContentQuality");
+const currentClaims = require("./currentClaims");
+const metrics = require("./metrics");
 
 const STOP = new Set("ve veya ile icin için nedir nasil nasıl neden kimdir ne nasilca hakkında hakkinda bir bu su şu mi mı mu mü the and for with what how why".split(/\s+/));
 const INTENTS = Object.freeze(["DEFINITION", "EXPLANATION", "HOW_IT_WORKS", "HISTORY", "PERSON", "PLACE", "SCIENCE", "COMPARISON", "CAUSE_EFFECT", "CURRENT_NEWS", "CURRENT_EVENT", "EARTHQUAKE", "SPACE", "TECHNOLOGY", "GENERAL"]);
@@ -204,12 +206,15 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const empty = accepted.length === 0;
   const eventByUrl = new Map((current.events || []).flatMap(event => (event.sourceRefs || []).map(url => [url, event])));
   const acceptedEvents = [...new Set(accepted.map(item => eventByUrl.get(item.url)).filter(Boolean))].slice(0, 10);
-  const summary = empty ? CURRENT_EMPTY_MESSAGE : acceptedEvents.length
-    ? `Öne çıkan ${acceptedEvents.length} güncel gelişme, ${new Set(accepted.map(item => item.domain).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${acceptedEvents.slice(0, 3).map(event => event.headline).join("; ")}.`
-    : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
   const safeItems = accepted.map(item => ({ ...item, text: cleanText(item.text || item.snippet), summary: cleanText(item.text || item.snippet), publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }));
-  const qualityEvents = acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, crossSourceSupport: 1 }));
-  const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(qualityEvents, query);
+  const qualityEvents = (acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url, title: item.title, summary: item.summary, authority: item.authority }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, crossSourceSupport: 1 }))).map((event, index) => ({ ...event, id: event.id || `event-${index + 1}` }));
+  const claimResult = empty ? { claims: [], contradictions: [] } : currentClaims.buildClaims(qualityEvents);
+  const strongestClaims = claimResult.claims.filter(claim => !claim.contradicted).sort((a, b) => b.independentDomains - a.independentDomains || b.authority - a.authority).slice(0, 3);
+  const summary = empty ? CURRENT_EMPTY_MESSAGE : strongestClaims.length
+    ? `${qualityEvents.length} güncel gelişme, ${new Set(accepted.map(item => item.domain).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${strongestClaims.map(claim => claim.text).join(" ")}`
+    : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
+  const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(qualityEvents, query, claimResult.claims);
+  metrics.recordClaims(claimResult.claims, claimResult.contradictions, learning.quiz);
   const facts = learning.facts;
   const category = CURRENT_CATEGORY_LABELS[detection.category] || CURRENT_CATEGORY_LABELS.general;
   const followUps = empty ? currentFollowUps(context) : currentQuality.buildCurrentFollowUps(qualityEvents);
@@ -219,13 +224,14 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
     analysis: { original: query, originalQuestion: query, normalizedQuestion: context.normalizedQuery, type: "güncel", intent: context.intent, topic: query, subject: query, keywords: context.searchTerms, researchQueries: context.expansions, relatedTopics: [] },
     summary, text: summary, image: "", url: "", articles: safeItems, currentItems: safeItems,
     currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
-    images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: [],
+    images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: claimResult.contradictions,
     brain: { category, summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
     ai: { summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, relatedTopics: [], followUpQuestions: followUps, lesson: learning.lesson, knowledgeMap: learning.knowledgeMap },
     structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : (acceptedEvents.length ? acceptedEvents.map(event => ({ title: event.headline, text: event.summary || event.headline, whyItMatters: event.whyItMatters || "", subcategory: event.subcategory, points: [], publishedAt: event.publishedAt, sourceCount: event.sourceCount || event.crossSourceSupport, sourceRefs: event.sourceRefs })) : safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş.", points: [], publishedAt: item.publishedAt, sourceCount: 1, sourceRefs: [item.url] }))), keyConcepts: learning.knowledgeMap.nodes.map(node => ({ term: node.label, definition: "" })), keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
-    events: acceptedEvents,
+    events: qualityEvents, claims: claimResult.claims, claimContradictions: claimResult.contradictions,
     followUpQuestions: followUps,
     freshness: { ...detection, checkedAt, sourceCount: safeItems.length, newestSourceAt: safeItems.find(item => item.publishedAt)?.publishedAt || null, providerErrors: current.providerErrors || [] },
+    providerHealthSummary: current.providerHealthSummary ? { healthy: current.providerHealthSummary.healthy, degraded: current.providerHealthSummary.degraded, cooldown: current.providerHealthSummary.cooldown } : undefined,
     reliability: { score: 0, level: "low", sourceCount: safeItems.length, independentDomainCount: 0, highQualitySourceCount: 0 },
     researchUnavailable: empty, fromMemory: false, time: checkedAt
   };
@@ -236,7 +242,7 @@ function enhanceResult(result, context) {
   const sources = prepareSources(value.articles, context);
   const structured = value.structuredContent && typeof value.structuredContent === "object" ? value.structuredContent : {};
   const facts = dedupeFacts(structured.keyFacts || value.brain?.facts || [], sources);
-  const contradictions = detectContradictions(facts);
+  const contradictions = context.mode === "current" && Array.isArray(value.claimContradictions) ? value.claimContradictions : detectContradictions(facts);
   const images = prepareImages(value.images, context);
   const limitations = [...new Set([...(structured.limitations || []), context.disambiguation.note, contradictions.length ? "Kaynaklar bazı ayrıntılarda farklı bilgi veriyor." : "", !sources.length ? "Bu konuda yeterli güvenilir kaynak bulunamadı." : "", !images.length ? "Görsel bulunamadı." : "", sources.length && sources.every(item => item.language && item.language !== "tr") ? "Yalnızca İngilizce kaynak bulundu." : ""].filter(Boolean))];
   const checkedAt = context.checkedAt || new Date().toISOString();

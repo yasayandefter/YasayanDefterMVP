@@ -1,0 +1,18 @@
+"use strict";
+
+const health = new Map();
+const FAILURE_THRESHOLD = 3; const COOLDOWN_MS = 60_000;
+function nowValue(options = {}) { return Number(options.now) || Date.now(); }
+function stateFor(id) { if (!health.has(id)) health.set(id, { providerId: id, attempts: 0, successes: 0, failures: 0, timeouts: 0, parseFailures: 0, httpFailures: 0, totalLatency: 0, avgLatency: 0, recentLatency: 0, consecutiveFailures: 0, lastSuccessAt: null, lastFailureAt: null, cooldownUntil: 0, recoveries: 0 }); return health.get(id); }
+function score(value) { const attempts = Math.max(1, value.attempts); const successRate = value.successes / attempts; const timeoutRate = value.timeouts / attempts; const latencyPenalty = Math.min(25, value.recentLatency / 300); const failurePenalty = Math.min(30, value.consecutiveFailures * 10); return Math.max(0, Math.min(100, Math.round(successRate * 100 - timeoutRate * 25 - latencyPenalty - failurePenalty))); }
+function snapshot(id, options = {}) { const value = stateFor(id); const now = nowValue(options); const status = value.cooldownUntil > now ? "cooldown" : score(value) < 55 && value.attempts >= 2 ? "degraded" : "healthy"; return { ...value, healthScore: value.attempts ? score(value) : 100, status };
+}
+function shouldAttempt(id, options = {}) { return snapshot(id, options).status !== "cooldown" || options.probe === true; }
+function begin(id) { const value = stateFor(id); value.attempts += 1; return value; }
+function success(id, latencyMs, options = {}) { const value = stateFor(id); const wasDegraded = value.consecutiveFailures > 0 || value.cooldownUntil > 0; value.successes += 1; value.totalLatency += Math.max(0, Number(latencyMs) || 0); value.avgLatency = Math.round(value.totalLatency / value.successes); value.recentLatency = value.recentLatency ? Math.round(value.recentLatency * 0.7 + (Number(latencyMs) || 0) * 0.3) : Math.round(Number(latencyMs) || 0); value.consecutiveFailures = 0; value.lastSuccessAt = new Date(nowValue(options)).toISOString(); value.cooldownUntil = 0; if (wasDegraded) value.recoveries += 1; return snapshot(id, options); }
+function failure(id, error, latencyMs, options = {}) { const value = stateFor(id); const message = String(error?.name === "AbortError" ? "TIMEOUT" : error?.message || error || "FAILURE").toUpperCase(); value.failures += 1; value.consecutiveFailures += 1; value.recentLatency = Math.round(Number(latencyMs) || value.recentLatency || 0); value.lastFailureAt = new Date(nowValue(options)).toISOString(); if (/TIMEOUT|ABORT/.test(message)) value.timeouts += 1; else if (/PARSE|INVALID|EMPTY/.test(message)) value.parseFailures += 1; else if (/HTTP_/.test(message)) value.httpFailures += 1; if (value.consecutiveFailures >= (Number(options.failureThreshold) || FAILURE_THRESHOLD)) value.cooldownUntil = nowValue(options) + (Number(options.cooldownMs) || COOLDOWN_MS); return snapshot(id, options); }
+function ordered(sources, options = {}) { return [...sources].sort((a, b) => { const left = snapshot(a.id, options); const right = snapshot(b.id, options); return (left.status === "cooldown") - (right.status === "cooldown") || right.healthScore - left.healthScore || left.recentLatency - right.recentLatency; }); }
+function summary(options = {}) { const values = [...health.keys()].map(id => snapshot(id, options)); return { healthy: values.filter(item => item.status === "healthy").length, degraded: values.filter(item => item.status === "degraded").length, cooldown: values.filter(item => item.status === "cooldown").length, providers: values }; }
+function reset() { health.clear(); }
+
+module.exports = { FAILURE_THRESHOLD, COOLDOWN_MS, stateFor, snapshot, shouldAttempt, begin, success, failure, ordered, summary, reset };

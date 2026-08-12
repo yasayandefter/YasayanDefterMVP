@@ -718,12 +718,14 @@ function renderProfessionalResult(data) {
 
     if (model.facts.length) {
         const card = createSafeElement("section", "professional-result-card");
-        card.appendChild(createSafeElement("h3", "professional-card-title", "Önemli Bilgiler"));
+        card.appendChild(createSafeElement("h3", "professional-card-title", data && data.currentState === "CURRENT_VERIFIED" ? "Doğrulanmış Bilgiler" : "Önemli Bilgiler"));
         const list = createSafeElement("div", "professional-fact-list");
         model.facts.forEach(fact => {
             const item = createSafeElement("article", "professional-fact-card");
             item.appendChild(createSafeElement("p", "professional-readable-text", fact.text));
-            const metaLine = createSafeElement("p", "professional-fact-meta", `${model.confidenceLabel(fact.confidence)} · ${Number(fact.sourceCount) || 0} kaynak`);
+            const confidence = fact.reliability || fact.confidence;
+            const label = /^(Yüksek|Orta|Sınırlı)$/i.test(String(confidence || "")) ? confidence : model.confidenceLabel(confidence);
+            const metaLine = createSafeElement("p", "professional-fact-meta", `${label} · ${Number(fact.sourceCount) || 0} kaynak`);
             item.appendChild(metaLine);
             list.appendChild(item);
         });
@@ -1534,7 +1536,8 @@ if (data?.currentState === "CURRENT_VERIFIED") {
         const element = document.createElement("article"); element.className = "fact current-fact";
         const label = document.createElement("div"); label.className = "fact-type"; label.textContent = safeText(fact?.subcategory || "DOĞRULANMIŞ GELİŞME").replace(/_/g, " ");
         const paragraph = document.createElement("p"); paragraph.textContent = text.slice(0, 320);
-        element.append(label, paragraph); container.appendChild(element);
+        const meta = document.createElement("small"); meta.className = "professional-fact-meta"; meta.textContent = `${safeText(fact?.reliability || "Sınırlı")} · ${Number(fact?.sourceCount) || 0} kaynak`;
+        element.append(label, paragraph, meta); container.appendChild(element);
     });
     return;
 }

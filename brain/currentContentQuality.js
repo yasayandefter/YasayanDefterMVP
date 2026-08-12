@@ -53,21 +53,27 @@ function rankDiverse(items, options = {}) {
   return selected;
 }
 function factFromEvent(event) { return { text: cleanCurrentText(event.summary || event.headline, 260), concept: event.headline, sourceRefs: event.sourceRefs || [], sourceCount: Number(event.sourceCount || event.crossSourceSupport) || 1, subcategory: event.subcategory }; }
-function buildCurrentQuiz(events) {
-  for (const event of events) {
-    const match = `${event.headline} ${event.summary}`.match(/\b([2-9]|10)\s+(?:new\s+)?(?:vulnerabilit|açık|items?|systems?)/i); if (!match) continue;
-    const answer = match[1]; const number = Number(answer); const options = [...new Set([answer, String(Math.max(1, number - 1)), String(number + 1), String(number + 2)])];
-    if (options.length === 4) return { question: `${event.headline} gelişmesinde belirtilen sayı kaçtır?`, options, correct: answer, sourceRefs: event.sourceRefs };
+function buildCurrentQuiz(events, claims = []) {
+  const eligible = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı" && claim.sourceRefs?.length);
+  for (const claim of eligible) {
+    if (Number.isFinite(claim.numericValue)) {
+      const answer = String(claim.numericValue); const number = claim.numericValue; const options = [...new Set([answer, String(Math.max(1, number - 1)), String(number + 1), String(number + 2)])];
+      if (options.length === 4) return { question: `${claim.entities?.[0] || "Kaynak"} duyurusunda belirtilen sayı kaçtır?`, type: "NUMERIC", options, correct: answer, claimRef: claim.id, sourceRefs: claim.sourceRefs, verified: true, supportLabel: claim.sourceCount === 1 ? "1 kaynak" : `${claim.sourceCount} kaynak` };
+    }
+    if (claim.entities?.length) {
+      const answer = claim.entities[0]; const pool = ["NASA", "CISA", "NIST", "ESA", "USGS", "MIT"].filter(value => value !== answer); const options = [...new Set([answer, ...pool])].slice(0, 4);
+      if (options.length === 4) return { question: `Hangi kurum bu doğrulanmış gelişmeyle ilişkilidir: “${cleanCurrentText(claim.text, 140)}”?`, type: "ENTITY", options, correct: answer, claimRef: claim.id, sourceRefs: claim.sourceRefs, verified: true, supportLabel: claim.sourceCount === 1 ? "1 kaynak" : `${claim.sourceCount} kaynak` };
+    }
   }
   return null;
 }
-function buildCurrentLearning(events, query) {
-  const facts = events.map(factFromEvent).filter(fact => fact.text).slice(0, 8); const headlines = events.slice(0, 4).map(event => event.headline);
+function buildCurrentLearning(events, query, claims = []) {
+  const facts = claims.length ? claims.filter(claim => !claim.contradicted).map(claim => ({ text: claim.text, concept: claim.entities?.[0] || "Güncel gelişme", sourceRefs: claim.sourceRefs, sourceCount: claim.sourceCount, reliability: claim.confidence, claimRef: claim.id, subcategory: events.find(event => (event.id || "") === claim.eventId)?.subcategory })).slice(0, 8) : events.map(factFromEvent).filter(fact => fact.text).slice(0, 8); const headlines = events.slice(0, 4).map(event => event.headline);
   const simple = headlines.length ? `Bugünkü gelişmeler ${headlines.slice(0, 3).join("; ")} başlıklarında yoğunlaşıyor. Ayrıntılar doğrulanmış kaynak kartlarında yer alıyor.` : "";
   const detailed = events.slice(0, 5).map(event => `${event.headline}: ${event.summary}`).join("\n\n");
-  const flashcards = events.slice(0, 5).filter(event => event.summary).map(event => ({ question: `${event.sourceName || "Kaynak"} hangi gelişmeyi bildirdi?`, answer: event.summary, sourceRefs: event.sourceRefs }));
+  const flashcards = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı").slice(0, 5).map(claim => ({ question: `${claim.entities?.[0] || "Kaynak"} ile ilgili doğrulanmış gelişme neydi?`, answer: claim.text, claimRef: claim.id, sourceRefs: claim.sourceRefs }));
   const nodes = [...new Set(events.flatMap(event => [event.subcategory, ...(event.sources || []).map(source => source.sourceName)].filter(Boolean)))].slice(0, 10).map(label => ({ label }));
-  return { facts, quiz: buildCurrentQuiz(events), flashcards, lesson: { topic: query, summary: simple, simple, detailed, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes } };
+  return { facts, quiz: buildCurrentQuiz(events, claims), flashcards, lesson: { topic: query, summary: simple, simple, detailed, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes } };
 }
 function buildCurrentFollowUps(events) {
   const subcategories = new Set(events.map(event => event.subcategory)); const providers = new Set(events.flatMap(event => (event.sources || []).map(source => source.sourceName)));
