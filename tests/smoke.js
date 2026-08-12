@@ -207,6 +207,17 @@ async function run() {
       assertNoObjectString(result);
     });
 
+    await check("JSON memory delete and re-save", async () => {
+      const deleted = await request(baseUrl, "DELETE", "/api/memory/Mars");
+      assert.equal(deleted.response.status, 200); assert.equal(deleted.json.deleted, true);
+      const duplicate = await request(baseUrl, "DELETE", "/api/memory/Mars");
+      assert.equal(duplicate.response.status, 404); assert.equal(duplicate.json.deleted, false);
+      const saved = await request(baseUrl, "POST", "/api/memory/save", JSON.stringify({ topic: "Mars", title: "Mars" }));
+      assert.equal(saved.response.status, 200); assert.equal(saved.json.ok, true);
+      const list = await request(baseUrl, "GET", "/api/memory/list");
+      assert.equal(list.json.memories.some(item => item.topic === "Mars"), true);
+    });
+
     await check("GET /api/research?q=Bugünkü bilim haberleri", async () => {
       const result = await request(baseUrl, "GET", "/api/research?q=Bugünkü%20bilim%20haberleri");
       assert.equal(result.response.status, 200);

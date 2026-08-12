@@ -6,8 +6,12 @@ const db = require("../db");
 
 async function progress(studentId, repositories) {
   const [records, activity] = await Promise.all([repositories.memory.getProgressSource(studentId), repositories.learningActivity.getMetrics(studentId)]);
-  const profile = learningProfile.buildProfile(records);
-  return { profile: { ...profile, ...activity }, recommendations: learningProfile.buildRecommendations(profile, records) };
+  const memoryProfile = learningProfile.buildProfile(records);
+  const totals = activity.totals || {};
+  const level = learningProfile.calculateLevel(totals.totalXP);
+  const profile = { ...memoryProfile, ...level, researchedTopics: Number(totals.researchedTopics || 0), completedQuizzes: Number(totals.completedQuizzes || 0) };
+  profile.brainScore = learningProfile.calculateBrainScore(profile);
+  return { profile: { ...profile, streak: activity.streak, weeklyGoal: activity.weeklyGoal }, recommendations: learningProfile.buildRecommendations(profile, records) };
 }
 
 async function teacherSummary(studentId, repositories) {

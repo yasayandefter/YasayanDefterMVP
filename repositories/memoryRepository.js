@@ -11,5 +11,6 @@ async function upsertTopic(input, client = db) { const value = input && typeof i
 async function listRecent(studentId, options = {}, client = db) { return findByStudent(studentId, options, client); }
 async function countByStudent(studentId, client = db) { const scope = owner(studentId); const result = await client.query(`SELECT COUNT(*)::int AS count FROM memory_records WHERE ${scope.column} = $1`, [scope.id]); return Number(result.rows[0]?.count || 0); }
 async function getProgressSource(studentId, options = {}, client = db) { return findByStudent(studentId, options, client); }
+async function deleteOwned(id, studentId, client = db) { const scope = owner(studentId); try { const result = await client.query(`WITH target AS (SELECT id FROM memory_records WHERE id = $1), deleted AS (DELETE FROM memory_records WHERE id = $1 AND ${scope.column} = $2 RETURNING id) SELECT EXISTS (SELECT 1 FROM target) AS exists, EXISTS (SELECT 1 FROM deleted) AS deleted`, [id, scope.id]); const row = result.rows[0] || {}; return { exists: Boolean(row.exists), deleted: Boolean(row.deleted) }; } catch (error) { throw mapDatabaseError(error, "MEMORY_DELETE_FAILED"); } }
 
-module.exports = { name: "memory", mapMemory, findByStudent, findByStudentAndTopic, upsertTopic, listRecent, countByStudent, getProgressSource };
+module.exports = { name: "memory", mapMemory, findByStudent, findByStudentAndTopic, upsertTopic, listRecent, countByStudent, getProgressSource, deleteOwned };

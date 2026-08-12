@@ -27,6 +27,7 @@ function fakeClient(rows = []) { const calls = []; return { calls, async query(t
   assert.equal(record.studentId, "s1");
   assert.equal(record.confidence, 0.8);
   assert.ok(memoryClient.calls[0].values.every(value => value === "s1" || value === "mars"));
+  const deleteClient = fakeClient([{ exists: true, deleted: true }]); const deletion = await memory.deleteOwned("m1", { kind: "user", id: "u1" }, deleteClient); assert.deepEqual(deletion, { exists: true, deleted: true }); assert.match(deleteClient.calls[0].text, /owner_user_id = \$2/); assert.deepEqual(deleteClient.calls[0].values, ["m1", "u1"]);
   const quizClient = fakeClient([{ id: "a1", student_id: "s1", topic: "Mars", status: "ACTIVE", score: "0", xp_awarded: "0" }]);
   assert.equal((await quiz.findAttemptForStudent("a1", "s1", quizClient)).studentId, "s1");
   assert.match(quizClient.calls[0].text, /student_id = \$2/);

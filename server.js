@@ -5159,6 +5159,19 @@ app.post("/api/memory/save", async (req, res, next) => {
   } catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Hafıza kaydı şu anda saklanamadı." }, requestId: req.requestId }); }
 });
 
+app.delete("/api/memory/:id", async (req, res, next) => {
+  if (req.repositories?.mode !== "postgres") return next();
+  const studentId = requireStudentContext(req, res); if (studentId === null) return;
+  const memoryId = cleanText(req.params.id || "", 100);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(memoryId)) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Defter kaydı bulunamadı." }, requestId: req.requestId });
+  try {
+    const result = await req.repositories.memory.deleteOwned(memoryId, studentId);
+    if (!result.exists) return res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Defter kaydı bulunamadı." }, requestId: req.requestId });
+    if (!result.deleted) return res.status(403).json({ ok: false, error: { code: "FORBIDDEN", message: "Bu kaydı silme yetkiniz yok." }, requestId: req.requestId });
+    return res.json({ ok: true, deleted: true, id: memoryId, requestId: req.requestId });
+  } catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Defter kaydı şu anda silinemedi." }, requestId: req.requestId }); }
+});
+
 app.get("/api/memory/history", (req, res) => {
   const memories = readLearningMemory();
   const history = livingMemory.buildHistory(memories).slice(-memoryLimit(req, livingMemory.LIMITS.history));
@@ -5595,7 +5608,7 @@ app.delete(
         topic
       );
 
-    res.json({
+    res.status(deleted ? 200 : 404).json({
 
       ok:
         true,

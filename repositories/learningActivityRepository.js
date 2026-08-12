@@ -54,6 +54,9 @@ async function getMetrics(studentId, now = null, client = db) {
              EXISTS (SELECT 1 FROM activity_days, bounds WHERE activity_date = today) AS active_today,
              (SELECT max(activity_date)::text FROM activity_days) AS last_active_date,
              (SELECT count(*)::int FROM research_activity_events, bounds WHERE ${researchWhere} AND completed_at >= week_start AT TIME ZONE '${TIME_ZONE}' AND completed_at <= bounds.metric_now) AS weekly_completed,
+             (SELECT count(*)::int FROM research_activity_events, bounds WHERE ${researchWhere} AND completed_at <= bounds.metric_now) AS research_total,
+             (SELECT count(*)::int FROM quiz_attempts, bounds WHERE ${quizWhere} AND status = 'COMPLETED' AND completed_at IS NOT NULL AND completed_at <= bounds.metric_now) AS completed_quizzes,
+             (SELECT COALESCE(sum(amount),0)::int FROM xp_events WHERE ${quizWhere}) AS quiz_xp,
              (SELECT week_start::text FROM bounds) AS week_start,
              (SELECT (week_start + 7)::text FROM bounds) AS week_end
     `, [scope.id, now === null || now === undefined ? null : (now instanceof Date ? now.toISOString() : new Date(now).toISOString())]);
@@ -61,7 +64,8 @@ async function getMetrics(studentId, now = null, client = db) {
     const completed = Number(row.weekly_completed || 0);
     return {
       streak: { current: Number(row.current_streak || 0), activeToday: Boolean(row.active_today), lastActiveDate: row.last_active_date || null },
-      weeklyGoal: { target: WEEKLY_TARGET, completed, remaining: Math.max(0, WEEKLY_TARGET - completed), achieved: completed >= WEEKLY_TARGET, weekStart: row.week_start, weekEnd: row.week_end }
+      weeklyGoal: { target: WEEKLY_TARGET, completed, remaining: Math.max(0, WEEKLY_TARGET - completed), achieved: completed >= WEEKLY_TARGET, weekStart: row.week_start, weekEnd: row.week_end },
+      totals: { researchedTopics: Number(row.research_total || 0), completedQuizzes: Number(row.completed_quizzes || 0), totalXP: Number(row.research_total || 0) * 10 + Number(row.quiz_xp || 0) }
     };
   } catch (error) { throw mapDatabaseError(error, "LEARNING_ACTIVITY_READ_FAILED"); }
 }

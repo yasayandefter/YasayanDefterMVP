@@ -3901,16 +3901,19 @@ escapeHTML(item.title) +
 escapeHTML(item.date || "") +
 '</div>' +
 '</div>' +
-(window.YasayanDefterAuth?.authenticated === true ? '' : '<button class="delete-save">Sil</button>');
+ (!isDemoMode() ? '<button type="button" class="delete-save">Sil</button>' : '');
 
 const deleteButton = row.querySelector(".delete-save");
-if(deleteButton) deleteButton.onclick = event=>{
+if(deleteButton){
+deleteButton.setAttribute("aria-label", `${item.title || "Defter"} araştırmasını sil`);
+deleteButton.onclick = async event=>{
 
 event.stopPropagation();
 
-deleteSavedTopic(item.id);
+if(await confirmMemoryDelete(item)) await deleteSavedTopic(item.id);
 
 };
+}
 
 row.onclick = ()=>{
 
@@ -3924,7 +3927,43 @@ box.appendChild(row);
 
 }
 
-function deleteSavedTopic(id){
+function confirmMemoryDelete(item){
+
+return new Promise(resolve=>{
+let dialog = $("memoryDeleteDialog");
+if(!dialog){
+dialog = document.createElement("dialog");
+dialog.id = "memoryDeleteDialog";
+dialog.className = "memory-delete-dialog";
+dialog.setAttribute("aria-labelledby","memoryDeleteTitle");
+const title = document.createElement("h2"); title.id = "memoryDeleteTitle"; title.textContent = "Defter kaydını sil";
+const message = document.createElement("p"); message.className = "memory-delete-message";
+const actions = document.createElement("div"); actions.className = "memory-delete-actions";
+const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "memory-delete-cancel"; cancel.textContent = "Vazgeç";
+const remove = document.createElement("button"); remove.type = "button"; remove.className = "delete-save memory-delete-confirm"; remove.textContent = "Kaydı sil";
+actions.append(cancel,remove); dialog.append(title,message,actions); document.body.appendChild(dialog);
+}
+const message = dialog.querySelector(".memory-delete-message"); message.textContent = `“${item.title || "Bu araştırma"}” Defterim'den kalıcı olarak silinsin mi?`;
+const cancel = dialog.querySelector(".memory-delete-cancel"); const remove = dialog.querySelector(".memory-delete-confirm");
+let settled = false; const finish = value=>{ if(settled) return; settled = true; dialog.close(); resolve(value); };
+cancel.onclick = ()=>finish(false); remove.onclick = ()=>finish(true); dialog.oncancel = event=>{ event.preventDefault(); finish(false); };
+dialog.showModal(); cancel.focus();
+});
+
+}
+
+async function deleteSavedTopic(id){
+
+if(window.YasayanDefterAuth?.authenticated === true){
+try{
+const response = await fetch(API + "/api/memory/" + encodeURIComponent(id), { method:"DELETE", headers:{ "Accept":"application/json" } });
+if(!response.ok) throw new Error("MEMORY_DELETE_FAILED");
+persistentNotebook = persistentNotebook.filter(item=>item.id !== id);
+}catch(_error){
+showError("Defter kaydı şu anda silinemedi. Lütfen daha sonra tekrar dene.");
+return;
+}
+}else{
 
 const saved =
 getSavedTopics()
@@ -3934,6 +3973,8 @@ localStorage.setItem(
 "yasayanDefterNotebook",
 JSON.stringify(saved)
 );
+
+}
 
 renderNotebook();
 updateSaveButton();

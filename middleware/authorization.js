@@ -50,7 +50,8 @@ async function authorizationGuard(req, res, next) {
       if (studentId && studentId !== req.auth.studentId) throw authorization.authorizationError("FORBIDDEN");
     } else if (path.startsWith("/api/progress") || path.startsWith("/api/recommendations") || path.startsWith("/api/memory")) {
       if (path.startsWith("/api/memory") && req.method !== "GET" && req.auth.role === "TEACHER") throw authorization.authorizationError("FORBIDDEN");
-      if (req.auth.role === "USER") { if (studentId) throw authorization.authorizationError("FORBIDDEN"); }
+      const ownMemoryDelete = req.method === "DELETE" && /^\/api\/memory\/[^/]+$/.test(path);
+      if (req.auth.role === "USER") { if (studentId && !ownMemoryDelete) throw authorization.authorizationError("FORBIDDEN"); }
       else if (req.auth.role === "STUDENT") await authorization.requireOwnStudentProfile(req.auth);
       else if (req.auth.role !== "TEACHER" || !studentId) throw authorization.authorizationError("STUDENT_CONTEXT_REQUIRED");
       else await authorization.requireStudentAccess(req.auth, studentId);
