@@ -27,6 +27,7 @@ const classroomStore = require("./brain/classroomStore");
 const classroomProfile = require("./brain/classroomProfile");
 const freshness = require("./brain/freshness");
 const currentProviders = require("./brain/currentProviders");
+const researchIntelligence = require("./brain/researchIntelligence");
 const metrics = require("./brain/metrics");
 const database = require("./db");
 const databaseConfig = require("./db/config");
@@ -3572,6 +3573,7 @@ async function research(query, options = {}) {
     analyzeQuestion(
       cleanQuery
     );
+  if (options.intelligence?.expansions?.length) analysis.researchQueries = options.intelligence.expansions;
 
   const healthTopic = isHealthTopic(analysis);
   let researchUnavailable = false;
@@ -4892,6 +4894,7 @@ app.get(
 
       const researchStartedAt = Date.now();
       const detection = freshness.detectFreshness(query);
+      const intelligence = researchIntelligence.buildContext(query, detection);
       logger.info("research.started", {
         requestId: req.requestId,
         queryLength: query.length
@@ -4899,7 +4902,7 @@ app.get(
 
       let result;
       try {
-        result = await research(query, { audienceLevel: req.query?.audienceLevel });
+        result = await research(query, { audienceLevel: req.query?.audienceLevel, intelligence });
       } catch (researchError) {
         if (!detection.requiresFreshness) throw researchError;
         logger.warn("current.standard_pipeline_failed", { requestId: req.requestId, errorName: researchError.name });
@@ -4924,6 +4927,8 @@ app.get(
         result.researchMode = "standard";
         result.freshness = { ...detection, checkedAt: null, sourceCount: 0, newestSourceAt: null };
       }
+
+      result = researchIntelligence.enhanceResult(result, { ...intelligence, checkedAt: result.freshness?.checkedAt || intelligence.checkedAt });
 
       result.quizPro = quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
         count: 5,
@@ -4975,6 +4980,7 @@ app.get(
       const researchMetric = metrics.state.research;
       researchMetric[detection.requiresFreshness ? "current" : "standard"] += 1;
       metrics.duration(researchMetric.durationsMs, Date.now() - researchStartedAt);
+      metrics.recordResearch(result.intent, Array.isArray(result.sourceDetails) ? result.sourceDetails.length : 0);
       if (detection.requiresFreshness && result.freshness?.providerErrors?.length) researchMetric.providerFailures += result.freshness.providerErrors.length;
       if (result.usedFallback || result.fallbackUsed) researchMetric.fallback += 1;
 

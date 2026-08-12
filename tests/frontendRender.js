@@ -33,6 +33,9 @@ const full = renderers.buildResultViewModel({
     sections: [{ title: "Genel", text: "Mars metni", points: ["Madde"] }],
     keyConcepts: [{ term: "Atmosfer", definition: "Gaz tabakası" }],
     keyFacts: [{ text: "Mars bir gezegendir.", confidence: "medium", sourceCount: 1 }],
+    timeline: [{ date: "2026-08-12T00:00:00.000Z", title: "Mars gözlemi" }],
+    comparison: { entities: ["Mars", "Dünya"], features: [{ feature: "Mars daha küçüktür." }] },
+    intent: "COMPARISON", mode: "standard", checkedAt: "2026-08-12T00:00:00.000Z",
     interestingFacts: ["Mars kırmızı görünür."],
     followUpQuestions: ["Mars neden kırmızı görünür?", "Mars neden kırmızı görünür?"],
     limitations: ["Tek kaynak.", "Tek kaynak."], generatedFrom: { usedFallback: false }
@@ -46,6 +49,9 @@ assert.equal(full.limitations.length, 1);
 assert.equal(full.articles.length, 1);
 assert.equal(full.reliability.level, "medium");
 assert.equal(full.score, 60);
+assert.equal(full.timeline.length, 1);
+assert.deepEqual(full.comparison.entities, ["Mars", "Dünya"]);
+assert.equal(full.intent, "COMPARISON");
 assert.equal(JSON.stringify(full).includes("[object Object]"), false);
 
 const unsafeScores = renderers.buildResultViewModel({

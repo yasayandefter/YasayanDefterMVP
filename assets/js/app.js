@@ -621,6 +621,25 @@ function renderProfessionalResult(data) {
         host.appendChild(card);
     }
 
+    if (model.timeline.length) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", "Zaman Çizelgesi"));
+        const list = createSafeElement("ol", "professional-point-list professional-timeline-list");
+        model.timeline.forEach(item => {
+            const date = item.date && !Number.isNaN(Date.parse(item.date)) ? new Date(item.date).toLocaleDateString("tr-TR") : "Tarih belirtilmemiş";
+            list.appendChild(createSafeElement("li", "", `${date} — ${item.title || item.text || "Gelişme"}`));
+        });
+        card.appendChild(list); host.appendChild(card);
+    }
+
+    if (model.comparison && Array.isArray(model.comparison.entities) && model.comparison.entities.length === 2) {
+        const card = createSafeElement("section", "professional-result-card");
+        card.appendChild(createSafeElement("h3", "professional-card-title", `${model.comparison.entities[0]} / ${model.comparison.entities[1]} Karşılaştırması`));
+        const list = createSafeElement("div", "professional-fact-list");
+        (model.comparison.features || []).slice(0, 8).forEach(item => list.appendChild(createSafeElement("p", "professional-fact-card", item.feature || "")));
+        card.appendChild(list); host.appendChild(card);
+    }
+
     if (model.interestingFacts.length) {
         const card = createSafeElement("section", "professional-result-card");
         card.appendChild(createSafeElement("h3", "professional-card-title", "İlginç Bilgiler"));

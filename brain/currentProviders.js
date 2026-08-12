@@ -53,7 +53,7 @@ async function fetchProvider(source, fetcher, timeoutMs = 8000) {
   finally { clearTimeout(timer); }
 }
 async function searchCurrent(query, detection, options = {}) {
-  const category = detection?.category || "general"; const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(category); const key = `${normalize(query)}|${category}|${windowName}`; const now = Date.now(); const cached = cache.get(key); const ttl = Math.min(...selected.map(source => source.ttlMs), 180_000);
+  const category = detection?.category || "general"; const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(category); const providers = selected.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${category}|${windowName}|${providers}`; const now = Date.now(); const cached = cache.get(key); const ttl = Math.min(...selected.map(source => source.ttlMs), 180_000);
   if (cached && now - cached.createdAt < ttl) { metrics.state.cache.hit += 1; selected.forEach(source => metrics.recordProvider(source.id, 0, true, 0, true)); return { ...cached.value, cacheHit: true }; }
   metrics.state.cache.miss += 1;
   const fetcher = options.fetcher || global.fetch; const results = await Promise.allSettled(selected.map(source => fetchProvider(source, fetcher, options.timeoutMs || 8000)));
