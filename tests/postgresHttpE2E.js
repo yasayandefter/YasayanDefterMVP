@@ -21,6 +21,15 @@ const names = { teacherA: `phase6-a-${unique}@example.test`, teacherB: `phase6-b
 const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 2 });
 let server;
 
+function startServer(base, port) {
+  server = spawn(process.execPath, ["server.js"], { cwd: process.cwd(), env: { ...process.env, PORT: String(port), AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: process.env.TEST_DATABASE_URL, APP_ORIGIN: base, NODE_ENV: "test" }, stdio: ["ignore", "ignore", "ignore"] });
+}
+async function stopServer() {
+  if (!server || server.killed) return;
+  server.kill("SIGTERM");
+  await new Promise(resolve => server.once("exit", resolve));
+}
+
 function cookieOf(response) { return String(response.headers.get("set-cookie") || "").split(";")[0]; }
 async function call(base, path, options = {}) {
   const headers = { Accept: "application/json", ...(options.headers || {}) };
@@ -58,7 +67,7 @@ async function cleanup() {
 (async () => {
   await seed();
   const port = 32000 + crypto.randomInt(20000); const base = `http://127.0.0.1:${port}`;
-  server = spawn(process.execPath, ["server.js"], { cwd: process.cwd(), env: { ...process.env, PORT: String(port), AUTH_MODE: "production", STORAGE_MODE: "postgres", DATABASE_URL: process.env.TEST_DATABASE_URL, APP_ORIGIN: base, NODE_ENV: "test" }, stdio: ["ignore", "ignore", "ignore"] });
+  startServer(base, port);
   await waitFor(base);
 
   let result = await call(base, "/api/auth/session"); assert.equal(result.response.status, 200); assert.equal(result.body.authenticated, false);
@@ -112,6 +121,7 @@ async function cleanup() {
   result = await call(base, "/api/auth/claim", { method: "POST", headers: { Origin: base }, body: JSON.stringify({ claimCode: secret.claim, username: names.claimed, password: secret.password, role: "TEACHER", userId: ids.teacherA, studentId: ids.studentB }) }); assert.equal(result.response.status, 201); assert.equal(result.body.user.role, "STUDENT"); assert.equal(result.body.user.studentId, ids.unclaimed); const claimCookie = cookieOf(result.response);
   result = await call(base, "/api/auth/session", { headers: { Cookie: claimCookie } }); assert.equal(result.body.authenticated, true); assert.equal(result.body.user.studentId, ids.unclaimed);
   assert.equal((await pool.query("SELECT token_hash=$2 AS hashed, user_id IS NOT NULL AS linked FROM student_claim_tokens c JOIN students s ON s.id=c.student_id WHERE c.id=$1", [ids.claim, claims.hashClaim(secret.claim)])).rows[0].hashed, true);
+  await stopServer(); startServer(base, port); await waitFor(base);
   assert.equal((await call(base, "/api/auth/claim", { method: "POST", headers: { Origin: base }, body: JSON.stringify({ claimCode: secret.claim, username: names.duplicate, password: secret.password }) })).response.status, 400);
 
   result = await call(base, "/api/auth/logout", { method: "POST", headers: { Cookie: studentCookie, Origin: base } }); assert.equal(result.response.status, 200);
@@ -119,6 +129,6 @@ async function cleanup() {
   const fresh = await login(base, names.studentB, secret.password); const disabledCookie = cookieOf(fresh.response); await pool.query("UPDATE users SET status='DISABLED' WHERE id=$1", [ids.studentUserB]); assert.equal((await call(base, "/api/progress", { headers: { Cookie: disabledCookie } })).response.status, 401);
   console.log("PASS  real PostgreSQL HTTP auth, claim, session, authorization, IDOR, quiz ownership, origin, cookie, spoofing, and cleanup checks");
 })().catch(error => { console.error(error && error.stack ? error.stack : (error.code || error.message || "POSTGRES_HTTP_E2E_FAILED")); process.exitCode = 1; }).finally(async () => {
-  if (server && !server.killed) { server.kill("SIGTERM"); await new Promise(resolve => server.once("exit", resolve)); }
+  await stopServer();
   try { await cleanup(); } finally { await pool.end(); }
 });
