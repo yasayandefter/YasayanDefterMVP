@@ -21,6 +21,8 @@
     "test:classroom": "node tests/classroom.js",
     "test:freshness": "node tests/freshness.js",
     "test:current": "node tests/current.js",
+    "test:feed-parser": "node tests/feedParser.js",
+    "test:live-sources": "node tests/liveSources.js && node tests/liveSourcesEdge.js",
     "test:current-isolation": "node tests/currentTopicIsolation.js",
     "test:research-engine": "node tests/researchEngine14.js",
     "test:persistence": "node tests/persistence.js",
@@ -53,7 +55,7 @@
     "db:status": "node db/migrate.js status",
     "db:check": "node -e \"require('./db').health().then(result => { console.log(JSON.stringify(result)); process.exitCode = result.ok ? 0 : 1; })\"",
     "auth:create-teacher": "node scripts/createTeacher.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:current-isolation && npm run test:research-engine && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:authorization && npm run test:repositories && npm run test:postgres-http && npm run test:migration-dry-run && npm run test:frontend && npm run test:smoke"
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:feed-parser && npm run test:current-isolation && npm run test:research-engine && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:authorization && npm run test:repositories && npm run test:postgres-http && npm run test:migration-dry-run && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

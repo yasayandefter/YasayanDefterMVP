@@ -1,6 +1,6 @@
 "use strict";
 
-const WINDOWS = { day: 1, week: 7, month: 30, recent: 30, latest: 30 };
+const WINDOWS = { day: 1, week: 7, month: 30, recent: 7, latest: 7 };
 
 function normalize(value) {
   return String(value || "").toLocaleLowerCase("tr-TR").normalize("NFKD")

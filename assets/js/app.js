@@ -539,6 +539,20 @@ function createSafeElement(tag, className, value) {
     return element;
 }
 
+function currentDateLabel(value, now = new Date()) {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return "Tarih belirtilmemiş";
+    const diff = now.getTime() - date.getTime();
+    if (diff >= 0 && diff < 3600000) return `${Math.max(1, Math.floor(diff / 60000))} dakika önce`;
+    if (diff >= 0 && diff < 86400000) return `${Math.max(1, Math.floor(diff / 3600000))} saat önce`;
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    const itemDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now.getTime() - 86400000));
+    if (itemDay === today) return `Bugün ${date.toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}`;
+    if (itemDay === yesterday) return "Dün";
+    return date.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" });
+}
+
 function renderProfessionalResult(data) {
     const host = $("professionalResult");
     if (!host || !window.ResultRenderers) return;
@@ -645,6 +659,7 @@ function renderProfessionalResult(data) {
             const card = createSafeElement("article", "professional-content-section");
             if (section.title) card.appendChild(createSafeElement("h4", "professional-section-title", section.title));
             if (section.text) card.appendChild(createSafeElement("p", "professional-readable-text", section.text));
+            if (data && data.researchMode === "current" && (section.publishedAt || section.sourceCount)) card.appendChild(createSafeElement("p", "professional-fact-meta", `${currentDateLabel(section.publishedAt)} · ${Number(section.sourceCount) || 1} kaynak`));
             const points = Array.isArray(section.points) ? section.points.filter(Boolean).slice(0, 5) : [];
             if (points.length) {
                 const list = createSafeElement("ul", "professional-point-list");
@@ -750,7 +765,7 @@ function renderProfessionalResult(data) {
             const domain = (() => { try { return url ? new URL(url).hostname.replace(/^www\./, "") : (article.source || "Kaynak"); } catch (_) { return article.source || "Kaynak"; } })();
             source.appendChild(createSafeElement("p", "professional-source-domain", domain));
             if (data && data.researchMode === "current") {
-                const published = article.publishedAt && !Number.isNaN(Date.parse(article.publishedAt)) ? new Date(article.publishedAt).toLocaleString("tr-TR") : "Tarih belirtilmemiş";
+                const published = currentDateLabel(article.publishedAt);
                 source.appendChild(createSafeElement("p", "professional-source-date", published));
             }
             if (article.text || article.summary) source.appendChild(createSafeElement("p", "professional-readable-text", String(article.text || article.summary).slice(0, 280)));

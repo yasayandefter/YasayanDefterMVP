@@ -1,69 +1,91 @@
 "use strict";
 
 const { SOURCES, sourcesFor, isAllowedProviderUrl } = require("./currentSources");
+const { parseFeed, parseGeoJson } = require("./feedParser");
+const { fetchProvider } = require("./feedProviders");
 const { WINDOWS, normalize } = require("./freshness");
 const metrics = require("./metrics");
 
-const cache = new Map();
-const TRUST = { official: 3, institutional: 2, trusted_feed: 1, fallback: 0 };
+const queryCache = new Map(); const feedCache = new Map();
+const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
+const TOPIC_TERMS = {
+  ai: /\b(ai|artificial intelligence|machine learning|deep learning|neural|llm|model|agent|yapay zeka|makine ogren)\b/,
+  technology: /\b(technology|tech|software|hardware|computer|digital|cyber|robot|mobile|chip|semiconductor|quantum|innovation|teknoloji|yazilim|donanim|bilgisayar|robot|mobil)\b/,
+  science: /\b(science|scientific|research|physics|chemistry|biology|genome|climate|quantum|bilim|arastirma|fizik|kimya|biyoloji)\b/,
+  space: /\b(space|nasa|esa|planet|moon|mars|orbit|satellite|telescope|rocket|astronaut|lunar|solar|uzay|gezegen|ay|yörünge|uydu|roket)\b/,
+  cybersecurity: /\b(cyber|security|vulnerability|malware|ransomware|exploit|siber|guvenlik)\b/
+};
 
-function decodeEntities(value) {
-  return String(value || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+function routeCategories(query, detection = {}) {
+  const text = normalize(query); if (detection.category === "earthquake") return ["earthquake"];
+  if (TOPIC_TERMS.ai.test(text)) return ["ai", "technology"];
+  if (TOPIC_TERMS.cybersecurity.test(text)) return ["cybersecurity", "technology"];
+  if (detection.category === "space") return ["space", "science"];
+  if (detection.category === "science") return ["science", "space"];
+  if (detection.category === "technology") return ["technology"];
+  return [detection.category || "general"];
 }
-function sanitizeText(value) {
-  return decodeEntities(String(value || "").replace(/<!\[CDATA\[/gi, "").replace(/\]\]>/g, "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+function meaningfulTokens(query) { return normalize(query).split(/\s+/).filter(token => token.length > 2 && !CURRENT_STOP.has(token)); }
+function relevant(item, query, categories) {
+  if (categories.includes("earthquake")) return item.category === "earthquake";
+  const text = normalize(`${item.title} ${item.summary || item.text}`); const specific = categories.find(category => ["ai", "cybersecurity"].includes(category));
+  if (specific) return TOPIC_TERMS[specific].test(text);
+  const primary = categories[0]; if (TOPIC_TERMS[primary]?.test(text)) return true;
+  const tokens = meaningfulTokens(query); return tokens.length > 0 && tokens.some(token => text.includes(token));
 }
-function field(block, names) {
-  for (const name of names) { const match = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, "i")); if (match) return match[1]; }
-  return "";
-}
-function parseFeed(xml, source) {
-  const blocks = xml.match(/<(item|entry)\b[\s\S]*?<\/(item|entry)>/gi) || [];
-  return blocks.map(block => {
-    const linkTag = block.match(/<link[^>]*(?:href=["']([^"']+)["'])?[^>]*>/i);
-    const link = linkTag?.[1] || field(block, ["link"]).trim();
-    const rawDate = field(block, ["pubDate", "published", "updated", "date"]);
-    const parsedDate = Date.parse(sanitizeText(rawDate));
-    return { title: sanitizeText(field(block, ["title"])) || "Güncel gelişme", url: link, publishedAt: Number.isFinite(parsedDate) ? new Date(parsedDate).toISOString() : null, text: sanitizeText(field(block, ["description", "summary", "content"])), source: source.name, sourceId: source.id, trust: source.trust };
-  }).filter(item => item.url && isHttpUrl(item.url));
-}
-function isHttpUrl(value) { try { const u = new URL(value); return u.protocol === "https:"; } catch (_) { return false; } }
-function normalizeGeoJson(payload, source) {
-  return (Array.isArray(payload?.features) ? payload.features : []).map(feature => {
-    const p = feature.properties || {};
-    const timestamp = Number(p.time);
-    return { title: sanitizeText(p.title || p.place || "Deprem"), url: isHttpUrl(p.url) ? p.url : null, publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null, text: sanitizeText(p.place || ""), source: source.name, sourceId: source.id, trust: source.trust, magnitude: Number.isFinite(Number(p.mag)) ? Number(p.mag) : null, coordinates: feature.geometry?.coordinates || null };
-  });
-}
-function relevant(item, query, category) {
-  if (category === "earthquake") return true;
-  const tokens = normalize(query).split(/\s+/).filter(token => token.length > 2);
-  const haystack = normalize(`${item.title} ${item.text}`);
-  return !tokens.length || tokens.some(token => haystack.includes(token)) || category === "general";
-}
+function titleTokens(value) { return new Set(normalize(value).split(" ").filter(token => token.length > 3 && !CURRENT_STOP.has(token))); }
+function similarity(a, b) { const left = titleTokens(a); const right = titleTokens(b); if (!left.size || !right.size) return 0; const shared = [...left].filter(token => right.has(token)).length; return shared / Math.min(left.size, right.size); }
 function dedupe(items) {
-  const seen = new Set(); const out = [];
-  for (const item of items) { const key = normalize(item.url || item.title); if (!key || seen.has(key)) continue; seen.add(key); out.push(item); }
-  return out;
+  const output = [];
+  for (const item of items) {
+    if (output.some(existing => existing.url === item.url || (Math.abs(Date.parse(existing.publishedAt) - Date.parse(item.publishedAt)) < 3 * 86400000 && similarity(existing.title, item.title) >= 0.82))) continue;
+    output.push(item);
+  }
+  return output;
 }
-async function fetchProvider(source, fetcher, timeoutMs = 8000) {
-  if (!isAllowedProviderUrl(source.url)) throw new Error("Provider URL is not allowed");
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try { const response = await fetcher(source.url, { signal: controller.signal, headers: { accept: source.kind === "rss" ? "application/rss+xml, application/atom+xml, text/xml" : "application/json" } }); if (!response.ok) throw new Error(`Provider HTTP ${response.status}`); const payload = source.kind === "rss" ? await response.text() : await response.json(); return source.kind === "rss" ? parseFeed(payload, source) : normalizeGeoJson(payload, source); }
-  finally { clearTimeout(timer); }
+function diversify(items, limit = 20) {
+  const queues = new Map(); items.forEach(item => { if (!queues.has(item.domain)) queues.set(item.domain, []); queues.get(item.domain).push(item); });
+  const output = []; let round = 0; const rounds = Math.max(0, ...[...queues.values()].map(queue => queue.length));
+  while (output.length < limit && round < rounds) {
+    for (const queue of queues.values()) { if (queue[round]) output.push(queue[round]); if (output.length >= limit) break; }
+    round += 1;
+  }
+  return output;
+}
+function clusterEvents(items, limit = 10) {
+  const clusters = [];
+  for (const item of items) {
+    const cluster = clusters.find(value => Math.abs(Date.parse(value.publishedAt) - Date.parse(item.publishedAt)) <= 3 * 86400000 && similarity(value.headline, item.title) >= 0.58);
+    const sourceRef = { providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url: item.url, publishedAt: item.publishedAt };
+    if (cluster) { if (!cluster.sources.some(source => source.url === item.url)) cluster.sources.push(sourceRef); cluster.crossSourceSupport = new Set(cluster.sources.map(source => source.domain)).size; }
+    else clusters.push({ headline: item.title, summary: item.summary, publishedAt: item.publishedAt, facts: [item.summary || item.title].filter(Boolean), sources: [sourceRef], sourceRefs: [item.url], crossSourceSupport: 1 });
+  }
+  return clusters.slice(0, limit).map(cluster => ({ ...cluster, sourceRefs: cluster.sources.map(source => source.url), crossSourceSupport: new Set(cluster.sources.map(source => source.domain)).size }));
+}
+async function mapLimit(values, limit, task) {
+  const results = new Array(values.length); let cursor = 0;
+  async function worker() { while (cursor < values.length) { const index = cursor; cursor += 1; try { results[index] = { status: "fulfilled", value: await task(values[index]) }; } catch (reason) { results[index] = { status: "rejected", reason }; } } }
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, worker)); return results;
+}
+async function providerItems(source, fetcher, options, categoryKey, windowName) {
+  const key = `${source.id}|${categoryKey}|${windowName}`; const cached = feedCache.get(key); const now = Date.now();
+  if (cached && now - cached.createdAt < source.ttlMs) return { ...cached.value, cacheHit: true };
+  const value = await fetchProvider(source, fetcher, options); feedCache.set(key, { createdAt: now, value }); return { ...value, cacheHit: false };
 }
 async function searchCurrent(query, detection, options = {}) {
-  const category = detection?.category || "general"; const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(category); const providers = selected.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${category}|${windowName}|${providers}`; const now = Date.now(); const cached = cache.get(key); const ttl = Math.min(...selected.map(source => source.ttlMs), 180_000);
-  if (cached && now - cached.createdAt < ttl) { metrics.state.cache.hit += 1; selected.forEach(source => metrics.recordProvider(source.id, 0, true, 0, true)); return { ...cached.value, cacheHit: true }; }
-  metrics.state.cache.miss += 1;
-  const fetcher = options.fetcher || global.fetch; const results = await Promise.allSettled(selected.map(source => fetchProvider(source, fetcher, options.timeoutMs || 8000)));
+  const categories = routeCategories(query, detection); const windowName = detection?.requestedWindow || "latest"; const selected = sourcesFor(categories); const providerIds = selected.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${categories.join("+")}|${windowName}|${providerIds}`; const now = Number(options.now) || Date.now(); const cached = queryCache.get(key); const ttl = selected.length ? Math.min(...selected.map(source => source.ttlMs), 180_000) : 30_000;
+  if (cached && now - cached.createdAt < ttl) { metrics.state.cache.hit += 1; return { ...cached.value, cacheHit: true }; }
+  metrics.state.cache.miss += 1; const fetcher = options.fetcher || global.fetch;
+  const results = await mapLimit(selected, Math.min(Number(options.concurrency) || 4, 5), source => providerItems(source, fetcher, options, categories.join("+"), windowName));
   const errors = []; let items = [];
-  results.forEach((result, index) => result.status === "fulfilled" ? (items = items.concat(result.value), metrics.recordProvider(selected[index].id, 0, true, result.value.length, false)) : (errors.push({ source: selected[index].id, message: "Provider unavailable" }), metrics.recordProvider(selected[index].id, 0, false, 0, false)));
-  const cutoff = now - (WINDOWS[windowName] || 30) * 86400000;
-  items = dedupe(items.filter(item => relevant(item, query, category)).filter(item => !item.publishedAt || Date.parse(item.publishedAt) >= cutoff).sort((a, b) => (TRUST[b.trust] || 0) - (TRUST[a.trust] || 0) || (Date.parse(b.publishedAt || 0) || 0) - (Date.parse(a.publishedAt || 0) || 0))).slice(0, 24);
-  const sources = [...new Set(items.map(item => item.source))]; const value = { items, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category, window: windowName, newestSourceAt: items.find(item => item.publishedAt)?.publishedAt || null };
-  cache.set(key, { createdAt: now, value }); return value;
+  results.forEach((result, index) => { const source = selected[index]; if (result.status === "fulfilled") { items.push(...result.value.items); metrics.recordProvider(source.id, result.value.durationMs, true, result.value.items.length, result.value.cacheHit); } else { errors.push({ source: source.id, code: String(result.reason?.message || "PROVIDER_UNAVAILABLE").replace(/[^A-Z0-9_\-]/gi, "_").slice(0, 80), message: "Provider unavailable" }); metrics.recordProvider(source.id, 0, false, 0, false); } });
+  const cutoff = now - (WINDOWS[windowName] || 7) * 86400000;
+  items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff).filter(item => relevant(item, query, categories)).map(item => ({ ...item, currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
+  items = diversify(items, 20); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => item.domain)).size;
+  const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains };
+  metrics.recordCurrentCoverage(items.length, events.length, independentDomains);
+  queryCache.set(key, { createdAt: now, value }); return value;
 }
-function clearCache() { cache.clear(); }
+function clearCache() { queryCache.clear(); feedCache.clear(); }
 
-module.exports = { parseFeed, normalizeGeoJson, isAllowedProviderUrl, searchCurrent, clearCache, TRUST };
+module.exports = { SOURCES, parseFeed, normalizeGeoJson: parseGeoJson, isAllowedProviderUrl, routeCategories, relevant, dedupe, diversify, clusterEvents, mapLimit, searchCurrent, clearCache };
