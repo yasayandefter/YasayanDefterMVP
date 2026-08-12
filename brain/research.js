@@ -100,7 +100,7 @@ async function research(query){
 
     const result = emptyResult(query);
 
-    console.log("🔎 Araştırılıyor:",query);
+    console.log("🔎 Araştırılıyor", { queryLength: query.length });
 
     return await continueResearch(
         query,
@@ -177,8 +177,8 @@ async function continueResearch(query,result){
     };
 
     console.log(
-        "🎯 Konu:",
-        result.brain.understoodTopic
+        "🎯 Konu hazırlandı",
+        { topicLength: String(result.brain.understoodTopic || "").length }
     );
 
     console.log(

@@ -10,7 +10,7 @@ const { spawn } = require("node:child_process");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "yasayan-pilot-restart-"));
 const dataDir = path.join(root, "data");
 const port = 32000 + (process.pid % 500);
-const env = { ...process.env, PORT: String(port), YASAYAN_MEMORY_FILE: path.join(root, "memory.json"), YASAYAN_LEARNING_MEMORY_FILE: path.join(root, "yasayan_deefter_memory.json"), YASAYAN_CLASSROOM_DATA_DIR: dataDir, YASAYAN_QUIZ_ATTEMPTS_FILE: path.join(dataDir, "quiz-attempts.json") };
+const env = { ...process.env, PORT: String(port), ACCESS_MODE: "local-pilot", AUTH_MODE: "local", STORAGE_MODE: "json", DATABASE_URL: "", APP_ORIGIN: "", YASAYAN_MEMORY_FILE: path.join(root, "memory.json"), YASAYAN_LEARNING_MEMORY_FILE: path.join(root, "yasayan_deefter_memory.json"), YASAYAN_CLASSROOM_DATA_DIR: dataDir, YASAYAN_QUIZ_ATTEMPTS_FILE: path.join(dataDir, "quiz-attempts.json") };
 
 function request(method, pathname, body) {
   return new Promise((resolve, reject) => {

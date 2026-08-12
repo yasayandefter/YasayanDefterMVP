@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const { parseFeed, normalizeGeoJson, isAllowedProviderUrl, searchCurrent, clearCache } = require("../brain/currentProviders");
+const { parseFeed, normalizeGeoJson, isAllowedProviderUrl, searchCurrent, clearCache, cacheStats } = require("../brain/currentProviders");
 const { detectFreshness } = require("../brain/freshness");
 
 assert.equal(isAllowedProviderUrl("https://example.com/feed"), false);
@@ -9,5 +9,15 @@ const feed = parseFeed("<rss><channel><item><title>Bilim &amp; Uzay</title><link
 assert.equal(feed.length, 1); assert.equal(feed[0].title, "Bilim & Uzay"); assert.equal(feed[0].text, "Detay");
 const geo = normalizeGeoJson({ features: [{ properties: { title: "M 4.0 - Test", time: Date.now(), mag: 4, url: "https://earthquake.usgs.gov/event" }, geometry: { coordinates: [1, 2, 3] } }] }, { id: "usgs", name: "USGS", trust: "official" });
 assert.equal(geo.length, 1); assert.equal(geo[0].magnitude, 4);
+
+const fixtureResponse = async () => ({ ok: true, text: async () => "<rss><channel><item><title>Bilim gelişmesi</title><link>https://example.org/news</link><pubDate>Tue, 11 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>", json: async () => ({ features: [] }) });
 clearCache();
-searchCurrent("Bugünkü bilim haberleri", detectFreshness("Bugünkü bilim haberleri"), { fetcher: async url => ({ ok: true, text: async () => "<rss><channel><item><title>Bilim gelişmesi</title><link>https://example.org/news</link><pubDate>Tue, 11 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>", json: async () => ({ features: [] }) }) }).then(result => { assert.equal(result.cacheHit, false); assert.ok(Array.isArray(result.items)); return searchCurrent("Bugünkü bilim haberleri", detectFreshness("Bugünkü bilim haberleri"), { fetcher: async url => ({ ok: true, text: async () => "<rss></rss>", json: async () => ({ features: [] }) }) }); }).then(result => { assert.equal(result.cacheHit, true); console.log("Current provider tests: 7 passed, 0 failed"); }).catch(error => { console.error(error); process.exitCode = 1; });
+searchCurrent("Bugünkü bilim haberleri", detectFreshness("Bugünkü bilim haberleri"), { fetcher: fixtureResponse })
+  .then(result => { assert.equal(result.cacheHit, false); assert.ok(Array.isArray(result.items)); return searchCurrent("Bugünkü bilim haberleri", detectFreshness("Bugünkü bilim haberleri"), { fetcher: async () => { throw new Error("query cache miss"); } }); })
+  .then(async result => {
+    assert.equal(result.cacheHit, true);
+    for (let index = 0; index < 205; index += 1) await searchCurrent(`Bugünkü bilim haberleri ${index}`, detectFreshness("Bugünkü bilim haberleri"), { fetcher: fixtureResponse });
+    const stats = cacheStats(); assert.equal(stats.queryEntries, stats.maxQueryEntries); assert.ok(stats.feedEntries <= stats.maxFeedEntries);
+    console.log("Current provider tests: 9 passed, 0 failed");
+  })
+  .catch(error => { console.error(error); process.exitCode = 1; });

@@ -12,7 +12,7 @@ const TYPE_HINTS = Object.freeze([
 
 function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
 function fold(value) { return clean(value).toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/[^a-z0-9]+/g, " ").trim(); }
-function acronym(value) { return clean(value).split(/[\s&/-]+/).filter(word => /^[\p{L}\p{N}]/u.test(word)).map(word => word[0]).join("").toUpperCase(); }
+function acronym(value) { const connectors = new Set(["and", "of", "for", "the", "ve", "ile"]); return clean(value).split(/[\s&/-]+/).filter(word => /^[\p{L}\p{N}]/u.test(word) && !connectors.has(word.toLocaleLowerCase("en-US"))).map(word => word[0]).join("").toUpperCase(); }
 function typeOf(value) { for (const [type, pattern] of TYPE_HINTS) if (pattern.test(value)) return type; return "PROGRAM"; }
 function validAcronym(value) { return /^[A-Z][A-Z0-9]{1,9}$/.test(value) && !BLOCKED_ACRONYMS.has(value); }
 function candidate(canonical, aliases, type, evidenceRefs, reason, confidence = 95) { return { canonical, aliases: [...new Set(aliases.map(clean).filter(Boolean))], type, confidence, evidenceRefs: [...new Set(evidenceRefs.filter(Boolean))], reason, persistent: false }; }

@@ -12,6 +12,8 @@ const claimSignatures = require("./claimSignatures");
 const adaptiveAliases = require("./adaptiveAliases");
 
 const queryCache = new Map(); const feedCache = new Map();
+const MAX_QUERY_CACHE = 200; const MAX_FEED_CACHE = 100;
+function setBounded(cache, key, value, limit) { cache.delete(key); cache.set(key, value); while (cache.size > limit) cache.delete(cache.keys().next().value); }
 const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
 const TOPIC_TERMS = {
   ai: /\b(ai|artificial intelligence|machine learning|deep learning|neural|llm|model|agent|yapay zeka|makine ogren)\b/,
@@ -77,7 +79,7 @@ async function mapLimit(values, limit, task) {
 async function providerItems(source, fetcher, options, categoryKey, windowName) {
   const key = `${source.id}|${categoryKey}|${windowName}`; const cached = feedCache.get(key); const now = Date.now();
   if (cached && now - cached.createdAt < source.ttlMs) return { ...cached.value, cacheHit: true };
-  const value = await fetchProvider(source, fetcher, options); feedCache.set(key, { createdAt: now, value }); return { ...value, cacheHit: false };
+  const value = await fetchProvider(source, fetcher, options); setBounded(feedCache, key, { createdAt: now, value }, MAX_FEED_CACHE); return { ...value, cacheHit: false };
 }
 async function searchCurrent(query, detection, options = {}) {
   const categories = routeCategories(query, detection); const windowName = detection?.requestedWindow || "latest"; const available = providerHealth.ordered(sourcesFor(categories), options); const selected = available.filter(source => providerHealth.shouldAttempt(source.id, options)); const skipped = available.filter(source => !providerHealth.shouldAttempt(source.id, options)); const providerIds = available.map(source => source.id).sort().join(","); const key = `current|${normalize(query)}|${categories.join("+")}|${windowName}|${providerIds}`; const now = Number(options.now) || Date.now(); const cached = queryCache.get(key); const ttl = selected.length ? Math.min(...selected.map(source => source.ttlMs), 180_000) : 30_000;
@@ -92,8 +94,9 @@ async function searchCurrent(query, detection, options = {}) {
   items = currentQuality.rankDiverse(items, { limit: 20, genericTechnology: categories.length === 1 && categories[0] === "technology", specificCategory: ["cybersecurity", "ai"].includes(categories[0]) }); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size;
   const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains, providerHealthSummary: providerHealth.summary(options) };
   metrics.recordCurrentCoverage(items.length, events.length, independentDomains);
-  queryCache.set(key, { createdAt: now, value }); return value;
+  setBounded(queryCache, key, { createdAt: now, value }, MAX_QUERY_CACHE); return value;
 }
 function clearCache() { queryCache.clear(); feedCache.clear(); }
+function cacheStats() { return { queryEntries: queryCache.size, feedEntries: feedCache.size, maxQueryEntries: MAX_QUERY_CACHE, maxFeedEntries: MAX_FEED_CACHE }; }
 
-module.exports = { SOURCES, parseFeed, normalizeGeoJson: parseGeoJson, isAllowedProviderUrl, routeCategories, relevant, dedupe, diversify, clusterEvents, mapLimit, searchCurrent, clearCache };
+module.exports = { SOURCES, parseFeed, normalizeGeoJson: parseGeoJson, isAllowedProviderUrl, routeCategories, relevant, dedupe, diversify, clusterEvents, mapLimit, searchCurrent, clearCache, cacheStats };

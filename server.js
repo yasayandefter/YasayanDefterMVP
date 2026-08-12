@@ -1576,8 +1576,8 @@ async function searchWikipediaMultiple(analysis = {}) {
   ];
 
   console.log(
-    "Araştırma sorguları:",
-    researchQueries
+    "Araştırma sorguları hazırlandı:",
+    { queryCount: researchQueries.length }
   );
 
   if (!researchQueries.length) {
@@ -4008,15 +4008,15 @@ async function research(query, options = {}) {
   } else if (!articles.length && healthTopic) {
     researchUnavailable = true;
     console.warn(
-      "Doğrulanabilir sağlık kaynağı bulunamadı:",
-      analysis.topic
+      "Doğrulanabilir sağlık kaynağı bulunamadı.",
+      { topicLength: String(analysis.topic || "").length }
     );
   } else if (!articles.length && !memoryMatch) {
     // Görsel bulunması tek başına doğrulanmış bilgi sonucu sayılmaz.
     researchUnavailable = true;
     console.warn(
-      "Metin kaynağı bulunamadı; yalnızca görsel sonuçları kullanılmayacak:",
-      analysis.topic
+      "Metin kaynağı bulunamadı; yalnızca görsel sonuçları kullanılmayacak.",
+      { topicLength: String(analysis.topic || "").length }
     );
   }
 

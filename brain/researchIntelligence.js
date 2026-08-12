@@ -166,7 +166,7 @@ function buildTimeline(sources, intent) {
 
 function buildComparison(query, intent, facts) {
   if (intent !== "COMPARISON") return null;
-  const match = cleanText(query).match(/^(.+?)\s+(?:ile|ve)\s+(.+?)\s+(?:arasındaki\s+)?(?:farklar|farkı|karşılaştırması|karşılaştırma)/i);
+  const match = cleanText(query).match(/^(.+?)\s+(?:ile|ve)\s+(.+?)\s+(?:arasındaki\s+)?(?:farklar|farkı|fark|karşılaştırması|karşılaştırma)/i);
   if (!match) return { entities: [], features: [], note: "Karşılaştırma öğeleri güvenle ayrıştırılamadı." };
   return { entities: [cleanText(match[1], 80), cleanText(match[2], 80)], features: facts.slice(0, 8).map(fact => ({ feature: fact.text, sourceRefs: fact.sourceRefs || [] })) };
 }
