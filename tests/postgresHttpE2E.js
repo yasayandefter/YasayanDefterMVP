@@ -56,6 +56,7 @@ async function cleanup() {
   const studentIds = [ids.studentA, ids.studentB, ids.unclaimed];
   await pool.query("DELETE FROM xp_events WHERE student_id=ANY($1::uuid[])", [studentIds]);
   await pool.query("DELETE FROM quiz_attempts WHERE student_id=ANY($1::uuid[])", [studentIds]);
+  await pool.query("DELETE FROM research_activity_events WHERE student_id=ANY($1::uuid[])", [studentIds]);
   await pool.query("DELETE FROM memory_records WHERE student_id=ANY($1::uuid[])", [studentIds]);
   await pool.query("DELETE FROM classrooms WHERE id=ANY($1::uuid[])", [[ids.classroomA, ids.classroomB]]);
   await pool.query("DELETE FROM student_claim_tokens WHERE student_id=ANY($1::uuid[])", [studentIds]);

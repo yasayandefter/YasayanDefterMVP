@@ -4945,6 +4945,7 @@ app.get(
           const memoryEntry = req.repositories?.mode === "postgres"
             ? await require("./services/domainSources").saveResearch(studentId, {
                 id: crypto.randomUUID(),
+                activityId: cleanText(req.get("x-research-request-id") || "", 100),
                 topic: cleanText(result.title || result.query || query, 240),
                 normalizedTopic: normalize(result.title || result.query || query).slice(0, 240),
                 title: cleanText(result.title || result.query || query, 240),

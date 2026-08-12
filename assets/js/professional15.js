@@ -53,7 +53,7 @@
         var map = { commercialProfileName: name, commercialProfileLevel: persistent ? "Veriler yükleniyor…" : "Kalıcı profil yok", commercialResearchCount: "—", commercialQuizCount: "—", commercialXp: "—", commercialStreak: "—" };
         Object.keys(map).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = map[id]; });
         var bar = document.getElementById("commercialGoalProgress"); if (bar) bar.style.width = "0%";
-        var label = document.getElementById("commercialGoalLabel"); if (label) label.textContent = persistent ? "Henüz haftalık veri yok" : "İlerlemeyi kaydetmek için giriş yap";
+        var label = document.getElementById("commercialGoalLabel"); if (label) label.textContent = persistent ? "Veriler yükleniyor…" : "Giriş yapınca takip edilir";
         var note = document.getElementById("commercialProfileNote"); if (note) note.textContent = persistent ? "Gerçek hesap ve öğrenme verilerin gösteriliyor." : "Araştırmayı giriş yapmadan kullanabilirsin; ilerleme ve XP kalıcı olarak kaydedilmez.";
         var badges = document.getElementById("commercialBadges"); if (badges) badges.replaceChildren();
     }
@@ -61,9 +61,10 @@
     function renderLearningProgress(profile, recommendations) {
         var panel = document.getElementById("commercialProfile");
         if (!panel) return;
-        var authoritative = { commercialResearchCount: Number(profile.researchedTopics) || 0, commercialQuizCount: Number(profile.completedQuizzes) || 0, commercialXp: (Number(profile.totalXP) || 0) + " XP", commercialProfileLevel: "Seviye " + (Number(profile.level) || 1) };
+        var streak = profile.streak || {}; var weekly = profile.weeklyGoal || {};
+        var authoritative = { commercialResearchCount: Number(profile.researchedTopics) || 0, commercialQuizCount: Number(profile.completedQuizzes) || 0, commercialXp: (Number(profile.totalXP) || 0) + " XP", commercialProfileLevel: "Seviye " + (Number(profile.level) || 1), commercialStreak: (Number(streak.current) || 0) + " gün" };
         Object.keys(authoritative).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = authoritative[id]; });
-        var researched = Number(profile.researchedTopics) || 0; var goalProgress = document.getElementById("commercialGoalProgress"); if (goalProgress) goalProgress.style.width = "0%"; var goalLabel = document.getElementById("commercialGoalLabel"); if (goalLabel) goalLabel.textContent = "Henüz haftalık veri yok"; var badges = document.getElementById("commercialBadges"); if (badges) { badges.replaceChildren(); [["İlk adım", researched > 0], ["Meraklı zihin", researched >= 3], ["Quiz ustası", (Number(profile.completedQuizzes) || 0) > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
+        var researched = Number(profile.researchedTopics) || 0; var target = Math.max(1, Number(weekly.target) || 5); var completed = Math.max(0, Number(weekly.completed) || 0); var goalProgress = document.getElementById("commercialGoalProgress"); if (goalProgress) goalProgress.style.width = Math.min(100, completed / target * 100) + "%"; var goalLabel = document.getElementById("commercialGoalLabel"); if (goalLabel) goalLabel.textContent = completed + " / " + target + " araştırma"; var goals = document.querySelector(".commercial-goals"); if (goals) goals.classList.toggle("is-achieved", weekly.achieved === true); var badges = document.getElementById("commercialBadges"); if (badges) { badges.replaceChildren(); [["İlk adım", researched > 0], ["Meraklı zihin", researched >= 3], ["Quiz ustası", (Number(profile.completedQuizzes) || 0) > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
         var existing = document.getElementById("learningProgressPanel");
         if (existing) existing.remove();
         var section = el("section", { id: "learningProgressPanel", class: "learning-progress-panel", "aria-labelledby": "learningProgressTitle" });

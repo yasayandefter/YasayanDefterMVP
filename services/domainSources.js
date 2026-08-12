@@ -2,11 +2,12 @@
 
 const learningProfile = require("../brain/learningProfile");
 const teacherProfile = require("../brain/teacherProfile");
+const db = require("../db");
 
 async function progress(studentId, repositories) {
-  const records = await repositories.memory.getProgressSource(studentId);
+  const [records, activity] = await Promise.all([repositories.memory.getProgressSource(studentId), repositories.learningActivity.getMetrics(studentId)]);
   const profile = learningProfile.buildProfile(records);
-  return { profile, recommendations: learningProfile.buildRecommendations(profile, records) };
+  return { profile: { ...profile, ...activity }, recommendations: learningProfile.buildRecommendations(profile, records) };
 }
 
 async function teacherSummary(studentId, repositories) {
@@ -19,7 +20,11 @@ async function classroomSummary(classroomId, repositories) {
 }
 
 async function saveResearch(studentId, input, repositories) {
-  return repositories.memory.upsertTopic({ ...input, studentId });
+  return db.withTransaction(async client => {
+    const memory = await repositories.memory.upsertTopic({ ...input, studentId }, client);
+    await repositories.learningActivity.recordResearch({ id: input.activityId, studentId, topic: input.topic }, client);
+    return memory;
+  });
 }
 
 module.exports = { progress, teacherSummary, classroomSummary, saveResearch };

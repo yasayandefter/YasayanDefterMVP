@@ -80,7 +80,8 @@ async function getJSON(url, options = {}){
 
 const response = await fetch(url,{
 headers:{
-"Accept":"application/json"
+"Accept":"application/json",
+...(options.headers || {})
 },
 signal: options.signal
 });
@@ -226,7 +227,7 @@ async function researchTopic() {
             API +
             "/api/research?q=" +
             encodeURIComponent(question) + (activeStudentId() ? "&studentId=" + encodeURIComponent(activeStudentId()) : ""),
-            { signal: controller.signal }
+            { signal: controller.signal, headers: { "X-Research-Request-Id": globalThis.crypto?.randomUUID?.() || `00000000-0000-4000-8000-${Date.now().toString().padStart(12, "0").slice(-12)}` } }
 
         );
 

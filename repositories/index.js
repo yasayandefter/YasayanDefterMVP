@@ -10,6 +10,7 @@ function postgresRepositories() {
     classrooms: require("./classroomsRepository"),
     memberships: require("./membershipRepository"),
     memory: require("./memoryRepository"),
+    learningActivity: require("./learningActivityRepository"),
     quiz: require("./quizRepository"),
     sessions: require("./sessionRepository"),
     claims: require("./claimRepository")
@@ -17,7 +18,7 @@ function postgresRepositories() {
 }
 
 function jsonRepositories() {
-  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, quiz: null, sessions: null, claims: null };
+  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, learningActivity: null, quiz: null, sessions: null, claims: null };
 }
 
 function getRepositories(env = process.env) { return getConfig(env).storageMode === "postgres" ? postgresRepositories() : jsonRepositories(); }

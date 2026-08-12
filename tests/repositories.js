@@ -31,7 +31,8 @@ function fakeClient(rows = []) { const calls = []; return { calls, async query(t
   assert.equal((await quiz.findAttemptForStudent("a1", "s1", quizClient)).studentId, "s1");
   assert.match(quizClient.calls[0].text, /student_id = \$2/);
   assert.equal(typeof quiz.completeAttempt, "function");
-  const source = await domainSources.progress("s1", { memory: { getProgressSource: async () => [] } });
+  const source = await domainSources.progress("s1", { memory: { getProgressSource: async () => [] }, learningActivity: { getMetrics: async () => ({ streak: { current: 0, activeToday: false, lastActiveDate: null }, weeklyGoal: { target: 5, completed: 0, remaining: 5, achieved: false, weekStart: "2026-01-05", weekEnd: "2026-01-12" } }) } });
   assert.equal(source.profile.researchedTopics, 0);
+  assert.equal(source.profile.streak.current, 0); assert.equal(source.profile.weeklyGoal.target, 5);
   console.log("PASS  PostgreSQL repository mapping, parameterized SQL, storage routing, JSONB, pagination, and quiz seams");
 })().catch(error => { console.error(error); process.exitCode = 1; });
