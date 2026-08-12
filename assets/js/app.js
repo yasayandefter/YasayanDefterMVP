@@ -2084,7 +2084,7 @@ if (data?.currentState === "CURRENT_EMPTY") {
     quiz = null;
     question.textContent = "Quiz oluşturmak için yeterli doğrulanmış bilgi bulunamadı.";
     return;
-} else if (data?.currentState === "CURRENT_VERIFIED" && (!quiz || !quiz.question || !Array.isArray(quiz.options))) {
+} else if (data?.currentState === "CURRENT_VERIFIED" && (!quiz || !quiz.question || !window.ResultRenderers?.quizOptions(quiz.options).length)) {
     quiz = null;
 } else if (data?.researchUnavailable) {
     quiz = null;
@@ -2112,20 +2112,19 @@ currentResearch.quiz = quiz;
 question.textContent = quiz.question;
 
 const correct =
+quiz.correctAnswer ||
 quiz.correct ||
 quiz.answer ||
-quiz.correctAnswer;
+"";
 
-quiz.options.slice(0,4).forEach(option=>{
+const normalizedOptions = window.ResultRenderers?.quizOptions(quiz.options) || [];
+normalizedOptions.forEach(option=>{
 
 const button =
 document.createElement("button");
 
 button.className = "quiz-option";
-button.textContent =
-typeof option === "string"
-? option
-: option.text || option.label || "";
+button.textContent = option;
 
 button.onclick = function(){
 

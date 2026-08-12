@@ -23,6 +23,9 @@ assert.equal(renderers.safeUrl("vbscript:msgbox(1)"), "");
 assert.equal(renderers.safeUrl("//example.org/path"), "");
 assert.match(renderers.safeUrl("https://example.org/path?q=1"), /^https:\/\//);
 assert.equal(renderers.confidenceLabel("unknown"), "Sınırlı kaynak desteği");
+assert.deepEqual(Array.from(renderers.quizOptions([2, "3", { text: "4" }, { label: "5" }])), ["2", "3", "4", "5"]);
+assert.deepEqual(Array.from(renderers.quizOptions("3245")), ["3", "2", "4", "5"]);
+assert.deepEqual(Array.from(renderers.quizOptions(["2", "3", "3", "4", "5"])), ["2", "3", "4", "5"]);
 
 const full = renderers.buildResultViewModel({
   title: "Mars",
@@ -148,6 +151,8 @@ assert.match(classroomSource, /Yeni sınıf adı|Yeni sÄ±nÄ±f adÄ±/);
 assert.match(classroomSource, /Öğrenci ekle|Ã–ÄŸrenci ekle/);
 assert.match(htmlSource, /assets\/js\/classroom\.js/);
 assert.match(appSource, /function renderProQuiz/);
+assert.match(appSource, /normalizedOptions\.forEach/);
+assert.match(appSource, /quizOptions\(quiz\.options\)/);
 assert.match(appSource, /function completeProQuiz/);
 assert.match(appSource, /\/api\/quiz\/start/);
 assert.match(appSource, /\/api\/quiz\/answer/);

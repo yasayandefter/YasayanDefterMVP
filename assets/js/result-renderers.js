@@ -71,6 +71,15 @@
     return Math.max(0, Math.min(100, Math.round(number)));
   }
 
+  function quizOptions(value) {
+    var input = Array.isArray(value) ? value : (typeof value === "string" && /^\d{2,8}$/.test(value.trim()) ? value.trim().split("") : [value]);
+    var seen = new Set();
+    return input.map(function (item) {
+      if (typeof item === "string" || typeof item === "number") return text(String(item));
+      return text(item && (item.text || item.label || item.value));
+    }).filter(function (item) { if (!item || seen.has(item)) return false; seen.add(item); return true; }).slice(0, 4);
+  }
+
   function buildResultViewModel(data) {
     data = data && typeof data === "object" ? data : {};
     var structured = data.structuredContent && typeof data.structuredContent === "object" ? data.structuredContent : {};
@@ -116,5 +125,5 @@
     };
   }
 
-  global.ResultRenderers = { safeUrl: safeUrl, confidenceLabel: confidenceLabel, followUpItems: followUpItems, buildResultViewModel: buildResultViewModel };
+  global.ResultRenderers = { safeUrl: safeUrl, confidenceLabel: confidenceLabel, followUpItems: followUpItems, quizOptions: quizOptions, buildResultViewModel: buildResultViewModel };
 }(window));

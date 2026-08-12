@@ -206,7 +206,7 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const empty = accepted.length === 0;
   const eventByUrl = new Map((current.events || []).flatMap(event => (event.sourceRefs || []).map(url => [url, event])));
   const acceptedEvents = [...new Set(accepted.map(item => eventByUrl.get(item.url)).filter(Boolean))].slice(0, 10);
-  const safeItems = accepted.map(item => ({ ...item, text: cleanText(item.text || item.snippet), summary: cleanText(item.text || item.snippet), publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }));
+  const safeItems = accepted.map(item => { const summary = currentQuality.cleanCurrentText(item.text || item.snippet); return { ...item, text: summary, summary, snippet: summary, publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }; });
   const qualityEvents = (acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url, title: item.title, summary: item.summary, authority: item.authority }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, crossSourceSupport: 1 }))).map((event, index) => ({ ...event, id: event.id || `event-${index + 1}` }));
   const claimResult = empty ? { claims: [], contradictions: [] } : currentClaims.buildClaims(qualityEvents);
   const strongestClaims = claimResult.claims.filter(claim => !claim.contradicted).sort((a, b) => b.independentDomains - a.independentDomains || b.authority - a.authority).slice(0, 3);
