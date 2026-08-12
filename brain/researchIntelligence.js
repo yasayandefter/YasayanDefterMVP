@@ -20,9 +20,10 @@ function fold(value) {
 }
 
 function normalizeQuery(value) {
-  const original = cleanText(value, 500).replace(/^[\s.,;:!?]+|[\s.,;:!?]+$/g, "");
-  const searchTerms = fold(original).split(/\s+/).filter(token => token.length > 1 && !STOP.has(token)).slice(0, 16);
-  return { original, normalized: fold(original), searchTerms, safeSearch: searchTerms.join(" ") || fold(original) };
+  const original = cleanText(value, 500);
+  const searchable = original.replace(/^[\s.,;:!?]+|[\s.,;:!?]+$/g, "");
+  const searchTerms = fold(searchable).split(/\s+/).filter(token => token.length > 1 && !STOP.has(token)).slice(0, 16);
+  return { original, normalized: fold(searchable), searchTerms, safeSearch: searchTerms.join(" ") || fold(searchable) };
 }
 
 function classifyIntent(query, freshness = {}) {
@@ -57,6 +58,7 @@ function expandQuery(query, intent) {
   if (intent === "HOW_IT_WORKS") candidates.push(`${base} oluşumu`, `${base} mekanizması`);
   else if (intent === "HISTORY" || intent === "PERSON") candidates.push(`${base} tarihi`);
   else if (intent === "COMPARISON") candidates.push(`${base} karşılaştırma`);
+  else if ((intent === "CURRENT_NEWS" || intent === "CURRENT_EVENT") && /\bteknoloji\b/.test(normalized.normalized)) candidates.push("teknoloji haberleri bugün", "güncel teknoloji gelişmeleri", "technology news today");
   else if (intent === "CURRENT_NEWS" || intent === "CURRENT_EVENT") candidates.push(`${base} son gelişmeler`);
   let english = base;
   for (const [pattern, replacement] of ENGLISH_EXPANSIONS) english = english.replace(pattern, replacement);
@@ -103,7 +105,7 @@ function prepareSources(items, context) {
   const scored = sourceReliability.rankSources(Array.isArray(items) ? items : [], { query: context.normalizedQuery, sources: items });
   const seenUrl = new Set(); const seenContent = [];
   return scored.map(item => ({ ...item, relevanceScore: relevanceScore(item, context), qualityScore: item.reliabilityScore }))
-    .filter(item => item.relevanceScore >= (context.normalizedQuery.split(" ").length === 1 ? 8 : 12) || item.sourceType === "government" || item.trust === "official")
+    .filter(item => item.relevanceScore >= (context.normalizedQuery.split(" ").length === 1 ? 8 : 12))
     .filter(item => {
       const urlKey = item.canonicalUrl || `${item.domain}|${fold(item.title)}`;
       const contentKey = fingerprint(`${item.title} ${item.snippet}`);
@@ -172,6 +174,42 @@ function sectionTitles(intent) {
   return ["Kısa özet", "Temel bilgiler", "Neden önemlidir?"];
 }
 
+const CURRENT_EMPTY_MESSAGE = "Bu konu için güncel ve doğrulanabilir bir kaynak şu anda bulunamadı.";
+const CURRENT_CATEGORY_LABELS = Object.freeze({ earthquake: "Deprem", space: "Uzay ve Astronomi", technology: "Teknoloji", science: "Bilim", education: "Eğitim", health_general: "Sağlık", environment: "Çevre", general: "Güncel Gelişmeler" });
+
+function currentFollowUps(context) {
+  if (context.intent === "TECHNOLOGY" || context.intent === "CURRENT_NEWS") return ["Teknoloji haberlerini hangi kaynaklardan takip edebilirim?", "Yapay zekâ alanındaki son gelişmeleri araştır.", "Bugünkü uzay teknolojisi gelişmelerini araştır."];
+  if (context.intent === "EARTHQUAKE") return ["Son depremleri resmi kaynaklardan araştır.", "Deprem büyüklüğü nasıl ölçülür?", "Deprem anında neler yapılmalıdır?"];
+  return ["Bu konudaki son gelişmeleri daha sonra yeniden kontrol et.", "Konuyla ilgili resmi kaynakları araştır.", "Bu konunun temel arka planını araştır."];
+}
+
+function createCurrentResult(query, current = {}, detection = {}, context) {
+  const checkedAt = current.checkedAt || new Date().toISOString();
+  const accepted = prepareSources(current.items || [], { ...context, mode: "current" });
+  const empty = accepted.length === 0;
+  const summary = empty ? CURRENT_EMPTY_MESSAGE : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
+  const safeItems = accepted.map(item => ({ ...item, text: cleanText(item.text || item.snippet), summary: cleanText(item.text || item.snippet), publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }));
+  const facts = empty ? [] : safeItems.map(item => ({ text: item.text || item.title, concept: item.title, sourceRefs: [item.canonicalUrl || item.url].filter(Boolean) })).filter(item => item.text).slice(0, 6);
+  const lessonMessage = empty ? "Bu konu için doğrulanmış güncel içerik bulunamadığı için ayrıntılı ders oluşturulamadı." : summary;
+  const category = CURRENT_CATEGORY_LABELS[detection.category] || CURRENT_CATEGORY_LABELS.general;
+  const followUps = currentFollowUps(context);
+  return {
+    ok: true, query, originalQuery: query, normalizedQuery: context.normalizedQuery, title: query,
+    mode: "current", researchMode: "current", currentState: empty ? "CURRENT_EMPTY" : "CURRENT_VERIFIED", currentSourceCount: safeItems.length, checkedAt, intent: context.intent,
+    analysis: { original: query, originalQuestion: query, normalizedQuestion: context.normalizedQuery, type: "güncel", intent: context.intent, topic: query, subject: query, keywords: context.searchTerms, researchQueries: context.expansions, relatedTopics: [] },
+    summary, text: summary, image: "", url: "", articles: safeItems, currentItems: safeItems,
+    currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
+    images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: [],
+    brain: { category, summary, facts, interesting: "", quiz: null, flashcards: [], questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
+    ai: { summary, facts, interesting: "", quiz: null, flashcards: [], relatedTopics: [], followUpQuestions: followUps, lesson: { topic: query, summary: lessonMessage, simple: lessonMessage, detailed: lessonMessage, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes: [] } },
+    structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş.", points: [] })), keyConcepts: [], keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
+    followUpQuestions: followUps,
+    freshness: { ...detection, checkedAt, sourceCount: safeItems.length, newestSourceAt: safeItems.find(item => item.publishedAt)?.publishedAt || null, providerErrors: current.providerErrors || [] },
+    reliability: { score: 0, level: "low", sourceCount: safeItems.length, independentDomainCount: 0, highQualitySourceCount: 0 },
+    researchUnavailable: empty, fromMemory: false, time: checkedAt
+  };
+}
+
 function enhanceResult(result, context) {
   const value = result && typeof result === "object" ? result : {};
   const sources = prepareSources(value.articles, context);
@@ -201,6 +239,11 @@ function enhanceResult(result, context) {
   value.sources = [...new Set(sources.map(source => source.source || source.domain).filter(Boolean))];
   value.sourceDetails = sources.map(source => ({ title: source.title, name: source.source, url: source.canonicalUrl || source.url, domain: source.domain, publishedAt: source.publishedAt || null, qualityScore: source.qualityScore, relevanceScore: source.relevanceScore }));
   value.reliability = reliability;
+  if (context.mode === "current") {
+    value.currentSourceCount = sources.length;
+    value.freshness = { ...(value.freshness || {}), sourceCount: sources.length };
+    value.reliability.sourceCount = sources.length;
+  }
   value.timeline = timeline;
   value.comparison = comparison;
   value.contradictions = contradictions;
@@ -214,4 +257,4 @@ function buildContext(query, freshness) {
   return { query: normalized.original, normalizedQuery: normalized.normalized, safeSearch: normalized.safeSearch, searchTerms: normalized.searchTerms, intent, mode: freshness?.requiresFreshness ? "current" : "standard", expansions: expandQuery(query, intent), disambiguation: disambiguate(query, intent), checkedAt: new Date().toISOString() };
 }
 
-module.exports = { INTENTS, cleanText, fold, normalizeQuery, classifyIntent, expandQuery, disambiguate, relevanceScore, prepareSources, dedupeFacts, detectContradictions, prepareImages, buildTimeline, buildComparison, sectionTitles, enhanceResult, buildContext };
+module.exports = { INTENTS, CURRENT_EMPTY_MESSAGE, cleanText, fold, normalizeQuery, classifyIntent, expandQuery, disambiguate, relevanceScore, prepareSources, dedupeFacts, detectContradictions, prepareImages, buildTimeline, buildComparison, sectionTitles, currentFollowUps, createCurrentResult, enhanceResult, buildContext };

@@ -1,6 +1,7 @@
 "use strict";
 
 const STOP_WORDS = new Set("ve veya ile için olan olarak bir bu şu daha çok bilgi konu şey yapılan nedir nasıl neden gibi olanın tarafından üzerinde arasında the and for with from that this are was what how why into about".split(/\s+/));
+const TURKISH_LOW_VALUE_WORDS = new Set("ediliyor edildi edilen olduğu oldugu adını adini olan olarak ayrıca ayrica ancak sonra önce once bugün bugun bugünkü bugunku neler oldu hakkında hakkinda araştırma arastirma kaynak kaynaklar bilgi bilgiler".split(/\s+/));
 const MAX_TEXT = 12000;
 const MAX_SENTENCES = 80;
 const MAX_CONCEPTS = 8;
@@ -61,7 +62,7 @@ function extractSentences(input) {
 
 function tokens(text) {
   return clean(text).toLocaleLowerCase("tr-TR").split(/[^\p{L}\p{N}]+/u)
-    .filter(token => token.length >= 4 && !STOP_WORDS.has(token) && !/^\d+$/.test(token) && !/^(https?|www|com|org|net|png|jpg|jpeg|svg|html)$/.test(token));
+    .filter(token => token.length >= 4 && !STOP_WORDS.has(token) && !TURKISH_LOW_VALUE_WORDS.has(token.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")) && !/^\d+$/.test(token) && !/^(https?|www|com|org|net|png|jpg|jpeg|svg|html)$/.test(token));
 }
 
 function selectSummarySentences(sentences, context = {}) {

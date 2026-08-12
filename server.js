@@ -4902,7 +4902,9 @@ app.get(
 
       let result;
       try {
-        result = await research(query, { audienceLevel: req.query?.audienceLevel, intelligence });
+        result = detection.requiresFreshness
+          ? researchIntelligence.createCurrentResult(query, { items: [], sources: [], providerErrors: [], checkedAt: intelligence.checkedAt }, detection, intelligence)
+          : await research(query, { audienceLevel: req.query?.audienceLevel, intelligence });
       } catch (researchError) {
         if (!detection.requiresFreshness) throw researchError;
         logger.warn("current.standard_pipeline_failed", { requestId: req.requestId, errorName: researchError.name });
@@ -4922,7 +4924,7 @@ app.get(
         const current = await currentProviders.searchCurrent(query, detection);
         if (current.providerErrors.length) logger.warn("current.provider_failure", { requestId: req.requestId, failedCount: current.providerErrors.length });
         if (current.items.length) logger.info("current.provider_success", { requestId: req.requestId, itemCount: current.items.length, sourceCount: current.sources.length });
-        applyCurrentResult(result, current, detection);
+        result = researchIntelligence.createCurrentResult(query, current, detection, intelligence);
       } else {
         result.researchMode = "standard";
         result.freshness = { ...detection, checkedAt: null, sourceCount: 0, newestSourceAt: null };

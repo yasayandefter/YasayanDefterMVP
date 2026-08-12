@@ -470,6 +470,8 @@ const ai =
 data.ai ||
 {};
 
+const currentEmpty = data.currentState === "CURRENT_EMPTY";
+
 $("topicTitle").textContent =
 data.title ||
 analysis.topic ||
@@ -849,13 +851,9 @@ if(interestingBox){
 
 if (interestingText) {
 
-    interestingText.textContent =
-        safeText(ai.interesting) ||
-        safeText(brain.interesting) ||
-        safeText(data.interesting) ||
-        getInterestingFact(
-            $("topicTitle").textContent
-        );
+    interestingText.textContent = currentEmpty
+        ? "Doğrulanmış güncel bilgi bulunamadı."
+        : safeText(ai.interesting) || safeText(brain.interesting) || safeText(data.interesting) || getInterestingFact($("topicTitle").textContent);
    }
 }
 
@@ -924,7 +922,7 @@ null;
 
 renderQuiz(quiz,data);
 
-const related =
+const related = currentEmpty ? [] :
 normalizeList(
     ai.relatedTopics ||
     data.related ||
@@ -939,7 +937,7 @@ renderKnowledgeGraph({
     related,
     keyConcepts: data.structuredContent?.keyConcepts || ai.keyConcepts || [],
     connections: livingMemoryData?.connections || [],
-    history: livingMemoryData?.history || []
+    history: currentEmpty ? [] : livingMemoryData?.history || []
 });
 
 renderRelated(related);
@@ -949,6 +947,7 @@ normalizeList(
 data.followUpQuestions ||
 data.followUps ||
 data.followupQuestions ||
+data.structuredContent?.followUpQuestions ||
 brain.followUpQuestions ||
 ai.followUpQuestions ||
 []
@@ -957,7 +956,7 @@ ai.followUpQuestions ||
 renderFollowUps(
 followUps.length
 ? followUps
-: generateFollowUps(analysis,data)
+: currentEmpty ? [] : generateFollowUps(analysis,data)
 );
 
 renderStats(data);
@@ -1951,7 +1950,11 @@ result.className = "quiz-result";
 
 quizAnswered = false;
 
-if (data?.researchUnavailable) {
+if (data?.currentState === "CURRENT_EMPTY") {
+    quiz = null;
+    question.textContent = "Quiz oluşturmak için yeterli doğrulanmış bilgi bulunamadı.";
+    return;
+} else if (data?.researchUnavailable) {
     quiz = null;
 } else if(
 !quiz ||
