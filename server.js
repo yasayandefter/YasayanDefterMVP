@@ -4932,7 +4932,7 @@ app.get(
 
       result = researchIntelligence.enhanceResult(result, { ...intelligence, checkedAt: result.freshness?.checkedAt || intelligence.checkedAt });
 
-      result.quizPro = quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
+      result.quizPro = detection.requiresFreshness ? null : quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
         count: 5,
         difficulty: "medium",
         type: "multiple-choice"

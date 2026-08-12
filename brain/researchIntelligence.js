@@ -1,6 +1,7 @@
 "use strict";
 
 const sourceReliability = require("./sourceReliability");
+const currentQuality = require("./currentContentQuality");
 
 const STOP = new Set("ve veya ile icin için nedir nasil nasıl neden kimdir ne nasilca hakkında hakkinda bir bu su şu mi mı mu mü the and for with what how why".split(/\s+/));
 const INTENTS = Object.freeze(["DEFINITION", "EXPLANATION", "HOW_IT_WORKS", "HISTORY", "PERSON", "PLACE", "SCIENCE", "COMPARISON", "CAUSE_EFFECT", "CURRENT_NEWS", "CURRENT_EVENT", "EARTHQUAKE", "SPACE", "TECHNOLOGY", "GENERAL"]);
@@ -207,10 +208,11 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
     ? `Öne çıkan ${acceptedEvents.length} güncel gelişme, ${new Set(accepted.map(item => item.domain).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${acceptedEvents.slice(0, 3).map(event => event.headline).join("; ")}.`
     : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
   const safeItems = accepted.map(item => ({ ...item, text: cleanText(item.text || item.snippet), summary: cleanText(item.text || item.snippet), publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }));
-  const facts = empty ? [] : (acceptedEvents.length ? acceptedEvents.map(event => ({ text: event.summary || event.headline, concept: event.headline, sourceRefs: event.sourceRefs, sourceCount: event.crossSourceSupport })) : safeItems.map(item => ({ text: item.text || item.title, concept: item.title, sourceRefs: [item.canonicalUrl || item.url].filter(Boolean) }))).filter(item => item.text).slice(0, 10);
-  const lesson = empty ? null : { topic: query, summary, simple: summary, detailed: summary, analogy: "", examples: [], quiz: [], nextTopics: [] };
+  const qualityEvents = acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, crossSourceSupport: 1 }));
+  const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(qualityEvents, query);
+  const facts = learning.facts;
   const category = CURRENT_CATEGORY_LABELS[detection.category] || CURRENT_CATEGORY_LABELS.general;
-  const followUps = currentFollowUps(context);
+  const followUps = empty ? currentFollowUps(context) : currentQuality.buildCurrentFollowUps(qualityEvents);
   return {
     ok: true, query, originalQuery: query, normalizedQuery: context.normalizedQuery, title: query,
     mode: "current", researchMode: "current", currentState: empty ? "CURRENT_EMPTY" : "CURRENT_VERIFIED", currentSourceCount: safeItems.length, checkedAt, intent: context.intent,
@@ -218,9 +220,9 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
     summary, text: summary, image: "", url: "", articles: safeItems, currentItems: safeItems,
     currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
     images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: [],
-    brain: { category, summary, facts, interesting: "", quiz: null, flashcards: [], questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
-    ai: { summary, facts, interesting: "", quiz: null, flashcards: [], relatedTopics: [], followUpQuestions: followUps, lesson, knowledgeMap: { center: query, nodes: [] } },
-    structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : (acceptedEvents.length ? acceptedEvents.map(event => ({ title: event.headline, text: event.summary || event.headline, points: [], publishedAt: event.publishedAt, sourceCount: event.crossSourceSupport, sourceRefs: event.sourceRefs })) : safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş.", points: [], publishedAt: item.publishedAt, sourceCount: 1, sourceRefs: [item.url] }))), keyConcepts: [], keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
+    brain: { category, summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
+    ai: { summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, relatedTopics: [], followUpQuestions: followUps, lesson: learning.lesson, knowledgeMap: learning.knowledgeMap },
+    structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : (acceptedEvents.length ? acceptedEvents.map(event => ({ title: event.headline, text: event.summary || event.headline, whyItMatters: event.whyItMatters || "", subcategory: event.subcategory, points: [], publishedAt: event.publishedAt, sourceCount: event.sourceCount || event.crossSourceSupport, sourceRefs: event.sourceRefs })) : safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş.", points: [], publishedAt: item.publishedAt, sourceCount: 1, sourceRefs: [item.url] }))), keyConcepts: learning.knowledgeMap.nodes.map(node => ({ term: node.label, definition: "" })), keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
     events: acceptedEvents,
     followUpQuestions: followUps,
     freshness: { ...detection, checkedAt, sourceCount: safeItems.length, newestSourceAt: safeItems.find(item => item.publishedAt)?.publishedAt || null, providerErrors: current.providerErrors || [] },
@@ -242,7 +244,7 @@ function enhanceResult(result, context) {
   const comparison = buildComparison(context.query, context.intent, facts);
   const sectionNames = sectionTitles(context.intent);
   const existingSections = Array.isArray(structured.sections) ? structured.sections : [];
-  const sections = existingSections.map((section, index) => ({ ...section, title: sectionNames[index] || section.title })).slice(0, sectionNames.length);
+  const sections = context.mode === "current" ? existingSections.slice(0, 10) : existingSections.map((section, index) => ({ ...section, title: sectionNames[index] || section.title })).slice(0, sectionNames.length);
   const reliability = sourceReliability.summarizeReliability(sources);
   reliability.crossSourceAgreement = contradictions.length ? "mixed" : sources.length > 1 ? "supported" : "limited";
   reliability.label = reliability.level === "high" ? "Yüksek" : reliability.level === "medium" ? "Orta" : "Sınırlı";

@@ -32,6 +32,7 @@ function classifySource(source) {
   const parsed = parseUrl(item.url || "");
   const domain = normalizeText(item.domain || parsed.domain);
   const label = normalizeText(`${item.source || ""} ${item.publisher || ""} ${item.title || ""} ${item.snippet || item.text || ""}`);
+  if (item.trust === "official" || Number(item.authority) >= 95) return "official";
   if (domain.includes("wikipedia.org") || label.includes("wikipedia")) return "encyclopedia";
   if (domain.includes("wikimedia.org") || label.includes("wikimedia")) return "organization";
   if (/\.(gov|gov\.tr)$/.test(domain) || /\b(resmi kurum|bakanlik|government|official)\b/.test(label)) return "government";
@@ -89,7 +90,7 @@ function scoreSource(source, context = {}) {
   const matched = tokens.filter(token => haystack.includes(token)).length;
   const titleMatched = tokens.filter(token => titleText.includes(token)).length;
   const relevance = tokens.length ? clamp(10 + (matched / tokens.length) * 18 + (titleMatched / tokens.length) * 7) : 18;
-  const qualityBase = { government: 24, scientific: 23, academic: 23, education: 22, encyclopedia: 20, news: 17, organization: 15, commercial: 8, community: 7, unknown: 8 }[item.sourceType] || 8;
+  const qualityBase = { official: 25, government: 24, scientific: 23, academic: 23, education: 22, encyclopedia: 20, news: 17, organization: 15, commercial: 8, community: 7, unknown: 8 }[item.sourceType] || 8;
   const quality = clamp(qualityBase + (item.publisher ? 1 : 0) - (item.canonicalUrl ? 0 : 2));
   const content = clamp((item.title ? 5 : 0) + (item.snippet.length >= 120 ? 7 : item.snippet.length >= 40 ? 4 : item.snippet.length ? 2 : 0) + (item.canonicalUrl ? 3 : 0));
   let freshness = 5;
@@ -101,10 +102,12 @@ function scoreSource(source, context = {}) {
   const independent = item.domain && domains.has(independentDomainKey(item.domain)) ? Math.max(0, domains.size - 1) : domains.size;
   const support = clamp(5 + Math.min(10, independent * 3));
   const scoreBreakdown = { relevance, quality, content, freshness, support };
-  const score = clamp(relevance * WEIGHTS.relevance / 35 + quality * WEIGHTS.quality / 25 + content * WEIGHTS.content / 15 + freshness * WEIGHTS.freshness / 10 + support * WEIGHTS.support / 15);
+  const currentRelevance = item.currentRelevanceVerified ? Math.max(relevance, 20) : relevance;
+  const authorityAdjustment = Number.isFinite(Number(item.authority)) ? Math.max(0, Math.min(4, (Number(item.authority) - 80) / 5)) : 0;
+  const score = clamp(currentRelevance * WEIGHTS.relevance / 35 + quality * WEIGHTS.quality / 25 + content * WEIGHTS.content / 15 + freshness * WEIGHTS.freshness / 10 + support * WEIGHTS.support / 15 + authorityAdjustment);
   const reasons = [];
   if (titleMatched) reasons.push("Konu başlığıyla eşleşiyor.");
-  if (item.sourceType === "government" || item.sourceType === "scientific" || item.sourceType === "education") reasons.push("Kurumsal veya bilimsel kaynak sinyali taşıyor.");
+  if (["official", "government", "scientific", "education"].includes(item.sourceType)) reasons.push("Kurumsal veya bilimsel kaynak sinyali taşıyor.");
   if (item.snippet.length < 40) reasons.push("İçerik özeti kısa.");
   if (!item.canonicalUrl) reasons.push("Geçerli kaynak URL'si bulunamadı.");
   return { ...item, score, reliabilityScore: score, reliabilityLevel: levelFor(score), scoreBreakdown, reliabilityReasons: reasons };
@@ -140,7 +143,7 @@ function summarizeReliability(scoredSources = []) {
     level: levelFor(score),
     sourceCount: items.length,
     independentDomainCount: domains.size,
-    highQualitySourceCount: items.filter(item => item.score >= LEVELS.high).length
+    highQualitySourceCount: items.filter(item => item.sourceType === "official" || item.score >= LEVELS.high).length
   };
 }
 

@@ -420,10 +420,38 @@ function setCurrentEmptyLayout(currentEmpty) {
     const memoryBanner = $("livingMemoryResultBanner");
     if (memoryBanner && currentEmpty) memoryBanner.hidden = true;
 }
+function setSectionVisibleById(id, visible) {
+    const section = $(id)?.closest(".section");
+    if (section) section.hidden = !visible;
+}
+function setCurrentVerifiedLayout(data) {
+    if (data.currentState !== "CURRENT_VERIFIED") {
+        if ($("teacherAnalogy")) { $("teacherAnalogy").hidden = false; const heading = $("teacherAnalogy").previousElementSibling; if (heading) heading.hidden = false; }
+        return;
+    }
+    const facts = data.structuredContent?.keyFacts || [];
+    const flashcards = data.brain?.flashcards || data.ai?.flashcards || [];
+    const mapNodes = data.ai?.knowledgeMap?.nodes || [];
+    setSectionVisibleById("summaryText", false);
+    setSectionVisibleById("analysisType", false);
+    setSectionVisibleById("memoryContainer", !isDemoMode());
+    setSectionVisibleById("voiceStatus", false);
+    setSectionVisibleById("factsContainer", facts.length > 0);
+    setSectionVisibleById("interestingText", Boolean(data.ai?.interesting || data.brain?.interesting));
+    setSectionVisibleById("imagesContainer", Array.isArray(data.images) && data.images.length > 0);
+    setSectionVisibleById("flashcardsContainer", flashcards.length > 0);
+    setSectionVisibleById("quizQuestion", Boolean(data.brain?.quiz || data.ai?.quiz));
+    setSectionVisibleById("knowledgeMap", mapNodes.length > 0);
+    setSectionVisibleById("followContainer", false);
+    setSectionVisibleById("relatedContainer", false);
+    setSectionVisibleById("sourcesContainer", false);
+    if (isDemoMode()) setSectionVisibleById("stepSave", false);
+}
 
 function renderResearch(data){
     const currentEmpty = data.currentState === "CURRENT_EMPTY";
     setCurrentEmptyLayout(currentEmpty);
+    setCurrentVerifiedLayout(data);
     renderProfessionalResult(data);
     if (currentEmpty) return;
 
@@ -482,6 +510,8 @@ data.brain ||
 const ai =
 data.ai ||
 {};
+
+const currentVerified = data.currentState === "CURRENT_VERIFIED";
 
 $("topicTitle").textContent =
 data.title ||
@@ -853,9 +883,10 @@ if (teacherSimple) {
     typeWriter(
         teacherSimple,
         ai.lesson?.simple ||
+        (currentVerified ? "" :
         createSimpleLesson(
             $("topicTitle").textContent
-        )
+        ))
     );
 
 }
@@ -864,19 +895,24 @@ const teacherDetailed = $("teacherDetailed");
 if (teacherDetailed) {
 
     teacherDetailed.textContent =
-        ai.lesson?.detailed ||
+        ai.lesson?.detailed || (currentVerified ? "" :
         createDetailedLesson(
             $("topicTitle").textContent,
             summary
-        );
+        ));
 
 }
 
 $("teacherAnalogy").textContent =
-    ai.lesson?.analogy ||
+    ai.lesson?.analogy || (currentVerified ? "" :
     createAnalogy(
         $("topicTitle").textContent
-    );
+    ));
+if (currentVerified && $("teacherAnalogy")) {
+    $("teacherAnalogy").hidden = true;
+    const heading = $("teacherAnalogy").previousElementSibling;
+    if (heading) heading.hidden = true;
+}
 
 const examplesBox = $("teacherExamples");
 
@@ -896,7 +932,7 @@ if (examplesBox) {
 
         });
 
-    } else {
+    } else if (!currentVerified) {
 
         examplesBox.innerHTML = "<p>Örnek bulunamadı.</p>";
 
@@ -932,7 +968,7 @@ if (interestingText) {
 
     interestingText.textContent = currentEmpty
         ? "Doğrulanmış güncel bilgi bulunamadı."
-        : safeText(ai.interesting) || safeText(brain.interesting) || safeText(data.interesting) || getInterestingFact($("topicTitle").textContent);
+        : safeText(ai.interesting) || safeText(brain.interesting) || safeText(data.interesting) || (currentVerified ? "" : getInterestingFact($("topicTitle").textContent));
    }
 }
 
@@ -1491,6 +1527,18 @@ const container = $("factsContainer");
 
 container.innerHTML = "";
 
+if (data?.currentState === "CURRENT_VERIFIED") {
+    (Array.isArray(facts) ? facts : []).slice(0, 8).forEach(fact => {
+        const text = safeText(typeof fact === "string" ? fact : fact?.text);
+        if (!text) return;
+        const element = document.createElement("article"); element.className = "fact current-fact";
+        const label = document.createElement("div"); label.className = "fact-type"; label.textContent = safeText(fact?.subcategory || "DOĞRULANMIŞ GELİŞME").replace(/_/g, " ");
+        const paragraph = document.createElement("p"); paragraph.textContent = text.slice(0, 320);
+        element.append(label, paragraph); container.appendChild(element);
+    });
+    return;
+}
+
 if(!Array.isArray(facts) || !facts.length){
 
 const fallback =
@@ -2033,6 +2081,8 @@ if (data?.currentState === "CURRENT_EMPTY") {
     quiz = null;
     question.textContent = "Quiz oluşturmak için yeterli doğrulanmış bilgi bulunamadı.";
     return;
+} else if (data?.currentState === "CURRENT_VERIFIED" && (!quiz || !quiz.question || !Array.isArray(quiz.options))) {
+    quiz = null;
 } else if (data?.researchUnavailable) {
     quiz = null;
 } else if(

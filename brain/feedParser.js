@@ -14,9 +14,10 @@ function decodeEntities(value) {
 }
 
 function sanitizeText(value, limit = 4000) {
-  return decodeEntities(String(value || "").replace(/<!\[CDATA\[/gi, "").replace(/\]\]>/g, "")
-    .replace(/<(script|style|iframe|object|embed|svg)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]*>/g, " ")
-    .replace(/[\u0000-\u001F]/g, " ").replace(/\s+/g, " ").trim()).slice(0, limit);
+  let text = String(value || "").replace(/<!\[CDATA\[/gi, "").replace(/\]\]>/g, "");
+  for (let pass = 0; pass < 2; pass += 1) text = decodeEntities(text);
+  return text.replace(/<(script|style|iframe|object|embed|svg)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]*>/g, " ")
+    .replace(/[\u0000-\u001F]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
 function field(block, names) {

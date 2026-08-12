@@ -5,6 +5,7 @@ const { parseFeed, parseGeoJson } = require("./feedParser");
 const { fetchProvider } = require("./feedProviders");
 const { WINDOWS, normalize } = require("./freshness");
 const metrics = require("./metrics");
+const currentQuality = require("./currentContentQuality");
 
 const queryCache = new Map(); const feedCache = new Map();
 const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
@@ -57,10 +58,10 @@ function clusterEvents(items, limit = 10) {
   for (const item of items) {
     const cluster = clusters.find(value => Math.abs(Date.parse(value.publishedAt) - Date.parse(item.publishedAt)) <= 3 * 86400000 && similarity(value.headline, item.title) >= 0.58);
     const sourceRef = { providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url: item.url, publishedAt: item.publishedAt };
-    if (cluster) { if (!cluster.sources.some(source => source.url === item.url)) cluster.sources.push(sourceRef); cluster.crossSourceSupport = new Set(cluster.sources.map(source => source.domain)).size; }
-    else clusters.push({ headline: item.title, summary: item.summary, publishedAt: item.publishedAt, facts: [item.summary || item.title].filter(Boolean), sources: [sourceRef], sourceRefs: [item.url], crossSourceSupport: 1 });
+    if (cluster) { if (!cluster.sources.some(source => source.url === item.url)) cluster.sources.push(sourceRef); cluster.crossSourceSupport = new Set(cluster.sources.map(source => source.domain)).size; cluster.sourceCount = cluster.sources.length; }
+    else clusters.push({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory, publishedAt: item.publishedAt, facts: [item.summary || item.title].filter(Boolean), sources: [sourceRef], sourceName: item.sourceName, sourceRefs: [item.url], sourceCount: 1, crossSourceSupport: 1 });
   }
-  return clusters.slice(0, limit).map(cluster => ({ ...cluster, sourceRefs: cluster.sources.map(source => source.url), crossSourceSupport: new Set(cluster.sources.map(source => source.domain)).size }));
+  return clusters.slice(0, limit).map(cluster => ({ ...cluster, sourceRefs: cluster.sources.map(source => source.url), sourceCount: cluster.sources.length, crossSourceSupport: new Set(cluster.sources.map(source => source.domain)).size }));
 }
 async function mapLimit(values, limit, task) {
   const results = new Array(values.length); let cursor = 0;
@@ -80,8 +81,8 @@ async function searchCurrent(query, detection, options = {}) {
   const errors = []; let items = [];
   results.forEach((result, index) => { const source = selected[index]; if (result.status === "fulfilled") { items.push(...result.value.items); metrics.recordProvider(source.id, result.value.durationMs, true, result.value.items.length, result.value.cacheHit); } else { errors.push({ source: source.id, code: String(result.reason?.message || "PROVIDER_UNAVAILABLE").replace(/[^A-Z0-9_\-]/gi, "_").slice(0, 80), message: "Provider unavailable" }); metrics.recordProvider(source.id, 0, false, 0, false); } });
   const cutoff = now - (WINDOWS[windowName] || 7) * 86400000;
-  items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff).filter(item => relevant(item, query, categories)).map(item => ({ ...item, currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
-  items = diversify(items, 20); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => item.domain)).size;
+  items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff).filter(item => relevant(item, query, categories)).map(item => ({ ...currentQuality.qualityItem(item), currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
+  items = currentQuality.rankDiverse(items, { limit: 20, genericTechnology: categories.length === 1 && categories[0] === "technology", specificCategory: ["cybersecurity", "ai"].includes(categories[0]) }); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => item.domain)).size;
   const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains };
   metrics.recordCurrentCoverage(items.length, events.length, independentDomains);
   queryCache.set(key, { createdAt: now, value }); return value;

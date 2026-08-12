@@ -1,0 +1,84 @@
+"use strict";
+
+const { sanitizeText } = require("./feedParser");
+
+const NOISE = /\b(?:View CSAF|Expand All\s*\+?|Legal Notice|Privacy\s*&\s*Use Policy|Acknowledgments|Read more|Continue reading|Skip to content)\b/gi;
+const HTML_LEAK = /<\/?[a-z][^>]*>|\b(?:href|target|class)\s*=|&nbsp;/i;
+const SUBCATEGORIES = Object.freeze({
+  MEDICAL_DEVICE: /medical device|healthcare product|patient|hospital|medikal|sağlık cihaz/,
+  CYBERSECURITY: /\b(?:cve|vulnerability|exploit|malware|ransomware|cybersecurity|security advisory|kev|siber güvenlik|açık)\b/,
+  AI: /\b(?:artificial intelligence|machine learning|deep learning|neural|large language model|generative ai|yapay zek[aâ]|makine öğren)\b/,
+  SPACE_TECH: /\b(?:nasa|esa|spacecraft|satellite|lunar|orbit|rocket|artemis|space technology|uzay|uydu|roket)\b/,
+  HARDWARE: /\b(?:chip|semiconductor|processor|hardware|device|sensor|donanım|işlemci)\b/,
+  SOFTWARE: /\b(?:software|application|platform|operating system|developer|code|yazılım|uygulama)\b/,
+  ROBOTICS: /\b(?:robot|robotics|autonomous system|automation|robotik)\b/,
+  SCIENCE_TECH: /\b(?:research|scientist|laboratory|quantum|science|araştırma|bilim)\b/
+});
+
+function cleanHeadline(value) {
+  return sanitizeText(value, 260).replace(NOISE, " ").replace(/\s+(?:\||—|-)\s+(?:CISA|NASA|NIST|MIT News|Microsoft Research)$/i, "").replace(/\s+/g, " ").trim().slice(0, 180);
+}
+function cleanCurrentText(value, maxLength = 320) {
+  let text = sanitizeText(value, 4000).replace(NOISE, " ").replace(/(?:^|\s)[•▪◆►]+\s*/g, " ").replace(/\[\s*…\s*\]|\.\.\./g, "…").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  const sentences = text.match(/[^.!?…]+[.!?…]+/g) || [];
+  const complete = sentences.map(sentence => sentence.trim()).filter(sentence => sentence.length >= 30);
+  const selected = []; let length = 0;
+  for (const sentence of complete) { if (length + sentence.length > maxLength && selected.length) break; selected.push(sentence); length += sentence.length + 1; if (selected.length >= 3) break; }
+  if (selected.length) return selected.join(" ").slice(0, maxLength).trim();
+  return `${text.slice(0, Math.max(0, maxLength - 1)).replace(/[\s,;:]+$/g, "")}…`;
+}
+function classifySubcategory(item) {
+  const text = `${item?.title || ""} ${item?.summary || item?.text || ""}`.toLocaleLowerCase("tr-TR");
+  for (const [name, pattern] of Object.entries(SUBCATEGORIES)) if (pattern.test(text)) return name;
+  return "GENERAL_TECH";
+}
+function whyItMatters(text) {
+  const sentences = sanitizeText(text, 1800).split(/(?<=[.!?])\s+/).map(sentence => cleanCurrentText(sentence, 220));
+  return sentences.find(sentence => /actively exploited|immediate action|update|patch|risk|critical|important|protect|güvenlik|risk|güncelle/i.test(sentence)) || "";
+}
+function qualityItem(item) {
+  const title = cleanHeadline(item?.title); const summary = cleanCurrentText(item?.summary || item?.text || title);
+  return { ...item, title, headline: title, summary, text: summary, subcategory: classifySubcategory({ ...item, title, summary }), whyItMatters: whyItMatters(item?.summary || item?.text), rawContent: undefined, rawDescription: undefined, feedBody: undefined };
+}
+function rankDiverse(items, options = {}) {
+  const genericTechnology = options.genericTechnology === true; const selected = []; const remaining = [...items]; const domainCounts = new Map(); const subcategoryCounts = new Map();
+  while (remaining.length && selected.length < (options.limit || 20)) {
+    const early = selected.length < 5;
+    let index = remaining.findIndex(item => (options.specificCategory || !early || (domainCounts.get(item.domain) || 0) < 2) && (!genericTechnology || item.subcategory !== "MEDICAL_DEVICE" || (subcategoryCounts.get("MEDICAL_DEVICE") || 0) < 1) && (options.specificCategory || !early || (subcategoryCounts.get(item.subcategory) || 0) < 2));
+    if (index < 0) index = remaining.findIndex(item => !early || (domainCounts.get(item.domain) || 0) < 2);
+    if (index < 0) index = 0;
+    const [item] = remaining.splice(index, 1); selected.push(item); domainCounts.set(item.domain, (domainCounts.get(item.domain) || 0) + 1); subcategoryCounts.set(item.subcategory, (subcategoryCounts.get(item.subcategory) || 0) + 1);
+  }
+  return selected;
+}
+function factFromEvent(event) { return { text: cleanCurrentText(event.summary || event.headline, 260), concept: event.headline, sourceRefs: event.sourceRefs || [], sourceCount: Number(event.sourceCount || event.crossSourceSupport) || 1, subcategory: event.subcategory }; }
+function buildCurrentQuiz(events) {
+  for (const event of events) {
+    const match = `${event.headline} ${event.summary}`.match(/\b([2-9]|10)\s+(?:new\s+)?(?:vulnerabilit|açık|items?|systems?)/i); if (!match) continue;
+    const answer = match[1]; const number = Number(answer); const options = [...new Set([answer, String(Math.max(1, number - 1)), String(number + 1), String(number + 2)])];
+    if (options.length === 4) return { question: `${event.headline} gelişmesinde belirtilen sayı kaçtır?`, options, correct: answer, sourceRefs: event.sourceRefs };
+  }
+  return null;
+}
+function buildCurrentLearning(events, query) {
+  const facts = events.map(factFromEvent).filter(fact => fact.text).slice(0, 8); const headlines = events.slice(0, 4).map(event => event.headline);
+  const simple = headlines.length ? `Bugünkü gelişmeler ${headlines.slice(0, 3).join("; ")} başlıklarında yoğunlaşıyor. Ayrıntılar doğrulanmış kaynak kartlarında yer alıyor.` : "";
+  const detailed = events.slice(0, 5).map(event => `${event.headline}: ${event.summary}`).join("\n\n");
+  const flashcards = events.slice(0, 5).filter(event => event.summary).map(event => ({ question: `${event.sourceName || "Kaynak"} hangi gelişmeyi bildirdi?`, answer: event.summary, sourceRefs: event.sourceRefs }));
+  const nodes = [...new Set(events.flatMap(event => [event.subcategory, ...(event.sources || []).map(source => source.sourceName)].filter(Boolean)))].slice(0, 10).map(label => ({ label }));
+  return { facts, quiz: buildCurrentQuiz(events), flashcards, lesson: { topic: query, summary: simple, simple, detailed, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes } };
+}
+function buildCurrentFollowUps(events) {
+  const subcategories = new Set(events.map(event => event.subcategory)); const providers = new Set(events.flatMap(event => (event.sources || []).map(source => source.sourceName)));
+  const questions = [];
+  if (subcategories.has("CYBERSECURITY") || subcategories.has("MEDICAL_DEVICE")) questions.push("Bugünkü siber güvenlik gelişmelerini araştır.");
+  if (subcategories.has("AI")) questions.push("Yapay zekâ alanındaki son haberleri araştır.");
+  if (subcategories.has("SPACE_TECH") || [...providers].some(name => /NASA|ESA/i.test(name))) questions.push("NASA ve ESA'nın son teknoloji çalışmalarını araştır.");
+  if (subcategories.has("HARDWARE")) questions.push("Bugünkü donanım ve çip gelişmelerini araştır.");
+  questions.push("Bugünkü teknoloji gelişmelerini farklı kaynaklardan araştır.");
+  return [...new Set(questions)].slice(0, 4).map(text => ({ text, query: text }));
+}
+function assertPlainCurrent(value) { return !HTML_LEAK.test(JSON.stringify(value)); }
+
+module.exports = { NOISE, HTML_LEAK, cleanHeadline, cleanCurrentText, classifySubcategory, whyItMatters, qualityItem, rankDiverse, factFromEvent, buildCurrentQuiz, buildCurrentLearning, buildCurrentFollowUps, assertPlainCurrent };
