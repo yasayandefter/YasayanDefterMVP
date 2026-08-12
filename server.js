@@ -64,7 +64,7 @@ const {
 
 /*
 =========================================================
- YAŞAYAN DEFTER — BRAIN ENGINE 10.0
+ YAŞAYAN DEFTER 15.0 PILOT
 =========================================================
 
  • OpenAI YOK
@@ -6339,7 +6339,7 @@ if (require.main === module) {
     );
 
     console.log(
-      "🧠 BRAIN ENGINE 10.0"
+      "🧠 YAŞAYAN DEFTER 15.0 PILOT"
     );
 
     console.log(
@@ -6452,7 +6452,7 @@ if (require.main === module) {
     );
 
     console.log(
-      "🧠 Brain Engine 10.0 hazır."
+      "🧠 Yaşayan Defter 15.0 Pilot hazır."
     );
 
   });

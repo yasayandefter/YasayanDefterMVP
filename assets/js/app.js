@@ -1,7 +1,7 @@
 
 /* =========================================================
    YAŞAYAN DEFTER
-   BRAIN ENGINE 10.0
+   YAŞAYAN DEFTER 15.0 PILOT
    NO OPENAI / NO OLLAMA / NO PAID AI
 ========================================================= */
 
@@ -41,6 +41,7 @@ let livingMemoryData = null;
 let livingMemoryController = null;
 let livingMemorySequence = 0;
 let knowledgeGraphSignature = "";
+let persistentNotebook = [];
 
 let learningState = {
 summary:false,
@@ -3579,6 +3580,9 @@ speakSummary();
 
 function getSavedTopics(){
 
+if(isDemoMode()) return [];
+if(window.YasayanDefterAuth?.authenticated === true) return persistentNotebook;
+
 try{
 
 return JSON.parse(
@@ -3595,26 +3599,42 @@ return [];
 
 }
 
-function saveCurrentTopic(){
+async function saveCurrentTopic(){
 
 if(!currentResearch) return;
 
 if(isDemoMode()){
-learningState.save = true;
-$("stepSave").classList.add("done");
-updateProgress();
-$("saveTopicButton").textContent = "Bu oturumda hazır";
-$("saveTopicButton").classList.add("saved");
+$("saveTopicButton").textContent = "Kaydetmek için giriş yap";
+$("saveTopicButton").classList.remove("saved");
+document.querySelector("[data-open-login]")?.focus();
 return;
 }
-
-const saved =
-getSavedTopics();
 
 const title =
 currentResearch.title ||
 currentAnalysis?.topic ||
 "Konusuz araştırma";
+
+if(window.YasayanDefterAuth?.authenticated === true){
+
+try{
+
+const memory = await awaitMemorySave();
+persistentNotebook = [
+memoryToNotebook(memory),
+...persistentNotebook.filter(item=>item.id !== memory.id && item.title !== memory.title)
+];
+
+}catch(_error){
+
+showError("Araştırma şu anda Defterim'e kaydedilemedi. Lütfen daha sonra tekrar dene.");
+return;
+
+}
+
+}else{
+
+const saved = getSavedTopics();
 
 const exists =
 saved.some(item=>item.title === title);
@@ -3663,6 +3683,8 @@ saved.slice(0,50)
 
 }
 
+}
+
 learningState.save = true;
 
 $("stepSave").classList.add("done");
@@ -3675,26 +3697,6 @@ $("saveTopicButton").textContent =
 "✓ Deftere kaydedildi";
 
 $("saveTopicButton").classList.add("saved");
-
-/*
-Backend memory endpoint'i varsa,
-yerel frontend kaydının yanında backend hafızasına da
-göndermeyi deniyoruz.
-Endpoint yoksa hata vermeden devam ediyor.
-*/
-
-try{
-
-awaitMemorySave();
-
-}catch(error){
-
-console.log(
-"Backend memory save kullanılmıyor:",
-error.message
-);
-
-}
 
 }
 
@@ -3722,17 +3724,19 @@ currentAnalysis?.original ||
 summary:
 $("summaryText").textContent,
 
-facts:
+keyFacts:
+currentResearch.structuredContent?.keyFacts ||
 currentResearch.ai?.facts ||
 currentResearch.brain?.facts ||
 currentResearch.facts ||
 [],
 
-interesting:
-$("interestingText").textContent,
+keyConcepts:
+currentResearch.structuredContent?.keyConcepts || [],
 
-date:
-new Date().toISOString()
+relatedTopics:
+currentResearch.structuredContent?.relatedTopics ||
+currentResearch.relatedTopics || []
 
 };
 
@@ -3761,11 +3765,60 @@ throw new Error(
 
 }
 
+const data = await response.json();
+return data.memory;
+
+}
+
+function memoryToNotebook(memory){
+
+return {
+id:memory.id,
+title:memory.title || memory.topic || "Kayıtlı araştırma",
+question:memory.topic || memory.title || "",
+summary:memory.summary || "",
+facts:memory.keyFacts || [],
+interesting:"",
+date:memory.updatedAt ? new Date(memory.updatedAt).toLocaleString("tr-TR") : ""
+};
+
+}
+
+async function loadPersistentNotebook(){
+
+if(window.YasayanDefterAuth?.authenticated !== true){
+persistentNotebook = [];
+renderNotebook();
+return;
+}
+
+try{
+
+const response = await fetch(API + "/api/memory/list", { headers:{ "Accept":"application/json" } });
+if(!response.ok) throw new Error("MEMORY_LIST_FAILED");
+const data = await response.json();
+persistentNotebook = Array.isArray(data.memories) ? data.memories.map(memoryToNotebook) : [];
+renderNotebook();
+updateSaveButton();
+
+}catch(_error){
+
+persistentNotebook = [];
+renderNotebook("Defterim kayıtları şu anda yüklenemedi.");
+
+}
+
 }
 
 function updateSaveButton(){
 
 if(!currentResearch) return;
+
+if(isDemoMode()){
+$("saveTopicButton").textContent = "Kaydetmek için giriş yap";
+$("saveTopicButton").classList.remove("saved");
+return;
+}
 
 const title =
 currentResearch.title ||
@@ -3810,7 +3863,7 @@ renderNotebook();
 
 }
 
-function renderNotebook(){
+function renderNotebook(errorMessage){
 
     const box = $("notebookList");
 
@@ -3821,8 +3874,8 @@ if(!saved.length){
 
 box.innerHTML =
 '<div class="fact">' +
-'<h4>Defterin henüz boş</h4>' +
-'<p>Bir araştırma yap ve “Bu konuyu kaydet” düğmesine bas.</p>' +
+'<h4>' + (isDemoMode() ? 'Araştırmalarını kaydet' : 'Defterin henüz boş') + '</h4>' +
+'<p>' + escapeHTML(errorMessage || (isDemoMode() ? 'Kalıcı Defterim için giriş yap veya hesap oluştur. Araştırmaya giriş yapmadan devam edebilirsin.' : 'Bir araştırma yap ve “Bu konuyu kaydet” düğmesine bas.')) + '</p>' +
 '</div>';
 
 return;
@@ -3847,10 +3900,10 @@ escapeHTML(item.title) +
 escapeHTML(item.date || "") +
 '</div>' +
 '</div>' +
-'<button class="delete-save">Sil</button>';
+(window.YasayanDefterAuth?.authenticated === true ? '' : '<button class="delete-save">Sil</button>');
 
-row.querySelector(".delete-save")
-.onclick = event=>{
+const deleteButton = row.querySelector(".delete-save");
+if(deleteButton) deleteButton.onclick = event=>{
 
 event.stopPropagation();
 
@@ -4008,11 +4061,12 @@ function initializeApp() {
         animateCounter("speedCounter",0.8);
     }
 
-    console.log("🧠 Yaşayan Defter 13 Professional Hazır");
+    console.log("🧠 Yaşayan Defter 15.0 Pilot hazır");
 
 }
 
 window.addEventListener("yasayan-auth-ready", function () {
+    loadPersistentNotebook();
     if (canUsePersistentApi() || isDemoMode()) refreshLivingMemoryWorkspace();
 });
 

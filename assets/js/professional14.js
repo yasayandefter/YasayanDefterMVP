@@ -3,6 +3,7 @@
 
     var STORAGE_KEY = "yasayan-defter-professional14";
     var state = loadState();
+    var latestLearningProfile = null;
 
     function loadState() {
         try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (error) { return {}; }
@@ -62,17 +63,18 @@
         var results = document.getElementById("results");
         if (!results || document.getElementById("brainScorePanel")) return;
         var panel = createElement("section", { id: "brainScorePanel", class: "section pro14-panel", "aria-labelledby": "brainScoreTitle" });
-        panel.innerHTML = '<div class="section-head"><div><h3 id="brainScoreTitle" class="section-title">Brain Score</h3><div class="section-subtitle">Öğrenme ilerleğinin profesyonel özeti.</div></div><strong class="pro14-score" id="brainScoreValue">0%</strong></div><div class="section-body"><div class="pro14-progress"><span id="brainScoreProgress"></span></div><p id="brainScoreHint">Araştırma adımlarını tamamladıkça skorun güncellenir.</p><div class="pro14-recommendation" id="smartRecommendation">Bunu öğrendiğine göre şimdi ilişkili konuları keşfedebilirsin.</div></div>';
+        panel.innerHTML = '<div class="section-head"><div><h3 id="brainScoreTitle" class="section-title">Brain Score</h3><div class="section-subtitle">Araştırma, quiz ve ilerleme verilerinden hesaplanan öğrenme göstergesi.</div></div><strong class="pro14-score" id="brainScoreValue">—</strong></div><div class="section-body"><div class="pro14-progress"><span id="brainScoreProgress"></span></div><p id="brainScoreHint">Bu değer bilimsel bir zekâ ölçümü değildir. Hesap verin oluştukça güncellenir.</p><div class="pro14-recommendation" id="smartRecommendation">Bir araştırma yaparak öğrenme ilerlemeni başlatabilirsin.</div></div>';
         results.insertBefore(panel, results.firstElementChild);
         updateScore();
     }
 
-    function updateScore() {
+    function updateScore(profile) {
         var value = document.getElementById("brainScoreValue");
         var progress = document.getElementById("brainScoreProgress");
         if (!value || !progress) return;
-        var completed = document.querySelectorAll("#results .step.completed, #results [data-complete='true']").length;
-        var score = Math.min(100, Math.max(8, completed * 14 + (document.getElementById("quizResult")?.textContent ? 20 : 0)));
+        var score = Number((profile || latestLearningProfile)?.brainScore);
+        if (!Number.isFinite(score)) { value.textContent = "—"; progress.style.width = "0%"; return; }
+        score = Math.max(0, Math.min(100, Math.round(score)));
         value.textContent = score + "%"; progress.style.width = score + "%";
     }
 
@@ -119,4 +121,5 @@
     document.addEventListener("DOMContentLoaded", function () {
         addTeacherControls(); addQuizControls(); addScoreAndRecommendations(); enhanceNotebook(); observeResults();
     });
+    window.addEventListener("learning:profile", function (event) { latestLearningProfile = event.detail || null; updateScore(latestLearningProfile); });
 }());

@@ -1,7 +1,7 @@
 /*
 =========================================================
  YAŞAYAN DEFTER
- Brain Engine 11.0
+ Yaşayan Defter 15.0 Pilot
  Config
 =========================================================
 */
@@ -10,10 +10,10 @@ const CONFIG = {
 
     VERSION: "11.0",
 
-    ENGINE_NAME: "Brain Engine 11.0",
+    ENGINE_NAME: "Yaşayan Defter 15.0 Pilot",
 
     USER_AGENT:
-        "YasayanDefter/11.0 (Educational Research Engine)",
+        "YasayanDefter/15.0-Pilot (Educational Research Engine)",
 
     WIKIPEDIA_LIMIT: 8,
 

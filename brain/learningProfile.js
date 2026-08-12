@@ -39,6 +39,14 @@ function calculateLevel(totalXP) {
   return { level, totalXP: xp, nextLevelXP: nextThreshold, xpToNextLevel: Math.max(0, nextThreshold - xp) };
 }
 
+function calculateBrainScore(input = {}) {
+  const research = Math.min(30, Math.max(0, number(input.researchedTopics)) * 6);
+  const quizzes = Math.min(30, Math.max(0, number(input.completedQuizzes)) * 6);
+  const accuracy = number(input.answeredQuestions) > 0 ? Math.min(25, Math.max(0, number(input.accuracy)) * 0.25) : 0;
+  const xp = Math.min(15, Math.max(0, number(input.totalXP)) / 100 * 3);
+  return Math.max(0, Math.min(100, Math.round(research + quizzes + accuracy + xp)));
+}
+
 function quizStats(record) {
   const score = record?.quizScore && typeof record.quizScore === "object" ? record.quizScore : null;
   const total = Math.max(0, number(score?.total));
@@ -75,7 +83,8 @@ function buildProfile(records, now = new Date()) {
   const totalXP = safeRecords.reduce((sum, record) => { const stats = quizStats(record); const awarded = number(record?.quizScore?.xpAwarded); return sum + Math.max(0, number(record.timesSearched, 1)) * 10 + (awarded || (stats.correct * 8 + (stats.attempts ? 10 : 0))); }, 0);
   const level = calculateLevel(totalXP);
   const recentTopics = [...topicProgress].sort((a, b) => new Date(b.lastStudiedAt) - new Date(a.lastStudiedAt)).slice(0, 8).map(item => item.topic);
-  return { totalXP: level.totalXP, level: level.level, nextLevelXP: level.nextLevelXP, xpToNextLevel: level.xpToNextLevel, researchedTopics: safeRecords.length, completedQuizzes: quiz.attempts, answeredQuestions: quiz.answered, correctAnswers: quiz.correct, incorrectAnswers: quiz.incorrect, skippedAnswers: safeRecords.reduce((sum, record) => sum + quizStats(record).skipped, 0), accuracy: quiz.answered ? Math.round(quiz.correct / quiz.answered * 100) : 0, strongConcepts: [...strong.keys()].slice(0, LIMITS.concepts), weakConcepts: [...weak.keys()].slice(0, LIMITS.concepts), recentTopics, topicProgress, lastActivity: recentTopics.length ? topicProgress.find(item => item.topic === recentTopics[0])?.lastStudiedAt || null : null };
+  const profile = { totalXP: level.totalXP, level: level.level, nextLevelXP: level.nextLevelXP, xpToNextLevel: level.xpToNextLevel, researchedTopics: safeRecords.length, completedQuizzes: quiz.attempts, answeredQuestions: quiz.answered, correctAnswers: quiz.correct, incorrectAnswers: quiz.incorrect, skippedAnswers: safeRecords.reduce((sum, record) => sum + quizStats(record).skipped, 0), accuracy: quiz.answered ? Math.round(quiz.correct / quiz.answered * 100) : 0, strongConcepts: [...strong.keys()].slice(0, LIMITS.concepts), weakConcepts: [...weak.keys()].slice(0, LIMITS.concepts), recentTopics, topicProgress, lastActivity: recentTopics.length ? topicProgress.find(item => item.topic === recentTopics[0])?.lastStudiedAt || null : null };
+  return { ...profile, brainScore: calculateBrainScore(profile) };
 }
 
 function buildRecommendations(profile, records = []) {
@@ -89,4 +98,4 @@ function buildRecommendations(profile, records = []) {
   return recommendations.slice(0, LIMITS.recommendations);
 }
 
-module.exports = { LEVELS, calculateLevel, buildTopicProgress, buildProfile, buildRecommendations, masteryFor };
+module.exports = { LEVELS, calculateLevel, calculateBrainScore, buildTopicProgress, buildProfile, buildRecommendations, masteryFor };

@@ -2,7 +2,7 @@
     "use strict";
 
     var KEY = "yasayan-defter-commercial-profile";
-    var defaults = { name: "Yaşayan Öğrenci", level: "Ortaokul", research: 0, quizzes: 0, xp: 0, streak: 1, recent: [] };
+    var defaults = { recent: [] };
     var state = read();
 
     function authState() { return window.YasayanDefterAuth || {}; }
@@ -43,17 +43,19 @@
         var results = document.getElementById("results");
         if (!results || document.getElementById("commercialProfile")) return;
         var panel = el("section", { id: "commercialProfile", class: "commercial-profile pro14-panel", "aria-labelledby": "commercialProfileTitle" });
-        panel.innerHTML = '<div class="commercial-profile-head"><div><p class="commercial-kicker">Öğrenme paneli</p><h2 id="commercialProfileTitle">Profilin ve ilerlemen</h2><p class="commercial-muted">Yerel cihazındaki öğrenme akışını tek bakışta takip et.</p></div><button type="button" class="commercial-ghost" id="editProfileButton">Profili düzenle</button></div><div class="commercial-profile-grid"><div class="commercial-profile-identity"><div class="commercial-avatar" aria-hidden="true">YD</div><div><strong id="commercialProfileName"></strong><span id="commercialProfileLevel"></span></div></div><div class="commercial-stat"><strong id="commercialResearchCount">0</strong><span>Araştırma</span></div><div class="commercial-stat"><strong id="commercialQuizCount">0</strong><span>Tamamlanan quiz</span></div><div class="commercial-stat"><strong id="commercialXp">0 XP</strong><span>Öğrenme puanı</span></div><div class="commercial-stat"><strong id="commercialStreak">1 gün</strong><span>Günlük seri</span></div></div><div class="commercial-goals"><div><span>Haftalık hedef</span><strong id="commercialGoalLabel">0 / 5 araştırma</strong></div><div class="commercial-goal-track"><span id="commercialGoalProgress"></span></div><div class="commercial-badges" id="commercialBadges" aria-label="Rozetler"></div></div>';
+        panel.innerHTML = '<div class="commercial-profile-head"><div><p class="commercial-kicker">Öğrenme paneli</p><h2 id="commercialProfileTitle">Profilin ve ilerlemen</h2><p class="commercial-muted" id="commercialProfileNote">Hesap verilerin yüklendiğinde gerçek öğrenme ilerlemen burada görünür.</p></div><button type="button" class="commercial-ghost" id="editProfileButton" hidden>Profili düzenle</button></div><div class="commercial-profile-grid"><div class="commercial-profile-identity"><div class="commercial-avatar" aria-hidden="true">YD</div><div><strong id="commercialProfileName"></strong><span id="commercialProfileLevel"></span></div></div><div class="commercial-stat"><strong id="commercialResearchCount">—</strong><span>Araştırma</span></div><div class="commercial-stat"><strong id="commercialQuizCount">—</strong><span>Tamamlanan quiz</span></div><div class="commercial-stat"><strong id="commercialXp">—</strong><span>Öğrenme puanı</span></div><div class="commercial-stat"><strong id="commercialStreak">—</strong><span>Günlük seri</span></div></div><div class="commercial-goals"><div><span>Haftalık hedef</span><strong id="commercialGoalLabel">Henüz veri yok</strong></div><div class="commercial-goal-track"><span id="commercialGoalProgress"></span></div><div class="commercial-badges" id="commercialBadges" aria-label="Rozetler"></div></div>';
         results.insertBefore(panel, results.firstElementChild);
-        document.getElementById("editProfileButton").addEventListener("click", editProfile);
         renderProfile();
     }
     function renderProfile() {
-        var map = { commercialProfileName: state.name, commercialProfileLevel: state.level, commercialResearchCount: state.research, commercialQuizCount: state.quizzes, commercialXp: state.xp + " XP", commercialStreak: state.streak + " gün" };
+        var auth = authState(); var persistent = canLoadProgress();
+        var name = persistent ? (auth.user?.displayName || auth.user?.username || auth.user?.email || "Hesap") : "Misafir kullanım";
+        var map = { commercialProfileName: name, commercialProfileLevel: persistent ? "Veriler yükleniyor…" : "Kalıcı profil yok", commercialResearchCount: "—", commercialQuizCount: "—", commercialXp: "—", commercialStreak: "—" };
         Object.keys(map).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = map[id]; });
-        var progress = Math.min(100, state.research * 20); var bar = document.getElementById("commercialGoalProgress"); if (bar) bar.style.width = progress + "%";
-        var label = document.getElementById("commercialGoalLabel"); if (label) label.textContent = Math.min(5, state.research) + " / 5 araştırma";
-        var badges = document.getElementById("commercialBadges"); if (badges) { badges.innerHTML = ""; [["İlk adım", state.research > 0], ["Meraklı zihin", state.research >= 3], ["Quiz ustası", state.quizzes > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
+        var bar = document.getElementById("commercialGoalProgress"); if (bar) bar.style.width = "0%";
+        var label = document.getElementById("commercialGoalLabel"); if (label) label.textContent = persistent ? "Henüz haftalık veri yok" : "İlerlemeyi kaydetmek için giriş yap";
+        var note = document.getElementById("commercialProfileNote"); if (note) note.textContent = persistent ? "Gerçek hesap ve öğrenme verilerin gösteriliyor." : "Araştırmayı giriş yapmadan kullanabilirsin; ilerleme ve XP kalıcı olarak kaydedilmez.";
+        var badges = document.getElementById("commercialBadges"); if (badges) badges.replaceChildren();
     }
 
     function renderLearningProgress(profile, recommendations) {
@@ -61,7 +63,7 @@
         if (!panel) return;
         var authoritative = { commercialResearchCount: Number(profile.researchedTopics) || 0, commercialQuizCount: Number(profile.completedQuizzes) || 0, commercialXp: (Number(profile.totalXP) || 0) + " XP", commercialProfileLevel: "Seviye " + (Number(profile.level) || 1) };
         Object.keys(authoritative).forEach(function (id) { var node = document.getElementById(id); if (node) node.textContent = authoritative[id]; });
-        var researched = Number(profile.researchedTopics) || 0; var goalProgress = document.getElementById("commercialGoalProgress"); if (goalProgress) goalProgress.style.width = Math.min(100, researched * 20) + "%"; var goalLabel = document.getElementById("commercialGoalLabel"); if (goalLabel) goalLabel.textContent = Math.min(5, researched) + " / 5 araştırma"; var badges = document.getElementById("commercialBadges"); if (badges) { badges.replaceChildren(); [["İlk adım", researched > 0], ["Meraklı zihin", researched >= 3], ["Quiz ustası", (Number(profile.completedQuizzes) || 0) > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
+        var researched = Number(profile.researchedTopics) || 0; var goalProgress = document.getElementById("commercialGoalProgress"); if (goalProgress) goalProgress.style.width = "0%"; var goalLabel = document.getElementById("commercialGoalLabel"); if (goalLabel) goalLabel.textContent = "Henüz haftalık veri yok"; var badges = document.getElementById("commercialBadges"); if (badges) { badges.replaceChildren(); [["İlk adım", researched > 0], ["Meraklı zihin", researched >= 3], ["Quiz ustası", (Number(profile.completedQuizzes) || 0) > 0]].forEach(function (badge) { badges.appendChild(el("span", { class: badge[1] ? "is-earned" : "" }, badge[1] ? "✦ " + badge[0] : "○ " + badge[0])); }); }
         var existing = document.getElementById("learningProgressPanel");
         if (existing) existing.remove();
         var section = el("section", { id: "learningProgressPanel", class: "learning-progress-panel", "aria-labelledby": "learningProgressTitle" });
@@ -75,10 +77,11 @@
         var recommendation = el("p", { id: "learningRecommendation", class: "learning-recommendation" }, recommendations?.[0]?.text || "Yeni bir araştırma yaparak ilerlemene başlayabilirsin.");
         section.appendChild(recommendation);
         panel.appendChild(section);
+        window.dispatchEvent(new CustomEvent("learning:profile", { detail: profile }));
     }
 
     function loadLearningProgress() {
-        if (!canLoadProgress()) return;
+        renderProfile(); if (!canLoadProgress()) return;
         var studentId = ""; try { studentId = localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) {} var suffix = studentId ? "?studentId=" + encodeURIComponent(studentId) : "";
         fetch("/api/progress" + suffix, { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { if (payload?.profile) renderLearningProgress(payload.profile, payload.recommendations || []); }).catch(function () { /* progress is optional */ });
     }
@@ -94,16 +97,11 @@
     }
     function addTeacherPanel() { var results = document.getElementById("results"); if (!results || document.getElementById("teacherDashboard")) return; var panel = teacherNode("section", { id: "teacherDashboard", class: "teacher-dashboard pro14-panel", "aria-labelledby": "teacherDashboardTitle" }); panel.appendChild(teacherNode("p", { class: "teacher-skeleton", "aria-label": "Öğretmen özeti yükleniyor" }, "Öğretmen özeti yükleniyor…")); results.insertBefore(panel, results.firstElementChild); }
     function loadTeacherSummary() { if (!canLoadTeacher()) return; var studentId = ""; try { studentId = localStorage.getItem("yasayan-defter-active-student") || ""; } catch (_) {} var suffix = studentId ? "?studentId=" + encodeURIComponent(studentId) : ""; fetch("/api/teacher/summary" + suffix, { headers: { "Accept": "application/json" } }).then(function (response) { return response.ok ? response.json() : null; }).then(function (payload) { var panel = document.getElementById("teacherDashboard"); if (!panel) return; if (payload?.summary) renderTeacherSummary(payload.summary); else panel.replaceChildren(teacherNode("p", { class: "teacher-empty-state" }, "Henüz yeterli öğrenme verisi yok. Öğrenci araştırma yaptıkça ve quiz çözdükçe bu panel gelişecektir.")); }).catch(function () { var panel = document.getElementById("teacherDashboard"); if (panel) panel.replaceChildren(teacherNode("p", { class: "teacher-error" }, "Öğretmen özeti şu anda yüklenemedi.")); }); }
-    function editProfile() {
-        var name = window.prompt("Profil adın", state.name); if (name === null) return;
-        state.name = name.trim() || defaults.name; state.level = window.prompt("Öğrenme seviyen", state.level) || state.level; save(); renderProfile(); toast("Profilin güncellendi.");
-    }
-
     function addSmartSearch() {
         var input = document.getElementById("questionInput"); if (!input || document.getElementById("commercialSearchList")) return;
         var list = el("datalist", { id: "commercialSearchList" }); ["Yapay zeka", "Kuantum fiziği", "İklim değişikliği", "Mars", "DNA", "Osmanlı tarihi"].concat(state.recent).forEach(function (value) { list.appendChild(el("option", { value: value })); });
         input.setAttribute("list", "commercialSearchList"); input.insertAdjacentElement("afterend", list);
-        var button = document.getElementById("searchButton"); if (button) button.addEventListener("click", function () { var value = input.value.trim(); if (!value) return; state.recent = [value].concat(state.recent.filter(function (x) { return x !== value; })).slice(0, 6); save(); toast("Araştırma öğrenme paneline eklendi."); }, true);
+        var button = document.getElementById("searchButton"); if (button) button.addEventListener("click", function () { var value = input.value.trim(); if (!value) return; if (canLoadProgress()) { state.recent = [value].concat(state.recent.filter(function (x) { return x !== value; })).slice(0, 6); save(); } }, true);
     }
     function addQuizTracking() {
         return;
@@ -122,7 +120,7 @@
         var button = el("button", { id: "demoModeButton", type: "button", class: "commercial-demo" }, "Demo modunu göster"); button.addEventListener("click", function () { toast("Demo modu: örnek akış hazır. Araştırma verilerin değişmedi."); document.body.classList.toggle("demo-mode"); }); hero.querySelector(".hero-live")?.appendChild(button);
     }
     document.addEventListener("DOMContentLoaded", function () { addWorkspaceNavigation(); addProfilePanel(); addTeacherPanel(); addSmartSearch(); addQuizTracking(); addSettings(); addDemoMode(); loadLearningProgress(); loadTeacherSummary(); });
-    window.addEventListener("yasayan-auth-ready", function () { loadLearningProgress(); loadTeacherSummary(); });
+    window.addEventListener("yasayan-auth-ready", function () { renderProfile(); loadLearningProgress(); loadTeacherSummary(); });
     window.addEventListener("learning:updated", function () { loadLearningProgress(); loadTeacherSummary(); });
     window.addEventListener("student:updated", function () { loadLearningProgress(); loadTeacherSummary(); });
 }());

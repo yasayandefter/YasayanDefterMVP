@@ -1,6 +1,6 @@
 // ==========================================
 // YAŞAYAN DEFTER
-// Brain Engine 11.0
+// Yaşayan Defter 15.0 Pilot
 // Smart Teacher Module
 // ==========================================
 

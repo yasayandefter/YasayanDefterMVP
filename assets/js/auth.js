@@ -3,6 +3,7 @@
 
   var state = { production: false, authenticated: false, user: null, demo: true };
   var shell;
+  var returnFocus = null;
   var nativeFetch = window.fetch.bind(window);
   var publicHeadersInstalled = false;
 
@@ -136,14 +137,23 @@
     document.querySelectorAll(".auth-public-actions").forEach(function (node) { node.remove(); });
     if (!hidden && state.demo === true) { var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions()); }
   }
-  function closeAuth() { shell.hidden = true; setPublicActionsHidden(false); }
+  function closeAuth() {
+    shell.hidden = true;
+    var focusTarget = returnFocus;
+    var replacementSelector = focusTarget?.hasAttribute("data-open-login") ? "[data-open-login]" : focusTarget?.hasAttribute("data-open-register") ? "[data-open-register]" : focusTarget?.hasAttribute("data-open-claim") ? "[data-open-claim]" : "";
+    setPublicActionsHidden(false);
+    if (!focusTarget?.isConnected && replacementSelector) focusTarget = document.querySelector(replacementSelector);
+    if (focusTarget?.isConnected) focusTarget.focus();
+    returnFocus = null;
+  }
   function addCloseButton(form) {
     var close = el("button", { type: "button", class: "auth-close", "aria-label": "Hesap penceresini kapat" }, "×");
     close.addEventListener("click", closeAuth); form.prepend(close); return form;
   }
-  function renderLogin() { setPublicActionsHidden(true); shell.hidden = false; shell.querySelector(".auth-card").replaceChildren(addCloseButton(loginForm())); }
-  function renderRegister() { setPublicActionsHidden(true); shell.querySelector(".auth-card").replaceChildren(registerForm()); }
-  function renderClaim() { setPublicActionsHidden(true); shell.querySelector(".auth-card").replaceChildren(claimForm()); }
+  function showAuth(form) { if (shell.hidden) returnFocus = document.activeElement; setPublicActionsHidden(true); shell.hidden = false; shell.querySelector(".auth-card").replaceChildren(addCloseButton(form)); window.setTimeout(function () { shell.querySelector("input, button")?.focus(); }, 0); }
+  function renderLogin() { showAuth(loginForm()); }
+  function renderRegister() { showAuth(registerForm()); }
+  function renderClaim() { showAuth(claimForm()); }
 
   function applyAccessVisibility(role) {
     document.documentElement.dataset.accessMode = role === "DEMO" ? "demo" : String(role || "user").toLowerCase();
@@ -168,8 +178,8 @@
     var register = el("button", { type: "button", "data-open-register": "", "aria-label": "Hesap oluştur" }, "Hesap Oluştur");
     var claim = el("button", { type: "button", "data-open-claim": "" }, "Okul / Sınıfa Katıl");
     login.addEventListener("click", renderLogin);
-    register.addEventListener("click", function () { shell.hidden = false; renderRegister(); });
-    claim.addEventListener("click", function () { shell.hidden = false; renderClaim(); });
+    register.addEventListener("click", renderRegister);
+    claim.addEventListener("click", renderClaim);
     actions.append(login, register, claim); return actions;
   }
 
@@ -203,10 +213,20 @@
   }
 
   async function init() {
-    shell = el("section", { class: "auth-shell", "aria-label": "Hesap erişimi" });
-    shell.appendChild(el("div", { class: "auth-backdrop", "aria-hidden": "true" }));
-    shell.appendChild(el("div", { class: "auth-card" }));
+    shell = el("section", { class: "auth-shell", "aria-label": "Hesap erişimi", hidden: "" });
+    var backdrop = el("div", { class: "auth-backdrop", "aria-hidden": "true" }); backdrop.addEventListener("click", closeAuth); shell.appendChild(backdrop);
+    shell.appendChild(el("div", { class: "auth-card", role: "dialog", "aria-modal": "true", "aria-label": "Hesap erişimi" }));
     document.body.prepend(shell);
+    document.addEventListener("keydown", function (event) {
+      if (shell.hidden) return;
+      if (event.key === "Escape") { event.preventDefault(); closeAuth(); return; }
+      if (event.key !== "Tab") return;
+      var focusable = Array.from(shell.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')).filter(function (node) { return !node.hidden; });
+      if (!focusable.length) return;
+      var first = focusable[0]; var last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
     try {
       var session = await request("/api/auth/session");
       state.production = true;
