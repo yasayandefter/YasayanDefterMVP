@@ -689,12 +689,35 @@ function renderProfessionalResult(data) {
             const card = createSafeElement("article", "professional-content-section");
             if (section.title) card.appendChild(createSafeElement("h4", "professional-section-title", section.title));
             if (section.text) card.appendChild(createSafeElement("p", "professional-readable-text", section.text));
-            if (data && data.researchMode === "current" && (section.publishedAt || section.sourceCount)) card.appendChild(createSafeElement("p", "professional-fact-meta", `${currentDateLabel(section.publishedAt)} · ${Number(section.sourceCount) || 1} kaynak`));
+            if (data && data.researchMode === "current" && (section.publishedAt || section.sourceCount)) {
+                const eventMeta = createSafeElement("div", "professional-event-meta");
+                eventMeta.appendChild(createSafeElement("p", "professional-fact-meta", `${currentDateLabel(section.publishedAt)} · ${Number(section.sourceRefs?.length || section.sourceCount) || 1} kaynak`));
+                if (section.crossSourceSupport === true || Number(section.independentDomains) >= 2) eventMeta.appendChild(createSafeElement("span", "professional-cross-source-badge", "Birden fazla kaynaktan doğrulandı"));
+                else eventMeta.appendChild(createSafeElement("span", "professional-single-source-badge", "Tek kaynak"));
+                if (section.reliability?.label) eventMeta.appendChild(createSafeElement("span", "professional-event-reliability", `Güvenilirlik: ${section.reliability.label}`));
+                card.appendChild(eventMeta);
+            }
             const points = Array.isArray(section.points) ? section.points.filter(Boolean).slice(0, 5) : [];
             if (points.length) {
                 const list = createSafeElement("ul", "professional-point-list");
                 points.forEach(point => list.appendChild(createSafeElement("li", "", point)));
                 card.appendChild(list);
+            }
+            const eventSources = Array.isArray(section.sources) ? section.sources.filter(source => model.safeUrl(source?.url)).slice(0, 8) : [];
+            if (data && data.researchMode === "current" && eventSources.length) {
+                const eventKey = safeText(section.eventId || `event-${grid.children.length + 1}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+                const panelId = `event-sources-${eventKey}`; const toggle = createSafeElement("button", "professional-event-source-toggle", "Kaynakları Gör");
+                toggle.type = "button"; toggle.setAttribute("aria-expanded", "false"); toggle.setAttribute("aria-controls", panelId);
+                const panel = createSafeElement("div", "professional-event-source-panel"); panel.id = panelId; panel.hidden = true;
+                eventSources.forEach(source => {
+                    const sourceCard = createSafeElement("article", "professional-event-source-card");
+                    sourceCard.appendChild(createSafeElement("h5", "professional-event-source-title", source.title || source.provider || source.domain || "Kaynak"));
+                    sourceCard.appendChild(createSafeElement("p", "professional-fact-meta", [source.provider, source.domain, currentDateLabel(source.publishedAt), source.score ? `Skor: ${source.score}` : ""].filter(Boolean).join(" · ")));
+                    if (source.excerpt) sourceCard.appendChild(createSafeElement("p", "professional-readable-text", source.excerpt));
+                    const link = createSafeElement("a", "professional-source-link", "Kaynağı aç"); link.href = model.safeUrl(source.url); link.target = "_blank"; link.rel = "noopener noreferrer"; sourceCard.appendChild(link); panel.appendChild(sourceCard);
+                });
+                toggle.addEventListener("click", () => { const expanded = toggle.getAttribute("aria-expanded") === "true"; toggle.setAttribute("aria-expanded", String(!expanded)); toggle.textContent = expanded ? "Kaynakları Gör" : "Kaynakları Gizle"; panel.hidden = expanded; });
+                card.append(toggle, panel);
             }
             grid.appendChild(card);
         });

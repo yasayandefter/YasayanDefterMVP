@@ -55,7 +55,7 @@ function rankDiverse(items, options = {}) {
 }
 function factFromEvent(event) { return { text: cleanCurrentText(event.summary || event.headline, 260), concept: event.headline, sourceRefs: event.sourceRefs || [], sourceCount: Number(event.sourceCount || event.crossSourceSupport) || 1, subcategory: event.subcategory }; }
 function buildCurrentQuiz(events, claims = []) {
-  const eligible = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı" && claim.sourceRefs?.length);
+  const eligible = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı" && claim.sourceRefs?.length).sort((a, b) => Number(b.crossSourceSupport) - Number(a.crossSourceSupport) || b.independentDomains - a.independentDomains || b.authority - a.authority);
   for (const claim of eligible) {
     if (Number.isFinite(claim.numericValue)) {
       const answer = String(claim.numericValue); const number = claim.numericValue; const options = [...new Set([Math.max(0, number - 1), number, number + 1, number + 2])].sort((a, b) => a - b).map(String);
@@ -77,7 +77,7 @@ function buildCurrentLearning(events, query, claims = []) {
   const flashcards = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı").slice(0, 5).map(claim => {
     const event = eventById.get(claim.eventId); const title = cleanHeadline(event?.headline || ""); const subject = claim.entities?.[0] || title.replace(/\b(?:security|cybersecurity|medical device)\s+advisory\b/gi, "").replace(/\s+/g, " ").trim();
     const question = subject ? (/security|vulnerabil|exploit|risk|cve|kev|güvenlik|açık/i.test(`${claim.text} ${title}`) ? `${subject} güvenlik duyurusunda doğrulanan temel bilgi nedir?` : `${subject} ile ilgili doğrulanan temel bilgi nedir?`) : "Bu güvenlik gelişmesinde doğrulanan temel bilgi nedir?";
-    return { question: cleanCurrentText(question, 220), answer: cleanCurrentText(claim.text, 300), claimRef: claim.id, sourceRefs: claim.sourceRefs };
+    return { question: cleanCurrentText(question, 220), answer: cleanCurrentText(claim.text, 300), claimRef: claim.id, sourceRefs: claim.sourceRefs, supportCount: claim.sourceCount, crossSourceSupport: claim.crossSourceSupport === true };
   });
   const nodes = [...new Set(events.flatMap(event => [event.subcategory, ...(event.sources || []).map(source => source.sourceName)].filter(Boolean)))].slice(0, 10).map(label => ({ label }));
   return { facts, quiz: buildCurrentQuiz(events, claims), flashcards, lesson: { topic: query, summary: simple, simple, detailed, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes } };
@@ -93,5 +93,6 @@ function buildCurrentFollowUps(events) {
   return [...new Set(questions)].slice(0, 4).map(text => ({ text, query: text }));
 }
 function assertPlainCurrent(value) { return !HTML_LEAK.test(JSON.stringify(value)); }
+function eventReliability(event, claims = [], contradictions = []) { const eventClaims = claims.filter(claim => claim.eventId === event.id); const domains = Number(event.independentDomains) || 1; const official = (event.sources || []).filter(source => Number(source.authority) >= 95).length; const conflicted = eventClaims.some(claim => claim.contradicted) || contradictions.some(item => item.sources?.some(url => event.sourceRefs?.includes(url))); const score = Math.max(0, Math.min(100, 45 + Math.min(25, domains * 12) + Math.min(20, official * 8) - (conflicted ? 30 : 0))); return { score, label: conflicted ? "Sınırlı" : score >= 80 ? "Yüksek" : score >= 60 ? "Orta" : "Sınırlı", independentDomains: domains, officialSourceCount: official, contradicted: conflicted }; }
 
-module.exports = { NOISE, HTML_LEAK, PRESENTATION_PREFIX, cleanHeadline, cleanCurrentText, classifySubcategory, whyItMatters, qualityItem, rankDiverse, factFromEvent, buildCurrentQuiz, buildCurrentLearning, buildCurrentFollowUps, assertPlainCurrent };
+module.exports = { NOISE, HTML_LEAK, PRESENTATION_PREFIX, cleanHeadline, cleanCurrentText, classifySubcategory, whyItMatters, qualityItem, rankDiverse, factFromEvent, buildCurrentQuiz, buildCurrentLearning, buildCurrentFollowUps, assertPlainCurrent, eventReliability };

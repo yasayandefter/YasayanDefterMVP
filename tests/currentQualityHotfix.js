@@ -6,7 +6,7 @@ const claimsEngine = require("../brain/currentClaims");
 const now = "2026-08-12T10:00:00.000Z";
 const makeEvent = (id, headline, summary, url) => {
   const item = quality.qualityItem({ providerId: "cisa-advisories", sourceName: "CISA", source: "CISA", domain: "cisa.gov", title: headline, summary, text: summary, url, publishedAt: now, authority: 100, trust: "official" });
-  return { id, headline: item.title, summary: item.summary, sourceName: "CISA", sourceRefs: [url], sourceCount: 1, crossSourceSupport: 1, subcategory: item.subcategory, sources: [{ providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url, title: item.title, summary: item.summary, authority: item.authority }] };
+  return { id, headline: item.title, summary: item.summary, sourceName: "CISA", sourceRefs: [url], sourceCount: 1, independentDomains: 1, crossSourceSupport: false, subcategory: item.subcategory, sources: [{ providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url, title: item.title, summary: item.summary, authority: item.authority }] };
 };
 const events = [
   makeEvent("johnson", "Johnson Controls C-CURE 9000 Security Advisory", "Summary Successful exploitation could allow an attacker to gain unauthorized access to the system.", "https://cisa.gov/johnson"),

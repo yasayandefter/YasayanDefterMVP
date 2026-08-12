@@ -21,7 +21,7 @@ assert.rejects(() => fetchProvider(provider, async (url, options) => new Promise
 const diversityInput = Array.from({ length: 10 }, (_, index) => ({ domain: "a.test", title: `A ${index}` })).concat([{ domain: "b.test", title: "B" }, { domain: "c.test", title: "C" }]);
 assert.deepEqual(diversify(diversityInput, 5).map(item => item.domain), ["a.test", "b.test", "c.test", "a.test", "a.test"]);
 const events = clusterEvents([{ title: "NASA launches new lunar science mission", summary: "One", url: "https://a.test/1", providerId: "a", sourceName: "A", domain: "a.test", publishedAt: "2026-08-12T10:00:00Z" }, { title: "New lunar science mission launched by NASA", summary: "Two", url: "https://b.test/2", providerId: "b", sourceName: "B", domain: "b.test", publishedAt: "2026-08-12T11:00:00Z" }]);
-assert.equal(events.length, 1); assert.equal(events[0].crossSourceSupport, 2); assert.equal(events[0].sourceRefs.length, 2);
+assert.equal(events.length, 1); assert.equal(events[0].crossSourceSupport, true); assert.equal(events[0].independentDomains, 2); assert.equal(events[0].sourceRefs.length, 2);
 
 clearCache();
 const validFeed = url => `<rss><channel><item><title>Science research discovery today</title><link>${url}/article</link><pubDate>Wed, 12 Aug 2026 10:00:00 GMT</pubDate><description>New science research result</description></item><item><title>Old science article</title><link>${url}/old</link><pubDate>Mon, 01 Jun 2026 10:00:00 GMT</pubDate><description>Old science result</description></item></channel></rss>`;
