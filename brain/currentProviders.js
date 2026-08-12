@@ -9,6 +9,7 @@ const currentQuality = require("./currentContentQuality");
 const currentClaims = require("./currentClaims");
 const providerHealth = require("./providerHealth");
 const claimSignatures = require("./claimSignatures");
+const adaptiveAliases = require("./adaptiveAliases");
 
 const queryCache = new Map(); const feedCache = new Map();
 const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
@@ -57,9 +58,9 @@ function diversify(items, limit = 20) {
   return output;
 }
 function clusterEvents(items, limit = 10) {
-  const clusters = []; const matchStats = { signatureMatches: 0, bilingualMatches: 0, rejected: 0, sameOrgMultiSource: 0 };
+  const clusters = []; const aliasRegistry = adaptiveAliases.buildRegistry(items); const matchStats = { signatureMatches: 0, bilingualMatches: 0, rejected: 0, sameOrgMultiSource: 0, aliasCandidates: aliasRegistry.candidates.length, aliasHighConfidence: aliasRegistry.highConfidence.length, aliasUsed: 0, aliasRejected: aliasRegistry.rejected };
   for (const item of items) {
-    const itemSignature = claimSignatures.signature(`${item.title} ${item.summary || ""}`, { category: item.subcategory || item.category, publishedAt: item.publishedAt, language: item.language }); let decision = null;
+    const itemSignature = claimSignatures.signature(`${item.title} ${item.summary || ""}`, { category: item.subcategory || item.category, publishedAt: item.publishedAt, language: item.language, aliasRegistry }); matchStats.aliasUsed += itemSignature.entityAliasesUsed.length; let decision = null;
     const cluster = clusters.find(value => { const result = claimSignatures.match(value.signature, itemSignature); if (result.matched) { decision = result; return true; } if (result.rejectedReason) matchStats.rejected += 1; return false; });
     const sourceRef = { providerId: item.providerId, sourceName: item.sourceName, domain: item.domain, url: item.url, publishedAt: item.publishedAt, title: item.title, summary: item.summary, authority: item.authority };
     if (cluster) { if (!cluster.sources.some(source => source.url === item.url)) cluster.sources.push(sourceRef); const domains = new Set(cluster.sources.map(source => claimSignatures.normalizeDomain(source.domain)).filter(Boolean)); cluster.independentDomains = domains.size; cluster.crossSourceSupport = domains.size >= 2; cluster.sourceCount = cluster.sources.length; cluster.matchReasons = [...new Set([...(cluster.matchReasons || []), ...(decision?.matchReasons || [])])]; matchStats.signatureMatches += 1; if (cluster.signature.language && itemSignature.language && cluster.signature.language !== itemSignature.language) matchStats.bilingualMatches += 1; if (cluster.sources.length > domains.size) matchStats.sameOrgMultiSource += 1; }

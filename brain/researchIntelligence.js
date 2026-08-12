@@ -5,6 +5,7 @@ const currentQuality = require("./currentContentQuality");
 const currentClaims = require("./currentClaims");
 const metrics = require("./metrics");
 const claimSignatures = require("./claimSignatures");
+const eventFamilies = require("./eventFamilies");
 
 const STOP = new Set("ve veya ile icin için nedir nasil nasıl neden kimdir ne nasilca hakkında hakkinda bir bu su şu mi mı mu mü the and for with what how why".split(/\s+/));
 const INTENTS = Object.freeze(["DEFINITION", "EXPLANATION", "HOW_IT_WORKS", "HISTORY", "PERSON", "PLACE", "SCIENCE", "COMPARISON", "CAUSE_EFFECT", "CURRENT_NEWS", "CURRENT_EVENT", "EARTHQUAKE", "SPACE", "TECHNOLOGY", "GENERAL"]);
@@ -112,9 +113,9 @@ function prepareSources(items, context) {
     .filter(item => item.currentRelevanceVerified === true || item.relevanceScore >= (context.normalizedQuery.split(" ").length === 1 ? 8 : 12))
     .filter(item => {
       const urlKey = item.canonicalUrl || `${item.domain}|${fold(item.title)}`;
-      const contentKey = fingerprint(`${item.title} ${item.snippet}`);
-      if (!urlKey || seenUrl.has(urlKey) || seenContent.some(key => overlapScore(key, contentKey) >= 0.9)) return false;
-      seenUrl.add(urlKey); if (contentKey) seenContent.push(contentKey); return true;
+      const contentText = `${item.title} ${item.snippet}`; const contentKey = fingerprint(contentText); const numbers = (contentText.match(/\b\d+(?:[.,]\d+)?\b/g) || []).join("|");
+      if (!urlKey || seenUrl.has(urlKey) || seenContent.some(entry => overlapScore(entry.key, contentKey) >= 0.9 && (!entry.numbers || !numbers || entry.numbers === numbers))) return false;
+      seenUrl.add(urlKey); if (contentKey) seenContent.push({ key: contentKey, numbers }); return true;
     }).sort((a, b) => b.relevanceScore - a.relevanceScore || b.qualityScore - a.qualityScore).slice(0, 20);
 }
 
@@ -210,27 +211,33 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const safeItems = accepted.map(item => { const summary = currentQuality.cleanCurrentText(item.text || item.snippet); return { ...item, text: summary, summary, snippet: summary, publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }; });
   const qualityEvents = (acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url, title: item.title, summary: item.summary, authority: item.authority }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, independentDomains: 1, crossSourceSupport: false }))).map((event, index) => ({ ...event, id: event.id || `event-${index + 1}` }));
   const claimResult = empty ? { claims: [], contradictions: [] } : currentClaims.buildClaims(qualityEvents);
-  for (const event of qualityEvents) { const linked = claimResult.claims.filter(claim => claim.eventId === event.id); event.claimRefs = linked.map(claim => claim.id); event.reliability = currentQuality.eventReliability(event, claimResult.claims, claimResult.contradictions); }
+  const families = empty ? [] : eventFamilies.buildFamilies(qualityEvents, claimResult.claims); const familyContradictions = families.flatMap(family => family.contradictions.map(item => ({ ...item, familyId: family.familyId }))); metrics.recordEventFamilies(families);
+  const allContradictions = [...claimResult.contradictions, ...familyContradictions].filter((item, index, list) => list.findIndex(other => other.type === item.type && JSON.stringify(other.claimRefs || []) === JSON.stringify(item.claimRefs || [])) === index);
+  const sourceByUrl = new Map(qualityEvents.flatMap(event => (event.sources || []).map(source => [source.url, source])));
+  for (const claim of claimResult.claims) claim.sources = claim.sourceRefs.map(url => sourceByUrl.get(url)).filter(Boolean).map(source => ({ provider: source.sourceName, domain: source.domain, publishedAt: source.publishedAt, excerpt: currentQuality.cleanCurrentText(source.summary, 220), score: Number(source.authority) || 0, url: source.url, title: currentQuality.cleanHeadline(source.title) }));
+  for (const event of qualityEvents) { const linked = claimResult.claims.filter(claim => claim.eventId === event.id); const family = families.find(item => item.eventIds.includes(event.id)); event.familyId = family?.familyId || null; event.claimRefs = linked.map(claim => claim.id); event.claims = linked; event.contradictions = family?.contradictions || []; event.reliability = currentQuality.eventReliability(event, claimResult.claims, allContradictions); }
+  const displayEvents = families.map(family => { const members = qualityEvents.filter(event => family.eventIds.includes(event.id)); const primary = members[0]; const sources = [...new Map(members.flatMap(event => event.sources || []).map(source => [source.url, source])).values()]; const sourceRefs = sources.map(source => source.url); const independentDomains = new Set(sources.map(source => claimSignatures.normalizeDomain(source.domain)).filter(Boolean)).size; const event = { ...primary, id: family.familyId, familyId: family.familyId, sources, sourceRefs, sourceCount: sourceRefs.length, independentDomains, crossSourceSupport: independentDomains >= 2, claims: family.claims, claimRefs: family.claims.map(claim => claim.id), contradictions: family.contradictions }; event.reliability = currentQuality.eventReliability(event, family.claims, family.contradictions); return event; });
   const strongestClaims = claimResult.claims.filter(claim => !claim.contradicted).sort((a, b) => b.independentDomains - a.independentDomains || b.authority - a.authority).slice(0, 3);
+  const contradictionNote = allContradictions.length ? " Bir gelişmede kaynaklar farklı bilgiler veriyor." : "";
   const summary = empty ? CURRENT_EMPTY_MESSAGE : strongestClaims.length
-    ? `${qualityEvents.length} güncel gelişme, ${new Set(accepted.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${strongestClaims.map(claim => claim.text).join(" ")}`
-    : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
-  const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(qualityEvents, query, claimResult.claims);
+    ? `${displayEvents.length} güncel gelişme, ${new Set(accepted.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${strongestClaims.map(claim => claim.text).join(" ")}${contradictionNote}`
+    : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.${contradictionNote}`;
+  const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(displayEvents, query, claimResult.claims);
   metrics.recordClaims(claimResult.claims, claimResult.contradictions, learning.quiz);
   const facts = learning.facts;
   const category = CURRENT_CATEGORY_LABELS[detection.category] || CURRENT_CATEGORY_LABELS.general;
-  const followUps = empty ? currentFollowUps(context) : currentQuality.buildCurrentFollowUps(qualityEvents);
+  const followUps = empty ? currentFollowUps(context) : currentQuality.buildCurrentFollowUps(displayEvents);
   return {
     ok: true, query, originalQuery: query, normalizedQuery: context.normalizedQuery, title: query,
     mode: "current", researchMode: "current", currentState: empty ? "CURRENT_EMPTY" : "CURRENT_VERIFIED", currentSourceCount: safeItems.length, checkedAt, intent: context.intent,
     analysis: { original: query, originalQuestion: query, normalizedQuestion: context.normalizedQuery, type: "güncel", intent: context.intent, topic: query, subject: query, keywords: context.searchTerms, researchQueries: context.expansions, relatedTopics: [] },
     summary, text: summary, image: "", url: "", articles: safeItems, currentItems: safeItems,
     currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
-    images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: claimResult.contradictions,
+    images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: allContradictions,
     brain: { category, summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
     ai: { summary, facts, interesting: "", quiz: learning.quiz, flashcards: learning.flashcards, relatedTopics: [], followUpQuestions: followUps, lesson: learning.lesson, knowledgeMap: learning.knowledgeMap },
-    structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : qualityEvents.map(event => ({ eventId: event.id, title: event.headline, text: event.summary || event.headline, whyItMatters: event.whyItMatters || "", subcategory: event.subcategory, points: [], publishedAt: event.publishedAt, sourceCount: event.sourceRefs?.length || event.sourceCount || 1, independentDomains: event.independentDomains || 1, crossSourceSupport: event.crossSourceSupport === true, sourceRefs: event.sourceRefs, claimRefs: event.claimRefs || [], reliability: event.reliability, sources: (event.sources || []).map(source => ({ provider: source.sourceName, domain: source.domain, publishedAt: source.publishedAt, excerpt: currentQuality.cleanCurrentText(source.summary, 220), score: Number(source.authority) || 0, url: source.url, title: currentQuality.cleanHeadline(source.title) })) })), keyConcepts: learning.knowledgeMap.nodes.map(node => ({ term: node.label, definition: "" })), keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
-    events: qualityEvents, claims: claimResult.claims, claimContradictions: claimResult.contradictions,
+    structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : displayEvents.map(event => ({ eventId: event.id, familyId: event.familyId, title: event.headline, text: event.contradictions?.length ? "Kaynaklar bu ayrıntıda farklı bilgi veriyor." : event.summary || event.headline, whyItMatters: event.whyItMatters || "", subcategory: event.subcategory, points: [], publishedAt: event.publishedAt, sourceCount: event.sourceRefs?.length || event.sourceCount || 1, independentDomains: event.independentDomains || 1, crossSourceSupport: event.crossSourceSupport === true, sourceRefs: event.sourceRefs, claimRefs: event.claimRefs || [], claims: event.claims || [], contradictions: event.contradictions || [], reliability: event.reliability, sources: (event.sources || []).map(source => ({ provider: source.sourceName, domain: source.domain, publishedAt: source.publishedAt, excerpt: currentQuality.cleanCurrentText(source.summary, 220), score: Number(source.authority) || 0, url: source.url, title: currentQuality.cleanHeadline(source.title) })) })), keyConcepts: learning.knowledgeMap.nodes.map(node => ({ term: node.label, definition: "" })), keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
+    events: displayEvents, eventFamilies: families, claims: claimResult.claims, claimContradictions: allContradictions,
     followUpQuestions: followUps,
     freshness: { ...detection, checkedAt, sourceCount: safeItems.length, newestSourceAt: safeItems.find(item => item.publishedAt)?.publishedAt || null, providerErrors: current.providerErrors || [] },
     providerHealthSummary: current.providerHealthSummary ? { healthy: current.providerHealthSummary.healthy, degraded: current.providerHealthSummary.degraded, cooldown: current.providerHealthSummary.cooldown } : undefined,

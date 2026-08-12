@@ -25,6 +25,9 @@
     "test:current-quality-hotfix": "node tests/currentQualityHotfix.js",
     "test:claim-signatures": "node tests/claimSignatures.js",
     "test:event-source-ux": "node tests/eventSourceUx.js",
+    "test:adaptive-aliases": "node tests/adaptiveAliases.js",
+    "test:event-contradictions": "node tests/eventContradictions.js",
+    "test:claim-source-panel": "node tests/claimSourcePanel.js",
     "test:current-claims": "node tests/currentClaims.js",
     "test:provider-health": "node tests/providerHealth.js",
     "test:current-quiz": "node tests/currentQuizQuality.js",
@@ -62,7 +65,7 @@
     "db:status": "node db/migrate.js status",
     "db:check": "node -e \"require('./db').health().then(result => { console.log(JSON.stringify(result)); process.exitCode = result.ok ? 0 : 1; })\"",
     "auth:create-teacher": "node scripts/createTeacher.js",
-    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:current-quality && npm run test:current-quality-hotfix && npm run test:claim-signatures && npm run test:event-source-ux && npm run test:current-claims && npm run test:provider-health && npm run test:current-quiz && npm run test:feed-parser && npm run test:current-isolation && npm run test:research-engine && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:authorization && npm run test:repositories && npm run test:postgres-http && npm run test:migration-dry-run && npm run test:frontend && npm run test:smoke"
+    "test": "npm run test:logger && npm run test:reliability && npm run test:content && npm run test:memory && npm run test:quiz && npm run test:quiz-sessions && npm run test:progress && npm run test:teacher && npm run test:classroom && npm run test:freshness && npm run test:current && npm run test:current-quality && npm run test:current-quality-hotfix && npm run test:adaptive-aliases && npm run test:event-contradictions && npm run test:claim-source-panel && npm run test:claim-signatures && npm run test:event-source-ux && npm run test:current-claims && npm run test:provider-health && npm run test:current-quiz && npm run test:feed-parser && npm run test:current-isolation && npm run test:research-engine && npm run test:persistence && npm run test:security && npm run test:metrics && npm run test:postgres-foundation && npm run test:auth && npm run test:authorization && npm run test:repositories && npm run test:postgres-http && npm run test:migration-dry-run && npm run test:frontend && npm run test:smoke"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

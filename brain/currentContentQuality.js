@@ -72,7 +72,7 @@ function buildCurrentQuiz(events, claims = []) {
 function buildCurrentLearning(events, query, claims = []) {
   const facts = claims.length ? claims.filter(claim => !claim.contradicted).map(claim => ({ text: claim.text, concept: claim.entities?.[0] || "Güncel gelişme", sourceRefs: claim.sourceRefs, sourceCount: claim.sourceCount, reliability: claim.confidence, claimRef: claim.id, subcategory: events.find(event => (event.id || "") === claim.eventId)?.subcategory })).slice(0, 8) : events.map(factFromEvent).filter(fact => fact.text).slice(0, 8); const headlines = events.slice(0, 4).map(event => event.headline);
   const simple = headlines.length ? `Bugünkü gelişmeler ${headlines.slice(0, 3).join("; ")} başlıklarında yoğunlaşıyor. Ayrıntılar doğrulanmış kaynak kartlarında yer alıyor.` : "";
-  const detailed = events.slice(0, 5).map(event => `${cleanHeadline(event.headline)}: ${cleanCurrentText(event.summary)}`).join("\n\n");
+  const detailed = events.slice(0, 5).map(event => event.contradictions?.length ? `${cleanHeadline(event.headline)}: Kaynaklar bu ayrıntıda farklı bilgi veriyor; kaynak varyantları birlikte değerlendirilmelidir.` : `${cleanHeadline(event.headline)}: ${cleanCurrentText(event.summary)}`).join("\n\n");
   const eventById = new Map(events.map(event => [event.id, event]));
   const flashcards = claims.filter(claim => !claim.contradicted && claim.confidence !== "Sınırlı").slice(0, 5).map(claim => {
     const event = eventById.get(claim.eventId); const title = cleanHeadline(event?.headline || ""); const subject = claim.entities?.[0] || title.replace(/\b(?:security|cybersecurity|medical device)\s+advisory\b/gi, "").replace(/\s+/g, " ").trim();
@@ -89,6 +89,7 @@ function buildCurrentFollowUps(events) {
   if (subcategories.has("AI")) questions.push("Yapay zekâ alanındaki son haberleri araştır.");
   if (subcategories.has("SPACE_TECH") || [...providers].some(name => /NASA|ESA/i.test(name))) questions.push("NASA ve ESA'nın son teknoloji çalışmalarını araştır.");
   if (subcategories.has("HARDWARE")) questions.push("Bugünkü donanım ve çip gelişmelerini araştır.");
+  if (events.some(event => event.contradictions?.length)) questions.push("Bu gelişmeyle ilgili kaynakları karşılaştır.");
   questions.push("Bugünkü teknoloji gelişmelerini farklı kaynaklardan araştır.");
   return [...new Set(questions)].slice(0, 4).map(text => ({ text, query: text }));
 }

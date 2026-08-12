@@ -1,4 +1,5 @@
 "use strict";
+const adaptiveAliases = require("./adaptiveAliases");
 
 const ACTIONS = Object.freeze([
   ["ADD", /\b(?:add(?:ed|s|ing)?|include(?:d|s)?|ekle(?:di|ndi|nir|yen)|dahil edildi)\b/i],
@@ -39,8 +40,8 @@ function normalizeDomain(value) { const host = String(value || "").toLowerCase()
 function dateBucket(value) { const time = Date.parse(value); return Number.isFinite(time) ? Math.floor(time / 86400000) : null; }
 function languageOf(value) { const text = String(value || ""); return /[çğıöşü]|\b(?:yapay zek[aâ]|güvenlik|ekledi|yayınlandı|tamamladı|görev|duyurdu)\b/i.test(text) ? "tr" : /[a-z]/i.test(text) ? "en" : ""; }
 function signature(text, metadata = {}) {
-  const normalized = fold(text); const action = matches(ACTIONS, normalized)[0] || "GENERAL"; const subjectEntities = matches(ENTITY_ALIASES, normalized); const objectEntities = matches(TOPICS, normalized); const numericValues = numberValues(normalized); const normalizedKeywords = [...new Set([...subjectEntities, ...objectEntities, ...normalized.split(" ").filter(token => token.length > 3 && !STOP.has(token) && !Object.hasOwn(NUMBER_WORDS, token) && !/^\d+$/.test(token))])].sort().slice(0, 24);
-  return { action, subjectEntities, objectEntities, numericValues, dates: [], category: metadata.category || "", language: metadata.language || languageOf(text), normalizedKeywords, dateBucket: dateBucket(metadata.publishedAt), canonical: [action, ...subjectEntities, ...objectEntities, ...numericValues.map(String)].join("|") };
+  const aliasResult = adaptiveAliases.applyAliases(text, metadata.aliasRegistry); const normalized = fold(aliasResult.text); const action = matches(ACTIONS, normalized)[0] || "GENERAL"; const subjectEntities = matches(ENTITY_ALIASES, normalized); const objectEntities = matches(TOPICS, normalized); const namedEntities = [...String(text || "").matchAll(/\b(?:Artemis|Apollo|GPT|Gemini|Llama)[ -]?(?:\d+|[IVX]+)\b/gi)].map(match => adaptiveAliases.normalizeNamedEntity(match[0])); const numericValues = numberValues(normalized); const canonicalEntities = [...new Set([...subjectEntities, ...namedEntities, ...aliasResult.used])]; const normalizedKeywords = [...new Set([...canonicalEntities, ...objectEntities, ...normalized.split(" ").filter(token => token.length > 3 && !STOP.has(token) && !Object.hasOwn(NUMBER_WORDS, token) && !/^\d+$/.test(token))])].sort().slice(0, 24);
+  return { action, subjectEntities: canonicalEntities, objectEntities, numericValues, dates: [], category: metadata.category || "", language: metadata.language || languageOf(text), canonicalEntities, entityAliasesUsed: aliasResult.used, aliasConfidence: aliasResult.used.length ? 95 : 0, normalizedKeywords, dateBucket: dateBucket(metadata.publishedAt), canonical: [action, ...canonicalEntities, ...objectEntities, ...numericValues.map(String)].join("|") };
 }
 function overlap(left, right) { const a = new Set(left); const b = new Set(right); if (!a.size || !b.size) return 0; return [...a].filter(value => b.has(value)).length / Math.min(a.size, b.size); }
 function conflict(left, right) {

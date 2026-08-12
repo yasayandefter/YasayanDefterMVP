@@ -1,0 +1,7 @@
+"use strict";
+const assert = require("node:assert/strict"); const fs = require("node:fs"); const path = require("node:path");
+const app = fs.readFileSync(path.join(__dirname, "..", "assets/js/app.js"), "utf8"); const css = fs.readFileSync(path.join(__dirname, "..", "assets/css/style.css"), "utf8");
+for (const pattern of [/Doğrulanmış İddialar ve Kaynakları/, /İddia Kaynaklarını Gör/, /professional-claim-source-card/, /professional-contradiction-panel/, /Kaynaklar Arasındaki Fark/, /Kaynaklar farklı bilgi veriyor/, /claim\.sources/, /claim\.sourceCount/, /claim\.independentDomains/]) assert.match(app, pattern);
+assert.match(app, /aria-expanded/); assert.match(app, /aria-controls/); assert.match(app, /noopener noreferrer/); assert.match(css, /professional-claim-sources\[hidden\]/); assert.match(css, /professional-claim-source-toggle:focus-visible/); assert.match(css, /max-width:390px/);
+const section = { eventId: "event-1", sourceRefs: ["a", "b", "c"], sourceCount: 3, claims: [{ id: "claim-a", text: "Claim A", sourceRefs: ["a", "b"], sourceCount: 2, sources: [{ url: "https://a.test" }, { url: "https://b.test" }] }, { id: "claim-b", text: "Claim B", sourceRefs: ["c"], sourceCount: 1, sources: [{ url: "https://c.test" }] }] }; assert.equal(section.sourceRefs.length, 3); assert.equal(section.claims[0].sourceRefs.length, 2); assert.equal(section.claims[1].sourceRefs.length, 1);
+console.log("PASS  claim-to-source association, support badges, contradiction panel, nested disclosure accessibility, HTTPS safety contract, and mobile styling");

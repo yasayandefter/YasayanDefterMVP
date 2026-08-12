@@ -2,6 +2,7 @@
 
 const { cleanCurrentText } = require("./currentContentQuality");
 const claimSignatures = require("./claimSignatures");
+const adaptiveAliases = require("./adaptiveAliases");
 
 const STOP = new Set("the a an and or of to in on for with from by is are was were has have had this that these those new latest today bugun bugunku guncel son ile ve bir bu su icin olarak olan oldu yeni".split(" "));
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, bir: 1, iki: 2, uc: 3, üç: 3, dort: 4, dört: 4, bes: 5, beş: 5, alti: 6, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10 });
@@ -54,12 +55,12 @@ function confidenceFor(authority, domains, conflict) {
   if (authority >= 95 || domains >= 2) return "Orta";
   return "Sınırlı";
 }
-function extractClaim(event, index = 0) {
+function extractClaim(event, index = 0, aliasRegistry = null) {
   const text = atomicText(event); if (!text) return null;
   const refs = sourceRefs(event); if (!refs.length) return null;
   const entityList = entities(`${event.headline || ""} ${text}`); const number = numericValue(text); const domains = independentDomains(event);
   const authorities = (event.sources || []).map(source => Number(source.authority)).filter(Number.isFinite); const authority = authorities.length ? Math.max(...authorities) : 75;
-  const signature = claimSignatures.signature(`${event.headline || ""} ${text}`, { category: event.subcategory || event.category, publishedAt: event.publishedAt });
+  const signature = claimSignatures.signature(`${event.headline || ""} ${text}`, { category: event.subcategory || event.category, publishedAt: event.publishedAt, aliasRegistry });
   return { id: `claim-${index + 1}`, eventId: event.id || `event-${index + 1}`, text, normalizedText: fold(text), sourceRefs: refs, sourceCount: refs.length, independentDomains: domains, crossSourceSupport: domains >= 2, confidence: confidenceFor(authority, domains, false), claimType: claimType(text, number), numericValue: number, entities: [...new Set([...entityList, ...signature.subjectEntities])], claimKey: signature.canonical || claimSignature(text, entityList), signature, authority };
 }
 function similarity(left, right) {
@@ -88,7 +89,7 @@ function contradictionsFor(claims) {
   return groups;
 }
 function buildClaims(events = []) {
-  const extracted = events.map(extractClaim).filter(Boolean); const contradictions = contradictionsFor(extracted); const claims = mergeClaims(extracted).filter((claim, index, list) => list.findIndex(value => value.normalizedText === claim.normalizedText && value.sourceRefs.join("|") === claim.sourceRefs.join("|")) === index);
+  const aliasRegistry = adaptiveAliases.buildRegistry(events.flatMap(event => event.sources || [])); const extracted = events.map((event, index) => extractClaim(event, index, aliasRegistry)).filter(Boolean); const contradictions = contradictionsFor(extracted); const claims = mergeClaims(extracted).filter((claim, index, list) => list.findIndex(value => value.normalizedText === claim.normalizedText && value.sourceRefs.join("|") === claim.sourceRefs.join("|")) === index);
   return { claims, contradictions };
 }
 

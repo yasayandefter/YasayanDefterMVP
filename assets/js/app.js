@@ -694,6 +694,7 @@ function renderProfessionalResult(data) {
                 eventMeta.appendChild(createSafeElement("p", "professional-fact-meta", `${currentDateLabel(section.publishedAt)} · ${Number(section.sourceRefs?.length || section.sourceCount) || 1} kaynak`));
                 if (section.crossSourceSupport === true || Number(section.independentDomains) >= 2) eventMeta.appendChild(createSafeElement("span", "professional-cross-source-badge", "Birden fazla kaynaktan doğrulandı"));
                 else eventMeta.appendChild(createSafeElement("span", "professional-single-source-badge", "Tek kaynak"));
+                if (Array.isArray(section.contradictions) && section.contradictions.length) eventMeta.appendChild(createSafeElement("span", "professional-contradiction-badge", "Kaynaklar farklı bilgi veriyor"));
                 if (section.reliability?.label) eventMeta.appendChild(createSafeElement("span", "professional-event-reliability", `Güvenilirlik: ${section.reliability.label}`));
                 card.appendChild(eventMeta);
             }
@@ -716,6 +717,23 @@ function renderProfessionalResult(data) {
                     if (source.excerpt) sourceCard.appendChild(createSafeElement("p", "professional-readable-text", source.excerpt));
                     const link = createSafeElement("a", "professional-source-link", "Kaynağı aç"); link.href = model.safeUrl(source.url); link.target = "_blank"; link.rel = "noopener noreferrer"; sourceCard.appendChild(link); panel.appendChild(sourceCard);
                 });
+                const eventClaims = Array.isArray(section.claims) ? section.claims.filter(claim => claim?.text && Array.isArray(claim.sourceRefs)).slice(0, 8) : [];
+                if (eventClaims.length) {
+                    const claimsWrap = createSafeElement("section", "professional-claim-source-list"); claimsWrap.appendChild(createSafeElement("h5", "professional-event-source-title", "Doğrulanmış İddialar ve Kaynakları"));
+                    eventClaims.forEach((claim, claimIndex) => {
+                        const claimCard = createSafeElement("article", "professional-claim-source-card"); claimCard.appendChild(createSafeElement("p", "professional-readable-text", claim.text));
+                        const support = claim.contradicted ? "Kaynaklar çelişiyor" : Number(claim.independentDomains) >= 2 ? `${claim.independentDomains} bağımsız kaynak` : Number(claim.sourceCount) === 1 && Number(claim.authority) >= 95 ? "1 resmi kaynak" : `${Number(claim.sourceCount) || 0} kaynak`;
+                        claimCard.appendChild(createSafeElement("span", claim.contradicted ? "professional-contradiction-badge" : "professional-claim-support-badge", support));
+                        const claimPanelId = `${panelId}-claim-${claimIndex + 1}`; const claimToggle = createSafeElement("button", "professional-claim-source-toggle", "İddia Kaynaklarını Gör"); claimToggle.type = "button"; claimToggle.setAttribute("aria-expanded", "false"); claimToggle.setAttribute("aria-controls", claimPanelId);
+                        const claimSources = createSafeElement("div", "professional-claim-sources"); claimSources.id = claimPanelId; claimSources.hidden = true;
+                        (claim.sources || []).filter(source => model.safeUrl(source?.url)).forEach(source => { const row = createSafeElement("div", "professional-claim-source-row"); row.appendChild(createSafeElement("span", "", [source.provider, source.domain, currentDateLabel(source.publishedAt)].filter(Boolean).join(" · "))); const link = createSafeElement("a", "professional-source-link", "Kaynağı aç"); link.href = model.safeUrl(source.url); link.target = "_blank"; link.rel = "noopener noreferrer"; row.appendChild(link); claimSources.appendChild(row); });
+                        claimToggle.addEventListener("click", () => { const expanded = claimToggle.getAttribute("aria-expanded") === "true"; claimToggle.setAttribute("aria-expanded", String(!expanded)); claimToggle.textContent = expanded ? "İddia Kaynaklarını Gör" : "İddia Kaynaklarını Gizle"; claimSources.hidden = expanded; }); claimCard.append(claimToggle, claimSources); claimsWrap.appendChild(claimCard);
+                    }); panel.appendChild(claimsWrap);
+                }
+                if (Array.isArray(section.contradictions) && section.contradictions.length) {
+                    const conflictWrap = createSafeElement("aside", "professional-contradiction-panel"); conflictWrap.setAttribute("role", "note"); conflictWrap.appendChild(createSafeElement("h5", "professional-event-source-title", "Kaynaklar Arasındaki Fark")); conflictWrap.appendChild(createSafeElement("p", "professional-readable-text", "Kaynaklar bu ayrıntıda farklı bilgi veriyor; sistem tek bir varyantı doğru kabul etmedi."));
+                    section.contradictions.forEach(conflict => (conflict.variants || []).forEach(variant => conflictWrap.appendChild(createSafeElement("p", "professional-contradiction-variant", `${variant.text} (${variant.sourceRefs?.length || 0} kaynak)`)))); panel.appendChild(conflictWrap);
+                }
                 toggle.addEventListener("click", () => { const expanded = toggle.getAttribute("aria-expanded") === "true"; toggle.setAttribute("aria-expanded", String(!expanded)); toggle.textContent = expanded ? "Kaynakları Gör" : "Kaynakları Gizle"; panel.hidden = expanded; });
                 card.append(toggle, panel);
             }
