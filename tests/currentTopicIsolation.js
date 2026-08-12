@@ -30,9 +30,12 @@ function assertCleanEmpty(result) {
   assert.deepEqual(result.structuredContent.keyFacts, []);
   assert.deepEqual(result.structuredContent.keyConcepts, []);
   assert.deepEqual(result.brain.flashcards, []);
+  assert.equal(result.ai.lesson, null);
   assert.equal(result.brain.quiz, null);
   assert.equal(result.ai.quiz, null);
   assert.deepEqual(result.ai.knowledgeMap.nodes, []);
+  assert.deepEqual(result.followUpQuestions.map(item => item.text), ["Teknoloji haberlerini hangi kaynaklardan takip edebilirim?", "Yapay zekâ alanındaki son gelişmeleri araştır.", "Bugünkü uzay teknolojisi gelişmelerini araştır."]);
+  assert.equal(result.followUpQuestions.every(item => typeof item.text === "string" && typeof item.query === "string"), true);
   for (const forbidden of ["toryum", "mars", "atatürk", "wikipedia"]) assert.equal(serialized.includes(forbidden), false, forbidden);
 }
 

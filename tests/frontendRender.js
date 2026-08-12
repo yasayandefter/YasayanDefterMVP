@@ -45,6 +45,8 @@ const full = renderers.buildResultViewModel({
 });
 assert.equal(full.safeImage, "");
 assert.equal(full.questions.length, 1);
+assert.equal(full.questions[0].text, "Mars neden kırmızı görünür?");
+assert.equal(full.questions[0].query, "Mars neden kırmızı görünür?");
 assert.equal(full.limitations.length, 1);
 assert.equal(full.articles.length, 1);
 assert.equal(full.reliability.level, "medium");
@@ -74,6 +76,16 @@ assert.equal(unsafeScores.questions.length, 1);
 assert.equal(unsafeScores.limitations.length, 1);
 assert.equal(unsafeScores.articles.length, 0);
 assert.deepEqual(unsafeScores.sources, ["https://example.org/source"]);
+
+const objectFollowUps = renderers.buildResultViewModel({
+  followUpQuestions: [{ text: "Okunabilir soru", query: "Araştırılacak güvenli sorgu" }, { question: "Legacy nesne sorusu" }],
+  structuredContent: { followUpQuestions: ["Bu alan top-level canonical liste varken kullanılmamalı"] }
+});
+assert.equal(objectFollowUps.questions.length, 2);
+assert.equal(objectFollowUps.questions[0].text, "Okunabilir soru");
+assert.equal(objectFollowUps.questions[0].query, "Araştırılacak güvenli sorgu");
+assert.equal(objectFollowUps.questions[1].text, "Legacy nesne sorusu");
+assert.equal(JSON.stringify(objectFollowUps.questions).includes("[object Object]"), false);
 
 const legacy = renderers.buildResultViewModel({ title: "Eski sonuç", text: "Eski metin", articles: [], images: [] });
 assert.equal(legacy.summary, "Eski metin");
@@ -170,6 +182,10 @@ assert.match(styleSource, /living-memory-workspace/);
 assert.match(styleSource, /@media \(max-width:600px\).*living-memory-rail/);
 assert.match(styleSource, /prefers-reduced-motion:reduce.*living-memory-skeleton/);
 assert.match(appSource, /researchMode === "current"/);
+assert.match(appSource, /currentState === "CURRENT_EMPTY"/);
+assert.match(appSource, /current-empty-retry/);
+assert.match(appSource, /item\.text/);
+assert.match(appSource, /item\.query/);
 assert.match(appSource, /Güncel Bilgi/);
 assert.match(appSource, /Son kontrol/);
 assert.match(styleSource, /professional-current-badge/);

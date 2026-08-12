@@ -51,6 +51,20 @@
     });
   }
 
+  function followUpItems(values) {
+    var seen = new Set();
+    return (Array.isArray(values) ? values : []).map(function (item) {
+      var label = typeof item === "string" ? text(item) : text(item && (item.text || item.question || item.title));
+      var query = typeof item === "string" ? label : text(item && (item.query || item.searchQuery)) || label;
+      return { text: label, query: query };
+    }).filter(function (item) {
+      var key = item.text.toLocaleLowerCase("tr-TR").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+      if (!key || !item.query || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 5);
+  }
+
   function finiteScore(value) {
     var number = Number(value);
     if (!Number.isFinite(number)) return null;
@@ -70,7 +84,7 @@
     }).slice(0, 8) : [];
     var concepts = Array.isArray(structured.keyConcepts) ? structured.keyConcepts.filter(function (item) { return item && text(item.term); }).slice(0, 8) : [];
     var facts = Array.isArray(structured.keyFacts) ? structured.keyFacts.filter(function (item) { return item && text(item.text); }).slice(0, 8) : [];
-    var questions = uniqueStrings(structured.followUpQuestions).slice(0, 4);
+    var questions = followUpItems(data.followUpQuestions || structured.followUpQuestions).slice(0, 4);
     var limitations = uniqueStrings((structured.limitations || []).concat(structured.contentWarnings || [])).slice(0, 6);
     return {
       title: text(data.title || data.query || "Araştırma sonucu"),
@@ -102,5 +116,5 @@
     };
   }
 
-  global.ResultRenderers = { safeUrl: safeUrl, confidenceLabel: confidenceLabel, buildResultViewModel: buildResultViewModel };
+  global.ResultRenderers = { safeUrl: safeUrl, confidenceLabel: confidenceLabel, followUpItems: followUpItems, buildResultViewModel: buildResultViewModel };
 }(window));

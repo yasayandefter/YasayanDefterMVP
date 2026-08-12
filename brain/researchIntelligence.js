@@ -174,13 +174,27 @@ function sectionTitles(intent) {
   return ["Kısa özet", "Temel bilgiler", "Neden önemlidir?"];
 }
 
+function normalizeFollowUps(values) {
+  const seen = new Set();
+  return (Array.isArray(values) ? values : []).map(item => {
+    if (typeof item === "string") return { text: cleanText(item, 240), query: cleanText(item, 240) };
+    const text = cleanText(item?.text || item?.question || item?.title, 240);
+    const query = cleanText(item?.query || item?.searchQuery || text, 240);
+    return { text, query };
+  }).filter(item => {
+    const key = fold(item.text);
+    if (!key || !item.query || seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(0, 5);
+}
+
 const CURRENT_EMPTY_MESSAGE = "Bu konu için güncel ve doğrulanabilir bir kaynak şu anda bulunamadı.";
 const CURRENT_CATEGORY_LABELS = Object.freeze({ earthquake: "Deprem", space: "Uzay ve Astronomi", technology: "Teknoloji", science: "Bilim", education: "Eğitim", health_general: "Sağlık", environment: "Çevre", general: "Güncel Gelişmeler" });
 
 function currentFollowUps(context) {
-  if (context.intent === "TECHNOLOGY" || context.intent === "CURRENT_NEWS") return ["Teknoloji haberlerini hangi kaynaklardan takip edebilirim?", "Yapay zekâ alanındaki son gelişmeleri araştır.", "Bugünkü uzay teknolojisi gelişmelerini araştır."];
-  if (context.intent === "EARTHQUAKE") return ["Son depremleri resmi kaynaklardan araştır.", "Deprem büyüklüğü nasıl ölçülür?", "Deprem anında neler yapılmalıdır?"];
-  return ["Bu konudaki son gelişmeleri daha sonra yeniden kontrol et.", "Konuyla ilgili resmi kaynakları araştır.", "Bu konunun temel arka planını araştır."];
+  if (context.intent === "TECHNOLOGY" || context.intent === "CURRENT_NEWS") return normalizeFollowUps(["Teknoloji haberlerini hangi kaynaklardan takip edebilirim?", "Yapay zekâ alanındaki son gelişmeleri araştır.", "Bugünkü uzay teknolojisi gelişmelerini araştır."]);
+  if (context.intent === "EARTHQUAKE") return normalizeFollowUps(["Son depremleri resmi kaynaklardan araştır.", "Deprem büyüklüğü nasıl ölçülür?", "Deprem anında neler yapılmalıdır?"]);
+  return normalizeFollowUps(["Bu konudaki son gelişmeleri daha sonra yeniden kontrol et.", "Konuyla ilgili resmi kaynakları araştır.", "Bu konunun temel arka planını araştır."]);
 }
 
 function createCurrentResult(query, current = {}, detection = {}, context) {
@@ -190,7 +204,7 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const summary = empty ? CURRENT_EMPTY_MESSAGE : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.`;
   const safeItems = accepted.map(item => ({ ...item, text: cleanText(item.text || item.snippet), summary: cleanText(item.text || item.snippet), publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }));
   const facts = empty ? [] : safeItems.map(item => ({ text: item.text || item.title, concept: item.title, sourceRefs: [item.canonicalUrl || item.url].filter(Boolean) })).filter(item => item.text).slice(0, 6);
-  const lessonMessage = empty ? "Bu konu için doğrulanmış güncel içerik bulunamadığı için ayrıntılı ders oluşturulamadı." : summary;
+  const lesson = empty ? null : { topic: query, summary, simple: summary, detailed: summary, analogy: "", examples: [], quiz: [], nextTopics: [] };
   const category = CURRENT_CATEGORY_LABELS[detection.category] || CURRENT_CATEGORY_LABELS.general;
   const followUps = currentFollowUps(context);
   return {
@@ -201,7 +215,7 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
     currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
     images: [], related: [], relatedTopics: [], timeline: [], comparison: null, contradictions: [],
     brain: { category, summary, facts, interesting: "", quiz: null, flashcards: [], questionType: "güncel", intent: context.intent, understoodQuestion: query, understoodTopic: query, relatedTopics: [], followUpQuestions: followUps },
-    ai: { summary, facts, interesting: "", quiz: null, flashcards: [], relatedTopics: [], followUpQuestions: followUps, lesson: { topic: query, summary: lessonMessage, simple: lessonMessage, detailed: lessonMessage, analogy: "", examples: [], quiz: [], nextTopics: [] }, knowledgeMap: { center: query, nodes: [] } },
+    ai: { summary, facts, interesting: "", quiz: null, flashcards: [], relatedTopics: [], followUpQuestions: followUps, lesson, knowledgeMap: { center: query, nodes: [] } },
     structuredContent: { version: "current-v1", topic: query, summary, introduction: summary, sections: empty ? [] : safeItems.slice(0, 6).map(item => ({ title: item.title, text: item.text || "Tarih belirtilmemiş.", points: [] })), keyConcepts: [], keyFacts: facts, interestingFacts: [], followUpQuestions: followUps, contentWarnings: [], limitations: empty ? [CURRENT_EMPTY_MESSAGE] : [], generatedFrom: { sourceCount: safeItems.length, articleCount: safeItems.length, usedFallback: false }, intent: context.intent, mode: "current", checkedAt },
     followUpQuestions: followUps,
     freshness: { ...detection, checkedAt, sourceCount: safeItems.length, newestSourceAt: safeItems.find(item => item.publishedAt)?.publishedAt || null, providerErrors: current.providerErrors || [] },
@@ -227,6 +241,7 @@ function enhanceResult(result, context) {
   const reliability = sourceReliability.summarizeReliability(sources);
   reliability.crossSourceAgreement = contradictions.length ? "mixed" : sources.length > 1 ? "supported" : "limited";
   reliability.label = reliability.level === "high" ? "Yüksek" : reliability.level === "medium" ? "Orta" : "Sınırlı";
+  const followUps = normalizeFollowUps(value.followUpQuestions || structured.followUpQuestions || value.brain?.followUpQuestions || value.ai?.followUpQuestions || []);
   value.query = context.query;
   value.normalizedQuery = context.normalizedQuery;
   value.intent = context.intent;
@@ -248,7 +263,10 @@ function enhanceResult(result, context) {
   value.comparison = comparison;
   value.contradictions = contradictions;
   value.limitations = limitations;
-  value.structuredContent = { ...structured, sections, keyFacts: facts, timeline, comparison, limitations, intent: context.intent, mode: context.mode, checkedAt };
+  value.followUpQuestions = followUps;
+  if (value.brain) value.brain.followUpQuestions = followUps;
+  if (value.ai) value.ai.followUpQuestions = followUps;
+  value.structuredContent = { ...structured, sections, keyFacts: facts, followUpQuestions: followUps, timeline, comparison, limitations, intent: context.intent, mode: context.mode, checkedAt };
   return value;
 }
 
@@ -257,4 +275,4 @@ function buildContext(query, freshness) {
   return { query: normalized.original, normalizedQuery: normalized.normalized, safeSearch: normalized.safeSearch, searchTerms: normalized.searchTerms, intent, mode: freshness?.requiresFreshness ? "current" : "standard", expansions: expandQuery(query, intent), disambiguation: disambiguate(query, intent), checkedAt: new Date().toISOString() };
 }
 
-module.exports = { INTENTS, CURRENT_EMPTY_MESSAGE, cleanText, fold, normalizeQuery, classifyIntent, expandQuery, disambiguate, relevanceScore, prepareSources, dedupeFacts, detectContradictions, prepareImages, buildTimeline, buildComparison, sectionTitles, currentFollowUps, createCurrentResult, enhanceResult, buildContext };
+module.exports = { INTENTS, CURRENT_EMPTY_MESSAGE, cleanText, fold, normalizeQuery, classifyIntent, expandQuery, disambiguate, relevanceScore, prepareSources, dedupeFacts, detectContradictions, prepareImages, buildTimeline, buildComparison, sectionTitles, normalizeFollowUps, currentFollowUps, createCurrentResult, enhanceResult, buildContext };

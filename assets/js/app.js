@@ -410,9 +410,22 @@ function getSourceArticles(data) {
     return result;
 }
 
-function renderResearch(data){
+function setCurrentEmptyLayout(currentEmpty) {
+    const results = $("results");
+    if (!results) return;
+    results.classList.toggle("current-empty-results", currentEmpty);
+    results.querySelectorAll(":scope > .section").forEach(section => {
+        if (section.id !== "professionalResult") section.hidden = currentEmpty;
+    });
+    const memoryBanner = $("livingMemoryResultBanner");
+    if (memoryBanner && currentEmpty) memoryBanner.hidden = true;
+}
 
+function renderResearch(data){
+    const currentEmpty = data.currentState === "CURRENT_EMPTY";
+    setCurrentEmptyLayout(currentEmpty);
     renderProfessionalResult(data);
+    if (currentEmpty) return;
 
  const required = [
         "topicTitle",
@@ -469,8 +482,6 @@ data.brain ||
 const ai =
 data.ai ||
 {};
-
-const currentEmpty = data.currentState === "CURRENT_EMPTY";
 
 $("topicTitle").textContent =
 data.title ||
@@ -554,6 +565,58 @@ function renderProfessionalResult(data) {
     if (model.usedFallback) meta.appendChild(createSafeElement("span", "professional-badge is-muted", "Yerel fallback içeriği"));
     head.append(titleGroup, meta);
     host.appendChild(head);
+
+    if (data && data.currentState === "CURRENT_EMPTY") {
+        host.dataset.currentEmpty = "true";
+        const empty = createSafeElement("section", "professional-result-card current-empty-card");
+        empty.appendChild(createSafeElement("h3", "professional-card-title", "Güncel kaynak bulunamadı"));
+        empty.appendChild(createSafeElement("p", "professional-readable-text current-empty-message", model.summary || "Bu konu için güncel ve doğrulanabilir bir kaynak şu anda bulunamadı."));
+        const availability = createSafeElement("div", "professional-reliability-grid current-empty-availability");
+        [["Kaynak", "0"], ["Durum", "Doğrulanmış güncel içerik yok"], ["Güvenilirlik", "Değerlendirilemedi"]].forEach(pair => {
+            const stat = createSafeElement("div", "professional-reliability-stat");
+            stat.append(createSafeElement("strong", "", pair[1]), createSafeElement("span", "", pair[0]));
+            availability.appendChild(stat);
+        });
+        empty.appendChild(availability);
+        const retry = createSafeElement("button", "professional-question-button current-empty-retry", "Tekrar Ara");
+        retry.type = "button";
+        retry.addEventListener("click", () => {
+            const input = $("questionInput");
+            if (input) input.value = model.query;
+            researchTopic();
+        });
+        empty.appendChild(retry);
+        host.appendChild(empty);
+
+        if (model.limitations.length) {
+            const note = createSafeElement("aside", "professional-limitations current-empty-limitations");
+            note.setAttribute("role", "note");
+            note.appendChild(createSafeElement("h3", "professional-card-title", "Bilgi Notları"));
+            const list = createSafeElement("ul", "professional-point-list");
+            model.limitations.forEach(item => list.appendChild(createSafeElement("li", "", item)));
+            note.appendChild(list); host.appendChild(note);
+        }
+
+        if (model.questions.length) {
+            const follow = createSafeElement("section", "professional-result-card current-empty-followups");
+            follow.appendChild(createSafeElement("h3", "professional-card-title", "Takip Araştırmaları"));
+            const grid = createSafeElement("div", "professional-question-grid");
+            model.questions.slice(0, 3).forEach(item => {
+                const button = createSafeElement("button", "professional-question-button", item.text);
+                button.type = "button";
+                button.dataset.followUpQuery = item.query;
+                button.addEventListener("click", () => {
+                    const input = $("questionInput");
+                    if (input) input.value = item.query;
+                    researchTopic();
+                });
+                grid.appendChild(button);
+            });
+            follow.appendChild(grid); host.appendChild(follow);
+        }
+        return;
+    }
+    delete host.dataset.currentEmpty;
 
     if (model.safeImage) {
         const visual = createSafeElement("figure", "professional-result-visual");
@@ -713,11 +776,12 @@ function renderProfessionalResult(data) {
         card.appendChild(createSafeElement("h3", "professional-card-title", "Takip Soruları"));
         const grid = createSafeElement("div", "professional-question-grid");
         model.questions.forEach(question => {
-            const button = createSafeElement("button", "professional-question-button", question);
+            const button = createSafeElement("button", "professional-question-button", question.text);
             button.type = "button";
+            button.dataset.followUpQuery = question.query;
             button.addEventListener("click", () => {
                 const input = $("questionInput");
-                if (input) input.value = question;
+                if (input) input.value = question.query;
                 researchTopic();
             });
             grid.appendChild(button);
@@ -943,7 +1007,7 @@ renderKnowledgeGraph({
 renderRelated(related);
 
 const followUps =
-normalizeList(
+(window.ResultRenderers?.followUpItems || (value => value))(
 data.followUpQuestions ||
 data.followUps ||
 data.followupQuestions ||
@@ -956,7 +1020,7 @@ ai.followUpQuestions ||
 renderFollowUps(
 followUps.length
 ? followUps
-: currentEmpty ? [] : generateFollowUps(analysis,data)
+: generateFollowUps(analysis,data)
 );
 
 renderStats(data);
@@ -2155,21 +2219,26 @@ function renderFollowUps(items){
 
     }
 
-    items.forEach(item=>{
+    const normalized = window.ResultRenderers?.followUpItems
+        ? window.ResultRenderers.followUpItems(items)
+        : items.map(item => typeof item === "string" ? { text: item, query: item } : { text: item?.text || item?.question || item?.title || "", query: item?.query || item?.text || item?.question || item?.title || "" }).filter(item => item.text && item.query);
+
+    normalized.forEach(item=>{
 
         const button = document.createElement("button");
 
         button.className = "follow-btn";
 
-        button.textContent = item;
+        button.textContent = item.text;
+        button.dataset.followUpQuery = item.query;
 
         button.onclick = () => {
 
-            const input = $("q");
+            const input = $("questionInput");
 
             if(input){
 
-                input.value = item;
+                input.value = item.query;
 
             }
 
