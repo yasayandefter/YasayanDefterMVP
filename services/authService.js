@@ -6,7 +6,13 @@ const password = require("../auth/password");
 const users = require("../repositories/usersRepository");
 const sessions = require("../repositories/sessionRepository");
 const claims = require("../repositories/claimRepository");
+const passwordResets = require("../repositories/passwordResetRepository");
+const resetToken = require("../auth/resetToken");
+const { getPasswordResetDelivery } = require("./passwordResetDelivery");
 const db = require("../db");
+
+const PASSWORD_RESET_TTL_SECONDS = 30 * 60;
+const PASSWORD_RESET_REQUEST_MESSAGE = "Eğer bu bilgilerle eşleşen bir hesap varsa parola sıfırlama adımı hazırlanmıştır.";
 
 function authError(code) { const error = new Error(code); error.code = code; return error; }
 function publicUser(row) { return users.safeUser(row); }
@@ -73,6 +79,44 @@ async function changePassword(token, input, dependencies = {}) {
   return { ok: true, user: publicUser(current) };
 }
 
+async function requestPasswordReset(identifier, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const resetRepository = dependencies.passwordResets || passwordResets;
+  const delivery = dependencies.delivery || getPasswordResetDelivery();
+  const rawToken = resetToken.createToken();
+  try {
+    const user = await userRepository.findByIdentifier(identifier);
+    if (!user || String(user.status || "").toUpperCase() === "DISABLED" || !delivery.available || (delivery.requiresEmail && !user.email)) return { ok: true, message: PASSWORD_RESET_REQUEST_MESSAGE };
+    const ttlSeconds = dependencies.ttlSeconds || PASSWORD_RESET_TTL_SECONDS;
+    await db.withTransaction(async client => {
+      await resetRepository.cleanup(100, client);
+      await resetRepository.invalidateUnusedForUser(user.id, client);
+      await resetRepository.create(user.id, rawToken, ttlSeconds, client);
+    });
+    await delivery.deliver({ userId: user.id, email: user.email || null, username: user.username || null, token: rawToken, expiresInSeconds: ttlSeconds });
+  } catch (_) { /* public response must remain enumeration-safe */ }
+  return { ok: true, message: PASSWORD_RESET_REQUEST_MESSAGE };
+}
+
+async function completePasswordReset(input, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const sessionRepository = dependencies.sessions || sessions;
+  const resetRepository = dependencies.passwordResets || passwordResets;
+  try { password.validatePassword(input?.newPassword); }
+  catch (error) { throw authError(error.message); }
+  if (!input?.token) throw authError("RESET_TOKEN_INVALID");
+  return db.withTransaction(async client => {
+    const tokenRow = await resetRepository.findValidForUpdate(input.token, client);
+    if (!tokenRow) throw authError("RESET_TOKEN_INVALID");
+    const user = await userRepository.findById(tokenRow.user_id, client);
+    if (!user || String(user.status || "").toUpperCase() === "DISABLED") throw authError("RESET_TOKEN_INVALID");
+    await userRepository.updatePasswordHash(user.id, password.hashPassword(input.newPassword), client);
+    await resetRepository.markUsed(tokenRow.id, client);
+    await sessionRepository.revokeAllUserSessions(user.id, client);
+    return { ok: true };
+  });
+}
+
 async function register({ username, email, rawPassword }, dependencies = {}) {
   const userRepository = dependencies.users || users;
   const sessionRepository = dependencies.sessions || sessions;
@@ -113,4 +157,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { authError, login, register, logout, session, updateProfile, changePassword, claimStudent };
+module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, changePassword, requestPasswordReset, completePasswordReset, claimStudent };

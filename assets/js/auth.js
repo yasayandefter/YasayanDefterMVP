@@ -58,10 +58,11 @@
     form.appendChild(submit);
     form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
     var actions = el("div", { class: "auth-secondary-actions" });
+    var forgot = el("button", { type: "button", class: "auth-link", "data-show-password-reset": "" }, "Parolamı unuttum");
     var register = el("button", { type: "button", class: "auth-link", "data-show-register": "" }, "Hesabın yok mu? Hesap oluştur");
     var demo = el("button", { type: "button", class: "auth-demo", "data-open-demo": "" }, "Yaşayan Defter'i önce keşfetmek ister misin? Demoyu aç");
     var claim = el("button", { type: "button", class: "auth-link", "data-show-claim": "", "data-open-claim": "" }, "Okul veya sınıfa mı katılıyorsun? Davet kodunu kullan");
-    actions.append(register, demo, claim); form.appendChild(actions);
+    actions.append(forgot, register, demo, claim); form.appendChild(actions);
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -75,6 +76,7 @@
       finally { submit.disabled = false; submit.textContent = "Giriş yap"; }
     });
     register.addEventListener("click", renderRegister);
+    forgot.addEventListener("click", renderForgotPassword);
     demo.addEventListener("click", activateDemo);
     claim.addEventListener("click", function () { renderClaim(); });
     return form;
@@ -193,6 +195,43 @@
     return form;
   }
 
+  function forgotPasswordForm() {
+    var form = el("form", { class: "auth-form", "data-forgot-password-form": "", novalidate: "" });
+    form.appendChild(el("p", { class: "auth-kicker" }, "Hesap kurtarma"));
+    form.appendChild(el("h1", {}, "Parolanızı sıfırlayın"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Hesabınızla ilişkili kullanıcı adı veya e-posta adresini girin."));
+    form.appendChild(field("Kullanıcı adı veya e-posta", "resetIdentifier", "text", "username"));
+    var actions = el("div", { class: "auth-form-actions" }); var cancel = el("button", { type: "button", class: "auth-link" }, "Vazgeç"); var submit = el("button", { type: "submit", class: "auth-primary" }, "Gönder");
+    actions.append(cancel, submit); form.appendChild(actions); form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
+    cancel.addEventListener("click", renderLogin);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true; message(form, "", "");
+      try { var data = new FormData(form); var payload = await request("/api/auth/password-reset/request", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ identifier: data.get("resetIdentifier") }) }); message(form, payload.message, "is-success"); }
+      catch (error) { message(form, error.message || "İstek şu anda tamamlanamadı.", "is-error"); }
+      finally { submit.disabled = false; }
+    });
+    return form;
+  }
+
+  function resetPasswordForm(token) {
+    var form = el("form", { class: "auth-form", "data-reset-password-form": "", novalidate: "" });
+    form.appendChild(el("p", { class: "auth-kicker" }, "Hesap kurtarma")); form.appendChild(el("h1", {}, "Yeni parola belirleyin"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Yeni parolanız en az 8 karakter olmalıdır."));
+    form.appendChild(field("Yeni parola", "resetPassword", "password", "new-password")); form.appendChild(field("Yeni parola tekrar", "resetPasswordConfirm", "password", "new-password"));
+    var actions = el("div", { class: "auth-form-actions" }); var cancel = el("button", { type: "button", class: "auth-link" }, "Vazgeç"); var submit = el("button", { type: "submit", class: "auth-primary" }, "Parolayı sıfırla");
+    actions.append(cancel, submit); form.appendChild(actions); form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
+    cancel.addEventListener("click", renderLogin);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault(); if (!form.reportValidity()) return; var data = new FormData(form);
+      if (data.get("resetPassword") !== data.get("resetPasswordConfirm")) { message(form, "Yeni parolalar eşleşmiyor.", "is-error"); return; }
+      submit.disabled = true; message(form, "", "");
+      try { var payload = await request("/api/auth/password-reset/complete", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ token: token, newPassword: data.get("resetPassword") }) }); message(form, payload.message, "is-success"); window.setTimeout(function () { window.location.reload(); }, 900); }
+      catch (error) { message(form, error.message || "Parola sıfırlanamadı.", "is-error"); }
+      finally { submit.disabled = false; }
+    });
+    return form;
+  }
+
   function setPublicActionsHidden(hidden) {
     document.querySelectorAll(".auth-public-actions").forEach(function (node) { node.remove(); });
     if (!hidden && state.demo === true) { var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions()); }
@@ -216,6 +255,8 @@
   function renderClaim() { showAuth(claimForm()); }
   function renderProfile() { if (state.authenticated && state.user) showAuth(profileForm()); }
   function renderPassword() { if (state.authenticated && state.user) showAuth(passwordForm()); }
+  function renderForgotPassword() { showAuth(forgotPasswordForm()); }
+  function renderResetPassword(token) { showAuth(resetPasswordForm(token)); }
   window.addEventListener("yasayan-open-profile", renderProfile);
   window.addEventListener("yasayan-open-password", renderPassword);
 
@@ -277,6 +318,8 @@
   }
 
   async function init() {
+    var resetPrefix = "#reset-password="; var pendingResetToken = window.location.hash.startsWith(resetPrefix) ? decodeURIComponent(window.location.hash.slice(resetPrefix.length)) : "";
+    if (pendingResetToken) history.replaceState(null, "", window.location.pathname + window.location.search);
     shell = el("section", { class: "auth-shell", "aria-label": "Hesap erişimi", hidden: "" });
     var backdrop = el("div", { class: "auth-backdrop", "aria-hidden": "true" }); backdrop.addEventListener("click", closeAuth); shell.appendChild(backdrop);
     shell.appendChild(el("div", { class: "auth-card", role: "dialog", "aria-modal": "true", "aria-label": "Hesap erişimi" }));
@@ -295,9 +338,10 @@
       var session = await request("/api/auth/session");
       state.production = true;
       if (session.authenticated) activate(session.user); else activateDemo();
+      if (pendingResetToken) renderResetPassword(pendingResetToken);
     } catch (error) {
       if (error.code === "AUTH_DISABLED") { shell.remove(); window.YasayanDefterAuth = { local: true }; }
-      else activateDemo();
+      else { activateDemo(); if (pendingResetToken) renderResetPassword(pendingResetToken); }
     }
   }
 

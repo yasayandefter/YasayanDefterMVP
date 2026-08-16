@@ -13,10 +13,11 @@ const service = dependencies.authService || authService;
 const limiter = dependencies.limiter || authRateLimiter;
 const configProvider = dependencies.getConfig || getConfig;
 const originValidator = dependencies.validateAuthOrigin || validateAuthOrigin;
-function safeAuthError(error) { const allowed = new Set(["UNAUTHENTICATED", "INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "EMAIL_TAKEN", "INVALID_USERNAME", "INVALID_EMAIL", "INVALID_PASSWORD", "PASSWORD_UNCHANGED"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
+function safeAuthError(error) { const allowed = new Set(["UNAUTHENTICATED", "INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "EMAIL_TAKEN", "INVALID_USERNAME", "INVALID_EMAIL", "INVALID_PASSWORD", "PASSWORD_UNCHANGED", "RESET_TOKEN_INVALID"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
 function profileMessage(code) { return ({ UNAUTHENTICATED: "Oturum açmanız gerekiyor.", INVALID_CREDENTIALS: "Mevcut parola yanlış.", USERNAME_TAKEN: "Bu kullanıcı adı zaten kullanılıyor.", EMAIL_TAKEN: "Bu e-posta adresi zaten kullanılıyor.", INVALID_USERNAME: "Kullanıcı adı geçersiz.", INVALID_EMAIL: "E-posta adresi geçersiz.", AUTH_FAILED: "Profil güncellenemedi." })[code] || authMessage(code); }
 function authMessage(code) { return ({ INVALID_CREDENTIALS: "Kimlik bilgileri geçersiz.", ACCOUNT_DISABLED: "Hesap devre dışı.", CLAIM_INVALID: "Davet kodu geçersiz.", CLAIM_EXPIRED: "Davet kodunun süresi dolmuş.", CLAIM_USED: "Davet kodu daha önce kullanılmış.", CLAIM_LOCKED: "Davet kodu geçici olarak kilitlendi.", USERNAME_TAKEN: "Kullanıcı adı kullanılıyor.", EMAIL_TAKEN: "E-posta adresi kullanılıyor.", INVALID_USERNAME: "Kullanıcı adı geçersiz.", INVALID_EMAIL: "E-posta adresi geçersiz.", INVALID_PASSWORD: "Parola kurallara uygun değil.", AUTH_FAILED: "Kimlik doğrulama tamamlanamadı." })[code] || "Kimlik doğrulama tamamlanamadı."; }
 function passwordMessage(code) { return ({ UNAUTHENTICATED: "Oturum açmanız gerekiyor.", INVALID_CREDENTIALS: "Mevcut parola doğru değil.", INVALID_PASSWORD: "Yeni parola en az 8, en fazla 128 karakter olmalıdır.", PASSWORD_UNCHANGED: "Yeni parola mevcut parolanızdan farklı olmalıdır.", AUTH_FAILED: "Parola değiştirilemedi." })[code] || "Parola değiştirilemedi."; }
+function resetMessage(code) { return ({ INVALID_PASSWORD: "Yeni parola en az 8, en fazla 128 karakter olmalıdır.", RESET_TOKEN_INVALID: "Parola sıfırlama bağlantısı geçersiz veya süresi dolmuş.", AUTH_FAILED: "Parola sıfırlanamadı." })[code] || "Parola sıfırlanamadı."; }
 function enabledForRequest(res) { const config = configProvider(); if (config.authMode === "production") return config; res.status(404).json({ ok: false, error: { code: "AUTH_DISABLED", message: "Bu pilot modunda kimlik doğrulama etkin değil." } }); return null; }
 function originGuard(req, res) { if (originValidator(req, configProvider())) return true; res.status(403).json({ ok: false, error: { code: "CSRF_ORIGIN_REJECTED", message: "İstek kaynağına izin verilmiyor." } }); return false; }
 function consume(bucket, req, res) { const result = limiter.consume(bucket, req); return result.allowed ? true : (rejectRateLimited(res, result.retryAfter), false); }
@@ -71,6 +72,25 @@ router.post("/password", async (req, res) => {
     const code = safeAuthError(error);
     const status = code === "UNAUTHENTICATED" || code === "INVALID_CREDENTIALS" ? 401 : code === "AUTH_FAILED" ? 500 : 400;
     return res.status(status).json({ ok: false, error: { code, message: passwordMessage(code) } });
+  }
+});
+
+router.post("/password-reset/request", async (req, res) => {
+  const config = enabledForRequest(res); if (!config || !originGuard(req, res) || !consume("PASSWORD_RESET_REQUEST", req, res)) return;
+  try { const result = await service.requestPasswordReset(req.body?.identifier, { delivery: dependencies.passwordResetDelivery, passwordResets: dependencies.passwordResetRepository }); return res.json({ ok: true, message: result.message }); }
+  catch (_) { return res.json({ ok: true, message: service.PASSWORD_RESET_REQUEST_MESSAGE || authService.PASSWORD_RESET_REQUEST_MESSAGE }); }
+});
+
+router.post("/password-reset/complete", async (req, res) => {
+  const config = enabledForRequest(res); if (!config || !originGuard(req, res) || !consume("PASSWORD_RESET_COMPLETE", req, res)) return;
+  try {
+    await service.completePasswordReset({ token: req.body?.token, newPassword: req.body?.newPassword }, { passwordResets: dependencies.passwordResetRepository });
+    limiter.reset("PASSWORD_RESET_COMPLETE", req);
+    clearSessionCookie(res, config);
+    return res.json({ ok: true, message: "Parolanız başarıyla sıfırlandı. Yeni parolanızla giriş yapabilirsiniz." });
+  } catch (error) {
+    const code = safeAuthError(error); const status = code === "AUTH_FAILED" ? 500 : 400;
+    return res.status(status).json({ ok: false, error: { code, message: resetMessage(code) } });
   }
 });
 
