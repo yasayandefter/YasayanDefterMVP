@@ -52,6 +52,7 @@
     "test:pilot-restart": "node tests/pilotRestart.js",
     "test:postgres-foundation": "node tests/postgresFoundation.js",
     "test:auth": "node tests/auth.js",
+    "test:profile-edit": "node tests/profileEdit.js && node tests/profileEditPostgres.js && node tests/profileEditBrowser.js",
     "test:auth-rate-limit": "node tests/authRateLimit.js",
     "test:authorization": "node tests/authorization.js",
     "test:repositories": "node tests/repositories.js",

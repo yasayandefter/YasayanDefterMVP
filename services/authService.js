@@ -25,6 +25,36 @@ async function login(identifier, rawPassword, dependencies = {}) {
 async function logout(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; await sessionRepository.revokeSession(token); return { ok: true }; }
 async function session(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; const row = await sessionRepository.findValidSession(token); return row ? { authenticated: true, user: publicUser(row) } : { authenticated: false }; }
 
+async function updateProfile(token, input, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const sessionRepository = dependencies.sessions || sessions;
+  const activeSession = await sessionRepository.findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  const current = await userRepository.findById(activeSession.user_id);
+  if (!current || !password.verifyPassword(input?.currentPassword, current.password_hash || "")) throw authError("INVALID_CREDENTIALS");
+  let normalizedUsername; let normalizedEmail; let normalizedDisplayName;
+  try {
+    normalizedUsername = input?.username === undefined ? current.username : users.validateUsername(input.username);
+    normalizedEmail = input?.email === undefined ? current.email : input.email === null || String(input.email || "").trim() === "" ? null : users.validateEmail(input.email);
+    normalizedDisplayName = input?.displayName === undefined ? users.displayName(current.display_name) : users.displayName(input.displayName);
+  } catch (error) { throw authError(error.message); }
+  try {
+    return await db.withTransaction(async client => {
+      const usernameOwner = await userRepository.findByUsername(normalizedUsername, client);
+      if (usernameOwner && usernameOwner.id !== current.id) throw authError("USERNAME_TAKEN");
+      if (normalizedEmail) {
+        const emailOwner = await userRepository.findByEmail(normalizedEmail, client);
+        if (emailOwner && emailOwner.id !== current.id) throw authError("EMAIL_TAKEN");
+      }
+      const updated = await userRepository.updateAccountProfile(current.id, { username: normalizedUsername, email: normalizedEmail, displayName: normalizedDisplayName }, client);
+      return { user: publicUser({ ...updated, student_id: current.student_id }) };
+    });
+  } catch (error) {
+    if (error.code === "23505") throw authError(String(error.constraint || "").includes("email") ? "EMAIL_TAKEN" : "USERNAME_TAKEN");
+    throw error;
+  }
+}
+
 async function register({ username, email, rawPassword }, dependencies = {}) {
   const userRepository = dependencies.users || users;
   const sessionRepository = dependencies.sessions || sessions;
@@ -65,4 +95,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { authError, login, register, logout, session, claimStudent };
+module.exports = { authError, login, register, logout, session, updateProfile, claimStudent };

@@ -17,7 +17,11 @@ async function createTeacher({ id, email: value, displayName: name, passwordHash
 async function createStudentUser({ id, username: value, passwordHash }, client = db) { const result = await client.query("INSERT INTO users (id, role, username, password_hash, status) VALUES ($1, 'STUDENT', $2, $3, 'ACTIVE') RETURNING *", [id, validateUsername(value), passwordHash]); return result.rows[0]; }
 async function createGeneralUser({ id, username: value, email: emailValue, passwordHash }, client = db) { const normalizedEmail = emailValue ? validateEmail(emailValue) : null; const result = await client.query("INSERT INTO users (id, role, username, email, password_hash, status) VALUES ($1, 'USER', $2, $3, $4, 'ACTIVE') RETURNING *", [id, validateUsername(value), normalizedEmail, passwordHash]); return result.rows[0]; }
 async function linkStudentUser(studentId, userId, client = db) { const result = await client.query("UPDATE students SET user_id = $1, updated_at = NOW() WHERE id = $2 AND user_id IS NULL RETURNING *", [userId, studentId]); return result.rows[0] || null; }
+async function updateAccountProfile(userId, { username: value, email: emailValue, displayName: name }, client = db) {
+  const result = await client.query("UPDATE users SET username = $2, email = $3, display_name = $4, updated_at = NOW() WHERE id = $1 RETURNING *", [userId, value, emailValue, name]);
+  return result.rows[0] || null;
+}
 async function updatePasswordHash(userId, passwordHash, client = db) { await client.query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", [passwordHash, userId]); }
 async function updateStatus(userId, status, client = db) { if (!["ACTIVE", "DISABLED"].includes(status)) throw new Error("INVALID_ACCOUNT_STATUS"); await client.query("UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2", [status, userId]); }
 
-module.exports = { name: "users", email, username, displayName, validateEmail, validateUsername, safeUser, findById, findByEmail, findByUsername, findByIdentifier, createTeacher, createStudentUser, createGeneralUser, linkStudentUser, updatePasswordHash, updateStatus };
+module.exports = { name: "users", email, username, displayName, validateEmail, validateUsername, safeUser, findById, findByEmail, findByUsername, findByIdentifier, createTeacher, createStudentUser, createGeneralUser, linkStudentUser, updateAccountProfile, updatePasswordHash, updateStatus };

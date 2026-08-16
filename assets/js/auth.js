@@ -133,6 +133,37 @@
     return form;
   }
 
+  function profileForm() {
+    var user = state.user || {};
+    var form = el("form", { class: "auth-form", "data-profile-form": "", novalidate: "" });
+    form.appendChild(el("p", { class: "auth-kicker" }, "Hesap ayarları"));
+    form.appendChild(el("h1", {}, "Profili düzenle"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Hesap bilgilerinizi güncellemek için mevcut parolanızı girin."));
+    var usernameField = field("Kullanıcı adı", "profileUsername", "text", "username"); usernameField.querySelector("input").value = user.username || ""; form.appendChild(usernameField);
+    var emailField = field("E-posta (opsiyonel)", "profileEmail", "email", "email"); emailField.querySelector("input").removeAttribute("required"); emailField.querySelector("input").value = user.email || ""; form.appendChild(emailField);
+    var displayField = field("Görünen ad (opsiyonel)", "profileDisplayName", "text", "name"); displayField.querySelector("input").removeAttribute("required"); displayField.querySelector("input").value = user.displayName || ""; form.appendChild(displayField);
+    form.appendChild(field("Mevcut parola", "currentPassword", "password", "current-password"));
+    var actions = el("div", { class: "auth-form-actions" });
+    var cancel = el("button", { type: "button", class: "auth-link" }, "Vazgeç");
+    var submit = el("button", { type: "submit", class: "auth-primary" }, "Kaydet");
+    actions.append(cancel, submit); form.appendChild(actions);
+    form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
+    cancel.addEventListener("click", closeAuth);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault(); if (!form.reportValidity()) return;
+      submit.disabled = true; message(form, "", ""); var data = new FormData(form);
+      try {
+        var payload = await request("/api/auth/profile", { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ username: data.get("profileUsername"), email: data.get("profileEmail"), displayName: data.get("profileDisplayName"), currentPassword: data.get("currentPassword") }) });
+        state.user = payload.user; window.YasayanDefterAuth = { authenticated: true, user: payload.user };
+        var badgeName = document.querySelector("[data-auth-user] span"); if (badgeName) badgeName.textContent = payload.user.displayName || payload.user.username || payload.user.email || "Hesap";
+        window.dispatchEvent(new CustomEvent("yasayan-profile-updated", { detail: payload.user }));
+        message(form, "Profiliniz güncellendi.", "is-success"); window.setTimeout(closeAuth, 700);
+      } catch (error) { message(form, error.message, "is-error"); }
+      finally { submit.disabled = false; }
+    });
+    return form;
+  }
+
   function setPublicActionsHidden(hidden) {
     document.querySelectorAll(".auth-public-actions").forEach(function (node) { node.remove(); });
     if (!hidden && state.demo === true) { var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions()); }
@@ -150,10 +181,12 @@
     var close = el("button", { type: "button", class: "auth-close", "aria-label": "Hesap penceresini kapat" }, "×");
     close.addEventListener("click", closeAuth); form.prepend(close); return form;
   }
-  function showAuth(form) { if (shell.hidden) returnFocus = document.activeElement; setPublicActionsHidden(true); shell.hidden = false; shell.querySelector(".auth-card").replaceChildren(addCloseButton(form)); window.setTimeout(function () { shell.querySelector("input, button")?.focus(); }, 0); }
+  function showAuth(form) { if (shell.hidden) returnFocus = document.activeElement; setPublicActionsHidden(true); shell.hidden = false; shell.querySelector(".auth-card").replaceChildren(addCloseButton(form)); window.setTimeout(function () { (shell.querySelector("input:not([disabled])") || shell.querySelector("button:not([disabled])"))?.focus(); }, 0); }
   function renderLogin() { showAuth(loginForm()); }
   function renderRegister() { showAuth(registerForm()); }
   function renderClaim() { showAuth(claimForm()); }
+  function renderProfile() { if (state.authenticated && state.user) showAuth(profileForm()); }
+  window.addEventListener("yasayan-open-profile", renderProfile);
 
   function applyAccessVisibility(role) {
     document.documentElement.dataset.accessMode = role === "DEMO" ? "demo" : String(role || "user").toLowerCase();
