@@ -55,6 +55,24 @@ async function updateProfile(token, input, dependencies = {}) {
   }
 }
 
+async function changePassword(token, input, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const sessionRepository = dependencies.sessions || sessions;
+  const activeSession = await sessionRepository.findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  const current = await userRepository.findById(activeSession.user_id);
+  if (!current || !password.verifyPassword(input?.currentPassword, current.password_hash || current.passwordHash || "")) throw authError("INVALID_CREDENTIALS");
+  try { password.validatePassword(input?.newPassword); }
+  catch (error) { throw authError(error.message); }
+  if (password.verifyPassword(input.newPassword, current.password_hash || current.passwordHash || "")) throw authError("PASSWORD_UNCHANGED");
+  const nextHash = password.hashPassword(input.newPassword);
+  await db.withTransaction(async client => {
+    await userRepository.updatePasswordHash(current.id, nextHash, client);
+    await sessionRepository.revokeOtherUserSessions(current.id, activeSession.session_id, client);
+  });
+  return { ok: true, user: publicUser(current) };
+}
+
 async function register({ username, email, rawPassword }, dependencies = {}) {
   const userRepository = dependencies.users || users;
   const sessionRepository = dependencies.sessions || sessions;
@@ -95,4 +113,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { authError, login, register, logout, session, updateProfile, claimStudent };
+module.exports = { authError, login, register, logout, session, updateProfile, changePassword, claimStudent };

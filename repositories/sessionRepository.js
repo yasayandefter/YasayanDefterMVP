@@ -11,6 +11,7 @@ async function findValidSession(token, client = db) { if (!token) return null; c
 async function touchSession(sessionId, client = db) { await client.query("UPDATE sessions SET last_seen_at = NOW() WHERE id = $1 AND last_seen_at < NOW() - ($2 * INTERVAL '1 millisecond')", [sessionId, TOUCH_INTERVAL_MS]); }
 async function revokeSession(token, client = db) { if (token) await client.query("UPDATE sessions SET revoked_at = NOW() WHERE session_hash = $1 AND revoked_at IS NULL", [hashToken(token)]); }
 async function revokeAllUserSessions(userId, client = db) { await client.query("UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL", [userId]); }
+async function revokeOtherUserSessions(userId, currentSessionId, client = db) { await client.query("UPDATE sessions SET revoked_at = NOW() WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL", [userId, currentSessionId]); }
 async function cleanupExpired(client = db) { await client.query("DELETE FROM sessions WHERE expires_at <= NOW() OR revoked_at < NOW() - INTERVAL '30 days'"); }
 
-module.exports = { name: "sessions", TOUCH_INTERVAL_MS, hashToken, createToken, createSession, findValidSession, touchSession, revokeSession, revokeAllUserSessions, cleanupExpired };
+module.exports = { name: "sessions", TOUCH_INTERVAL_MS, hashToken, createToken, createSession, findValidSession, touchSession, revokeSession, revokeAllUserSessions, revokeOtherUserSessions, cleanupExpired };

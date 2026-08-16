@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 
 const POLICIES = Object.freeze({
   LOGIN: Object.freeze({ limit: 10, windowMs: 15 * 60 * 1000 }),
+  PASSWORD_CHANGE: Object.freeze({ limit: 5, windowMs: 15 * 60 * 1000 }),
   REGISTER: Object.freeze({ limit: 5, windowMs: 60 * 60 * 1000 }),
   CLAIM: Object.freeze({ limit: 6, windowMs: 15 * 60 * 1000 })
 });

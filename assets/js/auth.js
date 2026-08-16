@@ -164,6 +164,35 @@
     return form;
   }
 
+  function passwordForm() {
+    var form = el("form", { class: "auth-form", "data-password-form": "", novalidate: "" });
+    form.appendChild(el("p", { class: "auth-kicker" }, "Hesap güvenliği"));
+    form.appendChild(el("h1", {}, "Parolayı değiştir"));
+    form.appendChild(el("p", { class: "auth-lede" }, "Parolanızı değiştirdiğinizde bu oturum açık kalır, diğer aktif oturumlar kapatılır."));
+    form.appendChild(field("Mevcut parola", "passwordCurrent", "password", "current-password"));
+    form.appendChild(field("Yeni parola", "passwordNew", "password", "new-password"));
+    form.appendChild(field("Yeni parola tekrar", "passwordConfirm", "password", "new-password"));
+    var actions = el("div", { class: "auth-form-actions" });
+    var cancel = el("button", { type: "button", class: "auth-link" }, "Vazgeç");
+    var submit = el("button", { type: "submit", class: "auth-primary" }, "Parolayı değiştir");
+    actions.append(cancel, submit); form.appendChild(actions);
+    form.appendChild(el("p", { class: "auth-message", role: "status", "aria-live": "polite", "data-auth-message": "" }));
+    cancel.addEventListener("click", closeAuth);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault(); if (!form.reportValidity()) return;
+      var data = new FormData(form);
+      if (data.get("passwordNew") !== data.get("passwordConfirm")) { message(form, "Yeni parolalar eşleşmiyor.", "is-error"); return; }
+      submit.disabled = true; message(form, "", "");
+      try {
+        var payload = await request("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ currentPassword: data.get("passwordCurrent"), newPassword: data.get("passwordNew") }) });
+        message(form, payload.message || "Parolanız başarıyla değiştirildi.", "is-success");
+        window.setTimeout(closeAuth, 900);
+      } catch (error) { message(form, error.message || "Parola değiştirilemedi.", "is-error"); }
+      finally { submit.disabled = false; }
+    });
+    return form;
+  }
+
   function setPublicActionsHidden(hidden) {
     document.querySelectorAll(".auth-public-actions").forEach(function (node) { node.remove(); });
     if (!hidden && state.demo === true) { var header = document.querySelector(".landing-header") || document.querySelector(".header"); if (header) header.appendChild(accountActions()); }
@@ -186,7 +215,9 @@
   function renderRegister() { showAuth(registerForm()); }
   function renderClaim() { showAuth(claimForm()); }
   function renderProfile() { if (state.authenticated && state.user) showAuth(profileForm()); }
+  function renderPassword() { if (state.authenticated && state.user) showAuth(passwordForm()); }
   window.addEventListener("yasayan-open-profile", renderProfile);
+  window.addEventListener("yasayan-open-password", renderPassword);
 
   function applyAccessVisibility(role) {
     document.documentElement.dataset.accessMode = role === "DEMO" ? "demo" : String(role || "user").toLowerCase();

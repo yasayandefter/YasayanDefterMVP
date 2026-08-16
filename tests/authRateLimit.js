@@ -19,7 +19,7 @@ async function withServer(router, callback) {
 
 async function run() {
   let now = 1000;
-  const policies = { LOGIN: { limit: 2, windowMs: 10000 }, REGISTER: { limit: 1, windowMs: 20000 }, CLAIM: { limit: 1, windowMs: 30000 } };
+  const policies = { LOGIN: { limit: 2, windowMs: 10000 }, PASSWORD_CHANGE: { limit: 1, windowMs: 15000 }, REGISTER: { limit: 1, windowMs: 20000 }, CLAIM: { limit: 1, windowMs: 30000 } };
   const limiter = new AuthRateLimiter({ now: () => now, maxEntries: 2, policies });
   const first = request("127.0.0.1"); const second = request("127.0.0.2");
   assert.notEqual(hashedIdentity(first), "127.0.0.1");
@@ -29,13 +29,14 @@ async function run() {
   const blocked = limiter.consume("LOGIN", first); assert.equal(blocked.allowed, false); assert.equal(blocked.retryAfter, 10);
   assert.equal(limiter.consume("LOGIN", second).allowed, true, "IP keys must be isolated");
   now += 10000; assert.equal(limiter.consume("LOGIN", first).allowed, true, "window must reset");
-  limiter.consume("REGISTER", first); limiter.consume("CLAIM", second); assert.ok(limiter.size <= 2, "store must remain bounded");
+  limiter.consume("REGISTER", first); limiter.consume("PASSWORD_CHANGE", second); assert.ok(limiter.size <= 2, "store must remain bounded");
 
   let loginSucceeds = false; let logoutCalls = 0; let sessionCalls = 0;
   const service = {
     async login() { if (!loginSucceeds) { const error = new Error("INVALID_CREDENTIALS"); error.code = "INVALID_CREDENTIALS"; throw error; } return { token: "session", user: { id: "u1" } }; },
     async register() { const error = new Error("INVALID_USERNAME"); error.code = "INVALID_USERNAME"; throw error; },
     async claimStudent() { const error = new Error("CLAIM_INVALID"); error.code = "CLAIM_INVALID"; throw error; },
+    async changePassword() { const error = new Error("INVALID_CREDENTIALS"); error.code = "INVALID_CREDENTIALS"; throw error; },
     async logout() { logoutCalls += 1; },
     async session() { sessionCalls += 1; return { authenticated: true, user: { id: "u1" } }; }
   };
@@ -52,12 +53,13 @@ async function run() {
     loginSucceeds = false; assert.equal((await post("/api/auth/login")).status, 401, "successful login must reset its bucket");
     assert.equal((await post("/api/auth/register")).status, 400); assert.equal((await post("/api/auth/register")).status, 429);
     assert.equal((await post("/api/auth/claim")).status, 400); assert.equal((await post("/api/auth/claim")).status, 429);
+    assert.equal((await post("/api/auth/password")).status, 401); const passwordLimited = await post("/api/auth/password"); assert.equal(passwordLimited.status, 429); assert.equal(passwordLimited.headers.get("retry-after"), "15"); assert.equal((await passwordLimited.json()).error.code, "RATE_LIMITED");
     for (let index = 0; index < 4; index += 1) assert.equal((await post("/api/auth/logout")).status, 200, "logout must not be limited");
     for (let index = 0; index < 4; index += 1) assert.equal((await fetch(`${base}/api/auth/session`)).status, 200, "session restore must not be limited");
     assert.equal((await fetch(`${base}/api/research?q=Mars`)).status, 200, "public research must not be limited");
   });
   assert.equal(logoutCalls, 4); assert.equal(sessionCalls, 4);
-  console.log("PASS  auth rate limits, 429 contract, retry, reset, isolation, memory bound, logout, session, and public route isolation");
+  console.log("PASS  auth/password-change rate limits, 429 contract, retry, reset, isolation, memory bound, logout, session, and public route isolation");
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1; });
