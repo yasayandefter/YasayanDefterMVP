@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "builds": [
     {
@@ -6,18 +7,45 @@
       "use": "@vercel/node"
     },
     {
-      "src": "**/*",
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**/*",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
+      "src": "/(.*)",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload"
+      },
+      "continue": true
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     },
     {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/index\\.html",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/$1"
+      "status": 404
     }
   ]
 }
