@@ -31,6 +31,18 @@ async function login(identifier, rawPassword, dependencies = {}) {
 async function logout(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; await sessionRepository.revokeSession(token); return { ok: true }; }
 async function session(token, dependencies = {}) { const sessionRepository = dependencies.sessions || sessions; const row = await sessionRepository.findValidSession(token); return row ? { authenticated: true, user: publicUser(row) } : { authenticated: false }; }
 
+async function updatePreferences(token, input, dependencies = {}) {
+  const userRepository = dependencies.users || users;
+  const sessionRepository = dependencies.sessions || sessions;
+  const activeSession = await sessionRepository.findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  let updated;
+  try { updated = await userRepository.updatePreferences(activeSession.user_id, { theme: input?.theme, notebookWritingStyle: input?.notebookWritingStyle, notebookPageStyle: input?.notebookPageStyle }); }
+  catch (error) { throw authError(error.code || error.message); }
+  if (!updated) throw authError("UNAUTHENTICATED");
+  return { user: publicUser({ ...updated, student_id: activeSession.student_id }) };
+}
+
 async function updateProfile(token, input, dependencies = {}) {
   const userRepository = dependencies.users || users;
   const sessionRepository = dependencies.sessions || sessions;
@@ -157,4 +169,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, changePassword, requestPasswordReset, completePasswordReset, claimStudent };
+module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, updatePreferences, changePassword, requestPasswordReset, completePasswordReset, claimStudent };

@@ -1,0 +1,19 @@
+"use strict";
+const assert=require("node:assert/strict"),crypto=require("node:crypto"),{spawn}=require("node:child_process"),{Pool}=require("pg");
+if(!process.env.TEST_DATABASE_URL){console.log("SKIP  personalization PostgreSQL E2E: TEST_DATABASE_URL is not set");process.exit(0);}
+if(process.env.DATABASE_URL&&process.env.DATABASE_URL!==process.env.TEST_DATABASE_URL)throw new Error("TEST_DATABASE_URL_ONLY");
+const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,max:2}),suffix=crypto.randomBytes(5).toString("hex"),password="Personalization-test!",names=[`pref_a_${suffix}`,`pref_b_${suffix}`,`pref_s_${suffix}`,`pref_t_${suffix}`];let child;
+async function wait(base){for(let i=0;i<70;i++){try{if((await fetch(base+"/api/status")).ok)return;}catch(_){}await new Promise(r=>setTimeout(r,100));}throw new Error("SERVER_NOT_READY");}
+async function stop(){if(child&&child.exitCode===null){child.kill("SIGTERM");await new Promise(r=>child.once("exit",r));}}
+async function call(base,path,method="GET",body,cookie){const response=await fetch(base+path,{method,headers:{Accept:"application/json",Origin:base,...(body?{"Content-Type":"application/json"}:{}),...(cookie?{Cookie:cookie}:{})},body:body&&JSON.stringify(body)});return{response,body:await response.json()};}
+(async()=>{const port=38000+crypto.randomInt(8000),base=`http://127.0.0.1:${port}`;const start=()=>spawn(process.execPath,["server.js"],{cwd:process.cwd(),env:{...process.env,PORT:String(port),AUTH_MODE:"production",ACCESS_MODE:"authenticated",STORAGE_MODE:"postgres",DATABASE_URL:process.env.TEST_DATABASE_URL,APP_ORIGIN:base,NODE_ENV:"test"},stdio:["ignore","ignore","ignore"]});child=start();await wait(base);
+const regs=[];for(const name of names)regs.push(await call(base,"/api/auth/register","POST",{username:name,password}));for(const item of regs)assert.equal(item.response.status,201,JSON.stringify(item.body));
+await pool.query("UPDATE users SET role='STUDENT' WHERE username=$1",[names[2]]);await pool.query("UPDATE users SET role='TEACHER' WHERE username=$1",[names[3]]);
+const cookies=regs.map(x=>String(x.response.headers.get("set-cookie")).split(";")[0]);
+const combos=[{theme:"living",notebookWritingStyle:"modern",notebookPageStyle:"plain"},{theme:"light",notebookWritingStyle:"classic",notebookPageStyle:"lined"},{theme:"night",notebookWritingStyle:"handwriting",notebookPageStyle:"dotted"},{theme:"focus",notebookWritingStyle:"minimal",notebookPageStyle:"grid"}];
+for(let i=0;i<4;i++){const out=await call(base,"/api/auth/preferences","PATCH",{...combos[i],userId:regs[(i+1)%4].body.user.id,role:"TEACHER",schoolId:"spoof",studentId:"spoof"},cookies[i]);assert.equal(out.response.status,200,JSON.stringify(out.body));assert.deepEqual(out.body.preferences,combos[i]);assert.equal(out.body.user.id,regs[i].body.user.id);}
+for(const bad of [{theme:"bad",notebookWritingStyle:"modern",notebookPageStyle:"plain"},{theme:"living",notebookWritingStyle:"x",notebookPageStyle:"plain"},{theme:"living",notebookWritingStyle:"modern",notebookPageStyle:"x"}])assert.equal((await call(base,"/api/auth/preferences","PATCH",bad,cookies[0])).response.status,400);
+assert.equal((await call(base,"/api/auth/preferences","PATCH",combos[0])).response.status,401);
+await stop();child=start();await wait(base);for(let i=0;i<4;i++){const session=await call(base,"/api/auth/session","GET",null,cookies[i]);assert.deepEqual(session.body.user.preferences,combos[i]);assert.equal(session.body.user.role,["USER","USER","STUDENT","TEACHER"][i]);}
+console.log("PASS  personalization PostgreSQL USER/STUDENT/TEACHER ownership, whitelist, mass assignment, session and restart persistence");
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{await stop();await pool.query("DELETE FROM users WHERE username=ANY($1::text[])",[names]).catch(()=>{});await pool.end();});

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Yaşayan Defter 15.0 Pilot</title>
+    <title>Yaşayan Defter</title>
 
     <meta name="description"
         content="Yaşayan Defter - Araştıran, öğrenen ve hafızasında ilişkilendiren yeni nesil bilgi platformu.">
@@ -30,6 +30,10 @@
     <link rel="stylesheet" href="assets/css/mobile-ui-14.css">
     <link rel="stylesheet" href="assets/css/auth.css">
     <link rel="stylesheet" href="assets/css/access-model.css">
+    <link rel="stylesheet" href="assets/css/visual-polish-15-3.css">
+    <script>
+    (function(){try{var k="yasayan-defter-public-preferences",d={theme:"living",notebookWritingStyle:"modern",notebookPageStyle:"plain"},v=JSON.parse(localStorage.getItem(k)||"null")||d,t=["system","living","light","night","focus"],w=["modern","classic","handwriting","rounded","minimal"],p=["plain","lined","grid","dotted"];if(!t.includes(v.theme)||!w.includes(v.notebookWritingStyle)||!p.includes(v.notebookPageStyle))v=d;document.documentElement.dataset.theme=v.theme;document.documentElement.dataset.notebookWriting=v.notebookWritingStyle;document.documentElement.dataset.notebookPage=v.notebookPageStyle;document.documentElement.dataset.resolvedTheme=v.theme==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"living"):v.theme}catch(_){}}());
+    </script>
 </head>
 
 <body>
@@ -50,7 +54,7 @@
         <nav class="landing-nav" aria-label="Ana navigasyon">
             <a href="#landingLicense">Lisanslama</a>
         </nav>
-        <a class="landing-header-cta" href="#brainEngineWorkspace">Brain Engine'i dene <span aria-hidden="true">↗</span></a>
+        <a class="landing-header-cta" href="#brainEngineWorkspace">Araştırmayı dene <span aria-hidden="true">↗</span></a>
     </header>
 
     <main class="landing-main">
@@ -63,7 +67,7 @@
                 <h1 id="landingHeroTitle">Fiziksel dokunuş.<br><span>Dijital zeka.</span></h1>
                 <p class="landing-hero-lede">Yazdıkların yaşayan bir dünyaya dönüşür. Yaşayan Defter; düşüncelerini araştırır, öğretir, hatırlar ve seninle birlikte gelişir.</p>
                 <div class="landing-hero-actions">
-                    <a class="landing-btn landing-btn-primary" href="#brainEngineWorkspace">Brain Engine'i dene <span aria-hidden="true">↗</span></a>
+                    <a class="landing-btn landing-btn-primary" href="#brainEngineWorkspace">Araştırmayı dene <span aria-hidden="true">↗</span></a>
                     <a class="landing-btn landing-btn-secondary" href="#landingHow">Ürünü keşfet</a>
                     <a class="landing-text-link" href="#landingLicense">Lisanslama modelimiz <span aria-hidden="true">→</span></a>
                 </div>
@@ -71,9 +75,9 @@
             </div>
             <aside class="landing-quick-nav" aria-label="Hızlı keşfet" data-reveal data-delay="120">
                 <p class="landing-quick-nav-label">Hızlı keşfet</p>
-                <a class="landing-quick-card" href="#brainEngineWorkspace"><span class="landing-quick-icon" aria-hidden="true">🧠</span><span><strong>Brain Engine</strong><small>Canlı araştırmayı dene</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
+                <a class="landing-quick-card" href="#brainEngineWorkspace"><span class="landing-quick-icon" aria-hidden="true">⌕</span><span><strong>Araştırma</strong><small>Bir konuyu keşfet</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
                 <a class="landing-quick-card" href="#landingHow"><span class="landing-quick-icon" aria-hidden="true">✍️</span><span><strong>Nasıl çalışır</strong><small>Ürünün çalışma mantığı</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
-                <a class="landing-quick-card" href="#landingEngine"><span class="landing-quick-icon" aria-hidden="true">✨</span><span><strong>Özellikler</strong><small>Brain Engine özellikleri</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
+                <a class="landing-quick-card" href="#landingEngine"><span class="landing-quick-icon" aria-hidden="true">✨</span><span><strong>Özellikler</strong><small>Öğrenme araçlarını keşfet</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
                 <a class="landing-quick-card" href="#landingLicense"><span class="landing-quick-icon" aria-hidden="true">🤝</span><span><strong>Lisanslama</strong><small>İş ortaklığı</small></span><span class="landing-quick-arrow" aria-hidden="true">→</span></a>
             </aside>
         </section>
@@ -83,7 +87,7 @@
 
 <div class="engine-transition-overlay" id="engineTransitionOverlay" aria-hidden="true">
     <div class="engine-transition-mark">YD</div>
-    <p>Brain Engine hazırlanıyor</p>
+    <p>Yaşayan Defter hazırlanıyor</p>
 </div>
 
 <div class="app engine-workspace" id="brainEngineWorkspace">
@@ -101,7 +105,7 @@
             <h2>Yaşayan Defter</h2>
 
             <p>
-                Yaşayan Defter 15.0 Pilot
+                Öğrenme ve araştırma alanı
             </p>
 
         </div>
@@ -114,7 +118,7 @@
 
         <span id="statusText">
 
-            Brain Engine Hazır
+            Araştırmaya hazır
 
         </span>
 
@@ -160,7 +164,7 @@
 
             <span class="badge-text">
 
-                Yaşayan Defter 15.0 Pilot
+                YAŞAYAN DEFTER
 
             </span>
 
@@ -211,7 +215,7 @@
 
                 <span class="live-dot"></span>
 
-                Brain Engine Aktif
+                Araştırma aktif
 
             </div>
 
@@ -271,7 +275,7 @@
         <section class="living-memory-workspace" id="livingMemoryWorkspace" aria-labelledby="livingMemoryTitle">
             <div class="living-memory-heading">
                 <div>
-                    <p class="living-memory-kicker">BRAIN ENGINE MEMORY</p>
+                    <p class="living-memory-kicker">YAŞAYAN DEFTER HAFIZA</p>
                     <h3 id="livingMemoryTitle">🧠 Yaşayan Hafıza</h3>
                     <p>Öğrendiklerini zaman içinde hatırla, ilişkilendir ve kaldığın yerden devam et.</p>
                 </div>
@@ -323,7 +327,7 @@
 
                 <div class="dashboard-text">
 
-                    Brain Engine
+                    Araştırma sistemi
 
                 </div>
 
@@ -412,7 +416,7 @@
 
         <h2 id="loadingTitle">
 
-            Yaşayan Defter 15.0 Pilot
+            Yaşayan Defter
 
         </h2>
 
@@ -1439,7 +1443,7 @@
 
                 <p>
 
-                    Yaşayan Defter 15.0 Pilot
+                    Öğrenme ve araştırma platformu
 
                 </p>
 
@@ -1499,13 +1503,13 @@
 
                 <strong>
 
-                    Brain Engine
+                    Yaşayan Defter
 
                 </strong>
 
                 <span>
 
-                    Pilot sürüm
+                    Araştırma ve öğrenme
 
                 </span>
 
@@ -1540,6 +1544,7 @@
      JAVASCRIPT
 ===================================================== -->
 
+<script src="assets/js/personalization.js" defer></script>
 <script src="assets/js/auth.js" defer></script>
 <script src="assets/js/utils.js"></script>
     <script src="assets/js/effects.js"></script>
@@ -1626,7 +1631,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 <div class="landing-timeline-line" aria-hidden="true"></div>
                 <article class="landing-timeline-step" role="listitem" data-reveal data-delay="60"><span>02</span><div class="landing-timeline-icon" aria-hidden="true">🖊</div><h3>Aktar</h3><p>Optik kalem yazdıklarını dijital ortama aktarır.</p></article>
                 <div class="landing-timeline-line" aria-hidden="true"></div>
-                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="120"><span>03</span><div class="landing-timeline-icon" aria-hidden="true">◉</div><h3>Analiz</h3><p>Brain Engine anlar.</p></article>
+                <article class="landing-timeline-step" role="listitem" data-reveal data-delay="120"><span>03</span><div class="landing-timeline-icon" aria-hidden="true">◉</div><h3>Analiz</h3><p>Yaşayan Defter konuyu anlar.</p></article>
                 <div class="landing-timeline-line" aria-hidden="true"></div>
                 <article class="landing-timeline-step" role="listitem" data-reveal data-delay="180"><span>04</span><div class="landing-timeline-icon" aria-hidden="true">◎</div><h3>Araştır</h3><p>Güvenilir kaynaklardan araştırır.</p></article>
                 <div class="landing-timeline-line" aria-hidden="true"></div>
@@ -1637,11 +1642,11 @@ document.addEventListener("DOMContentLoaded", function () {
         </section>
 
         <section class="landing-section landing-why" id="landingWhy" aria-labelledby="landingWhyTitle">
-            <div class="landing-section-heading landing-why-copy" data-reveal><p class="landing-eyebrow"><span></span> Yeni nesil öğrenme</p><h2 id="landingWhyTitle">Neden <span>Yaşayan Defter?</span></h2><p>Yaşayan Defter, fiziksel yazma deneyimini Brain Engine ile birleştirerek araştıran, öğreten ve hatırlayan yeni nesil bir öğrenme platformudur.</p></div>
+            <div class="landing-section-heading landing-why-copy" data-reveal><p class="landing-eyebrow"><span></span> Yeni nesil öğrenme</p><h2 id="landingWhyTitle">Neden <span>Yaşayan Defter?</span></h2><p>Yaşayan Defter, fiziksel yazma deneyimini dijital araştırma ve öğrenmeyle birleştirerek araştıran, öğreten ve hatırlayan yeni nesil bir platformdur.</p></div>
         </section>
 
         <section class="landing-section landing-engine" id="landingEngine" aria-labelledby="landingEngineTitle">
-            <div class="landing-section-heading" data-reveal><p class="landing-eyebrow"><span></span> Powered by Brain Engine</p><h2 id="landingEngineTitle">Düşüncelerini <span>anlar.</span></h2><p>Yaşayan Defter'in arkasındaki teknoloji; araştırır, özetler, öğretir ve bilgiyi senin için hatırlar.</p></div>
+            <div class="landing-section-heading" data-reveal><p class="landing-eyebrow"><span></span> Yaşayan öğrenme sistemi</p><h2 id="landingEngineTitle">Düşüncelerini <span>anlar.</span></h2><p>Yaşayan Defter'in arkasındaki teknoloji; araştırır, özetler, öğretir ve bilgiyi senin için hatırlar.</p></div>
             <div class="landing-engine-grid">
                 <article data-reveal><span class="landing-engine-number">01</span><div class="landing-engine-symbol">◉</div><h3>Akıllı analiz</h3><p>Konuyu ve niyeti çözer.</p></article>
                 <article data-reveal data-delay="60"><span class="landing-engine-number">02</span><div class="landing-engine-symbol">◎</div><h3>Araştırma</h3><p>Güvenilir kaynakları tarar.</p></article>
@@ -1658,8 +1663,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     <footer class="landing-footer" id="landingFooter">
         <div class="landing-footer-brand"><span class="landing-brand-mark" aria-hidden="true">YD</span><div><strong>YAŞAYAN <em>DEFTER</em></strong><small>Fiziksel dokunuş. Dijital zeka.</small></div></div>
-        <div class="landing-footer-links"><a href="#landingWhy">Neden Yaşayan Defter?</a><a href="#landingHow">Nasıl çalışır?</a><a href="#landingEngine">Brain Engine</a><a href="#landingLicense">Lisanslama</a><a href="#brainEngineWorkspace">Uygulamayı dene</a></div>
-        <div class="landing-footer-bottom"><span>© 2026 Yaşayan Defter</span><span>Patent başvurusu yapılmıştır.</span><span>Powered by Brain Engine</span></div>
+        <div class="landing-footer-links"><a href="#landingWhy">Neden Yaşayan Defter?</a><a href="#landingHow">Nasıl çalışır?</a><a href="#landingEngine">Özellikler</a><a href="#landingLicense">Lisanslama</a><a href="#brainEngineWorkspace">Uygulamayı dene</a></div>
+        <div class="landing-footer-bottom"><span>© 2026 Yaşayan Defter</span><span>Patent başvurusu yapılmıştır.</span><span>Araştır · Öğren · Hatırla</span></div>
     </footer>
 </div>
 

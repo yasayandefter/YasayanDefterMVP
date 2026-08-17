@@ -92,7 +92,7 @@ async function isFocused(locator) {
   const closeButton = page.getByRole("button", { name: "Hesap penceresini kapat" });
   assert.equal(await isFocused(closeButton), true, "tab navigation to close");
   await page.keyboard.press("Shift+Tab");
-  assert.equal(await isFocused(page.getByRole("button", { name: "Kaydet" })), true, "reverse focus trap");
+  assert.equal(await isFocused(page.getByRole("button", { name: "Kaydet", exact: true })), true, "reverse focus trap");
   await page.keyboard.press("Tab");
   assert.equal(await isFocused(closeButton), true, "forward focus trap");
   await page.keyboard.press("Escape");
