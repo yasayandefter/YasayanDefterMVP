@@ -456,6 +456,24 @@ button:disabled { opacity: .5; cursor: not-allowed; filter: saturate(.65); }
   font-size: 13px;
   line-height: 1.5;
 }
+.engine-workspace .image-caption { display: grid; gap: 6px; }
+.engine-workspace .image-caption strong { color: var(--yd-text-primary); font-size: 14px; line-height: 1.35; }
+.engine-workspace .image-caption span { color: var(--yd-text-secondary); font-size: 12px; line-height: 1.45; }
+.engine-workspace .image-caption small { overflow-wrap: anywhere; }
+.image-card-actions { display: flex!important; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 3px; }
+.image-card-actions :where(button,a) { display: inline-flex; align-items: center; min-height: 38px; padding: 0 11px; border: 1px solid var(--yd-border); border-radius: var(--yd-radius-sm); background: var(--yd-accent-soft); color: var(--yd-text-primary); font: inherit; font-size: 12px; font-weight: 750; text-decoration: none; cursor: pointer; }
+.image-card-actions :where(button,a):focus-visible { outline: 2px solid var(--yd-accent); outline-offset: 2px; }
+.engine-workspace .image-card-hero { flex-basis: clamp(360px,39vw,520px)!important; border-color: color-mix(in srgb,var(--yd-accent) 32%,var(--yd-border)); }
+.engine-workspace .image-card-broken { display: none; }
+.image-detail-dialog { width: min(920px,calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; overflow: auto; border: 1px solid var(--yd-border); border-radius: var(--yd-radius-lg); background: var(--yd-surface-elevated); color: var(--yd-text-primary); box-shadow: var(--yd-shadow-md); }
+.image-detail-dialog::backdrop { background: rgba(2,7,14,.76); backdrop-filter: blur(4px); }
+.image-detail-shell { position: relative; display: grid; grid-template-columns: minmax(0,1.35fr) minmax(240px,.65fr); gap: 0; }
+.image-detail-shell > img { width: 100%; height: min(72vh,680px); object-fit: contain; background: var(--yd-background); }
+.image-detail-copy { display: grid; align-content: start; gap: 12px; padding: 56px 22px 24px; }
+.image-detail-copy :where(h3,p) { margin: 0; }
+.image-detail-copy p { color: var(--yd-text-secondary); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.image-detail-copy a { color: var(--yd-accent); font-weight: 800; }
+.image-detail-close { position: absolute; z-index: 2; top: 12px; right: 12px; min-height: 40px; padding: 0 13px; border: 1px solid var(--yd-border); border-radius: var(--yd-radius-sm); background: var(--yd-surface); color: var(--yd-text-primary); font: inherit; cursor: pointer; }
 .engine-workspace .image-caption :where(small, span) {
   color: #91a4b8;
   font-size: 12px;
@@ -819,4 +837,8 @@ html[data-notebook-background="custom"][data-notebook-page="dotted"] #notebookSe
   .notebook-background-controls { grid-template-columns: 1fr; }
   .notebook-background-actions { display: grid; grid-template-columns: 1fr; }
   .notebook-background-picker { width: 100%; box-sizing: border-box; }
+  .image-detail-shell { grid-template-columns: 1fr; }
+  .image-detail-shell > img { height: min(52vh,420px); }
+  .image-detail-copy { padding: 20px; }
+  .image-detail-close { background: rgba(5,12,20,.86); color: #fff; }
 }

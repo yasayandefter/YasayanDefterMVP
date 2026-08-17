@@ -21,6 +21,20 @@ const Network =
         ? require("./network")
         : window.Network;
 
+const VisualIntelligence =
+    typeof require !== "undefined"
+        ? require("./visualIntelligence")
+        : window.VisualIntelligence;
+
+const IMAGE_CACHE = new Map();
+const IMAGE_CACHE_MAX = 80;
+const IMAGE_CACHE_TTL_MS = 15 * 60 * 1000;
+const IMAGE_PROVIDER_TIMEOUT_MS = 4500;
+function withImageTimeout(task) {
+    let timer;
+    return Promise.race([task, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("IMAGE_PROVIDER_TIMEOUT")), IMAGE_PROVIDER_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+}
+
 const {
     cleanText,
     normalize
@@ -162,7 +176,7 @@ async function wikimediaImages(
         "&gsrlimit=" +
         limit +
         "&prop=imageinfo" +
-        "&iiprop=url|extmetadata" +
+        "&iiprop=url|size|mime|extmetadata" +
         "&iiurlwidth=1200" +
         "&format=json" +
         "&origin=*";
@@ -210,7 +224,13 @@ async function wikimediaImages(
             if (blocked.some(word => lower.includes(word)))
                 return null;
 
+            const metadata = info.extmetadata || {};
+            const meta = key => cleanText(metadata[key]?.value || "");
+            const sourceUrl = "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title || "");
+
             return {
+
+                id: String(page.pageid || page.title || info.url),
 
                 title,
 
@@ -228,15 +248,31 @@ async function wikimediaImages(
 
                     "",
 
-                source:
+                url: info.thumburl || info.url || "",
 
-                    "Wikimedia Commons",
+                thumbnailUrl: info.thumburl || info.url || "",
 
-                url:
+                description: meta("ImageDescription") || meta("ObjectName"),
 
-                    "https://commons.wikimedia.org/wiki/" +
+                sourceName: "Wikimedia Commons",
 
-                    encodeURIComponent(page.title || "")
+                sourceUrl,
+
+                domain: "commons.wikimedia.org",
+
+                mime: info.mime || "",
+
+                width: Number(info.width || info.thumbwidth) || null,
+
+                height: Number(info.height || info.thumbheight) || null,
+
+                license: meta("LicenseShortName") || meta("UsageTerms") || "Belirtilmemiş",
+
+                attribution: meta("Artist") || meta("Credit") || "Wikimedia Commons",
+
+                source: "Wikimedia Commons",
+
+                sourceRefs: [sourceUrl]
 
             };
 
@@ -276,7 +312,7 @@ async function wikimediaImages(
 
         })
 
-        .slice(0, CONFIG.IMAGE_LIMIT);
+        .slice(0, Math.max(limit, CONFIG.IMAGE_LIMIT));
 
 }
 
@@ -294,51 +330,20 @@ async function searchImagesForQuestion(
     if (!topic)
         return [];
 
-    const normalized =
-        normalizeTopic(topic);
-
-    let query =
-
-        IMAGE_KEYWORDS[normalized]
-
-        ||
-
-        topic;
-
-    switch (
-        detectTopicType(topic)
-    ) {
-
-        case "animal":
-
-            query += " animal";
-
-            break;
-
-        case "planet":
-
-            query += " planet";
-
-            break;
-
-        case "country":
-
-            query += " country";
-
-            break;
-
-        case "biology":
-
-            query += " biology";
-
-            break;
-
-    }
-
-    return await wikimediaImages(
-        query,
-        CONFIG.IMAGE_LIMIT
+    const context = VisualIntelligence.createContext(analysis.originalQuestion || topic, analysis);
+    if (context.intent === VisualIntelligence.VISUAL_INTENTS.CURRENT_EVENT || !context.queries.length) return [];
+    const cacheKey = VisualIntelligence.fold(`${context.intent}|${context.entity}|${context.queries.map(item => item.query).join("|")}`);
+    const cached = IMAGE_CACHE.get(cacheKey);
+    if (cached && Date.now() - cached.at < IMAGE_CACHE_TTL_MS) return cached.value.map(item => ({ ...item }));
+    const settled = await Promise.allSettled(
+        context.queries.map(item => withImageTimeout(wikimediaImages(item.query, 8))
+            .then(values => values.map(value => ({ ...value, comparisonSide: item.side, queryUsed: item.query }))))
     );
+    const candidates = settled.flatMap(result => result.status === "fulfilled" ? result.value : []);
+    const ranked = VisualIntelligence.rankCandidates(candidates, context);
+    IMAGE_CACHE.set(cacheKey, { at: Date.now(), value: ranked });
+    while (IMAGE_CACHE.size > IMAGE_CACHE_MAX) IMAGE_CACHE.delete(IMAGE_CACHE.keys().next().value);
+    return ranked;
 
 }
 
@@ -355,6 +360,8 @@ const Images = {
     wikimediaImages,
 
     searchImagesForQuestion
+
+    ,clearImageCache: () => IMAGE_CACHE.clear()
 
 };
 

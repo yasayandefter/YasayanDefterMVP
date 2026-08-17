@@ -1786,6 +1786,12 @@ function renderFlashcards(cards) {
    IMAGES
 ========================================================= */
 
+function openImageDetail(item, trigger){
+let dialog = $("imageDetailDialog");
+if(!dialog){dialog=document.createElement("dialog");dialog.id="imageDetailDialog";dialog.className="image-detail-dialog";dialog.setAttribute("aria-labelledby","imageDetailTitle");const shell=document.createElement("div");shell.className="image-detail-shell";const close=document.createElement("button");close.type="button";close.className="image-detail-close";close.textContent="Kapat";close.setAttribute("aria-label","Görsel ayrıntısını kapat");const image=document.createElement("img");image.id="imageDetailImage";image.alt="";const copy=document.createElement("div");copy.className="image-detail-copy";const title=document.createElement("h3");title.id="imageDetailTitle";const description=document.createElement("p");description.id="imageDetailDescription";const meta=document.createElement("p");meta.id="imageDetailMeta";const source=document.createElement("a");source.id="imageDetailSource";source.target="_blank";source.rel="noopener noreferrer";source.textContent="Kaynak sayfasını aç";copy.append(title,description,meta,source);shell.append(close,image,copy);dialog.appendChild(shell);document.body.appendChild(dialog);close.addEventListener("click",()=>dialog.close());dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});dialog.addEventListener("close",()=>trigger?.focus());}
+const safeSource=window.ResultRenderers?.safeUrl(item.sourceUrl||"")||"";$("imageDetailImage").src=item.url;$("imageDetailImage").alt=item.title||"Araştırma görseli";$("imageDetailTitle").textContent=item.title||"Görsel ayrıntısı";$("imageDetailDescription").textContent=item.description||"Bu görsel için ek açıklama belirtilmemiş.";$("imageDetailMeta").textContent=`${item.sourceName||"Kaynak belirtilmemiş"} · Lisans: ${item.license||"Belirtilmemiş"} · ${item.attribution||"Attribution belirtilmemiş"}`;const link=$("imageDetailSource");link.href=safeSource||"#";link.hidden=!safeSource;dialog.showModal();
+}
+
 function renderImages(images){
 
 const container = $("imagesContainer");
@@ -1804,7 +1810,15 @@ Array.isArray(images)
             item.title ||
             item.name ||
             item.caption
-        )
+        ),
+    description: typeof item === "string" ? "" : safeText(item.description),
+    sourceName: typeof item === "string" ? "" : safeText(item.sourceName || item.source),
+    sourceUrl: typeof item === "string" ? "" : (window.ResultRenderers?.safeUrl(item.sourceUrl || "") || ""),
+    license: typeof item === "string" ? "Belirtilmemiş" : safeText(item.license || "Belirtilmemiş"),
+    attribution: typeof item === "string" ? "" : safeText(item.attribution),
+    visualType: typeof item === "string" ? "UNKNOWN" : safeText(item.visualType || "UNKNOWN"),
+    relevanceScore: typeof item === "string" ? 0 : Number(item.relevanceScore || item.imageRelevanceScore || 0),
+    isHero: typeof item === "string" ? false : item.isHero === true
 }))
 .filter(x => {
 
@@ -1872,9 +1886,9 @@ return;
 normalized.forEach(item=>{
 
 const card =
-document.createElement("div");
+document.createElement("article");
 
-card.className = "image-card";
+card.className = "image-card" + (item.isHero ? " image-card-hero" : "");
 
 const img =
 document.createElement("img");
@@ -1882,43 +1896,25 @@ document.createElement("img");
 img.alt =
 item.title || "Yaşayan Defter görseli";
 
-img.loading = "lazy";
+img.loading = item.isHero ? "eager" : "lazy";
+if(item.isHero) img.fetchPriority = "high";
 
 img.src = item.url;
 
-img.onerror = async function(){
-
-const fallback =
-await loadWikimediaImage(
-currentAnalysis?.topic ||
-currentResearch?.title
-);
-
-if(fallback && img.src !== fallback){
-
-img.src = fallback;
-
-}else{
-
-card.style.display = "none";
-
-}
-
-};
+img.onerror = function(){img.hidden=true;card.classList.add("image-card-broken");card.setAttribute("aria-disabled","true");};
 
 card.appendChild(img);
-
-if(item.title){
 
 const caption =
 document.createElement("div");
 
 caption.className = "image-caption";
-caption.textContent = item.title;
+const title=document.createElement("strong");title.textContent=item.title||"Araştırma görseli";const context=document.createElement("span");context.textContent=item.description||"Görsel kaynağındaki açıklama belirtilmemiş.";const meta=document.createElement("small");meta.textContent=`${item.sourceName||"Kaynak belirtilmemiş"} · ${item.visualType.replace(/_/g," ")} · Lisans: ${item.license||"Belirtilmemiş"}`;caption.append(title,context,meta);
+const actions=document.createElement("span");actions.className="image-card-actions";const detail=document.createElement("button");detail.type="button";detail.textContent="Ayrıntıyı gör";detail.setAttribute("aria-label",`${item.title||"Görsel"} ayrıntısını aç`);actions.appendChild(detail);if(item.sourceUrl){const source=document.createElement("a");source.href=item.sourceUrl;source.target="_blank";source.rel="noopener noreferrer";source.textContent="Kaynak";actions.appendChild(source);}caption.appendChild(actions);
 
 card.appendChild(caption);
 
-}
+detail.addEventListener("click",()=>{if(!card.classList.contains("image-card-broken"))openImageDetail(item,detail);});
 
 container.appendChild(card);
 
@@ -2150,7 +2146,7 @@ return;
 
 }
 
-currentResearch.quiz = quiz;
+if (currentResearch) currentResearch.quiz = quiz;
 
 question.textContent = quiz.question;
 
