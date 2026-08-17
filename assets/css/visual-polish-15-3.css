@@ -776,6 +776,35 @@ html[data-notebook-page="lined"] :where(#notebookSection .memory-card,#notebookL
 html[data-notebook-page="grid"] :where(#notebookSection .memory-card,#notebookList .memory-card,.notebook .memory-card) { background-image: linear-gradient(color-mix(in srgb,var(--yd-accent) 10%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--yd-accent) 10%,transparent) 1px,transparent 1px); background-size: 24px 24px; }
 html[data-notebook-page="dotted"] :where(#notebookSection .memory-card,#notebookList .memory-card,.notebook .memory-card) { background-image: radial-gradient(circle,color-mix(in srgb,var(--yd-accent) 20%,transparent) 1px,transparent 1.4px); background-size: 20px 20px; }
 
+/* Private custom imagery is isolated to notebook-oriented surfaces. */
+html[data-notebook-background="custom"] #notebookSection { position: relative; isolation: isolate; overflow: hidden; border-radius: var(--yd-radius-lg); }
+html[data-notebook-background="custom"] #notebookSection::before,
+html[data-notebook-background="custom"] #notebookSection::after { position: absolute; inset: 0; z-index: -2; content: ""; pointer-events: none; }
+html[data-notebook-background="custom"] #notebookSection::before { inset: calc(var(--yd-notebook-blur,0px) * -2); background-image: var(--yd-notebook-background); background-position: var(--yd-notebook-position,center); background-size: cover; filter: blur(var(--yd-notebook-blur,0px)); transform: scale(1.025); }
+html[data-notebook-background="custom"] #notebookSection::after { z-index: -1; background: rgba(4,10,18,max(.22,var(--yd-notebook-overlay,.35))); }
+html[data-resolved-theme="light"][data-notebook-background="custom"] #notebookSection::after { background: rgba(246,248,244,max(.38,var(--yd-notebook-overlay,.35))); }
+html[data-notebook-background="custom"] #notebookSection :where(.memory-card,.notebook-empty-state) { background-color: color-mix(in srgb,var(--yd-surface) 88%,transparent); backdrop-filter: blur(5px); }
+html[data-notebook-background="custom"][data-notebook-page="lined"] #notebookSection .memory-card { background-image: repeating-linear-gradient(to bottom,transparent 0,transparent 27px,color-mix(in srgb,var(--yd-accent) 8%,transparent) 28px); }
+html[data-notebook-background="custom"][data-notebook-page="grid"] #notebookSection .memory-card { background-image: linear-gradient(color-mix(in srgb,var(--yd-accent) 7%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--yd-accent) 7%,transparent) 1px,transparent 1px); }
+html[data-notebook-background="custom"][data-notebook-page="dotted"] #notebookSection .memory-card { background-image: radial-gradient(circle,color-mix(in srgb,var(--yd-accent) 13%,transparent) 1px,transparent 1.4px); }
+
+.notebook-background-group { display: grid; gap: 12px; }
+.notebook-background-picker { display: inline-grid; place-items: center; width: fit-content; min-height: 44px; padding: 0 16px; border: 1px solid var(--yd-border); border-radius: var(--yd-radius-md); background: var(--yd-accent-soft); color: var(--yd-text-primary); font-size: 13px; font-weight: 800; cursor: pointer; }
+.notebook-background-picker:hover,.notebook-background-picker:focus-within { border-color: var(--yd-accent); }
+#notebookBackgroundFile { position: absolute; width: 1px; height: 1px; opacity: 0; }
+#notebookBackgroundFile:focus-visible + .notebook-background-preview,.notebook-background-picker:has(+ #notebookBackgroundFile:focus-visible) { outline: 2px solid var(--yd-accent); outline-offset: 3px; }
+.notebook-background-preview { position: relative; display: grid; place-items: center; width: min(100%,620px); min-height: 170px; overflow: hidden; border: 1px dashed var(--yd-border); border-radius: var(--yd-radius-lg); background: linear-gradient(135deg,var(--yd-surface),var(--yd-surface-elevated)); }
+.notebook-background-preview::before { content: "Fotoğraf önizlemesi"; color: var(--yd-text-secondary); font-size: 13px; }
+.notebook-background-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.notebook-background-preview img:not([hidden]) + * { display: none; }
+.notebook-background-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; width: min(100%,760px); }
+.notebook-background-control { display: grid; gap: 8px; min-width: 0; color: var(--yd-text-secondary); font-size: 13px; font-weight: 700; }
+.notebook-background-control select,.notebook-background-control input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--yd-accent); }
+.notebook-background-control select { padding: 0 10px; border: 1px solid var(--yd-border); border-radius: var(--yd-radius-sm); background: var(--yd-surface); color: var(--yd-text-primary); }
+.notebook-background-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.notebook-background-actions button { min-height: 44px; }
+.notebook-background-remove { color: var(--yd-danger); }
+
 @media (max-width: 900px) {
   .personalization-options { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .personalization-options-notebookPageStyle { grid-template-columns: repeat(4,minmax(0,1fr)); }
@@ -786,4 +815,8 @@ html[data-notebook-page="dotted"] :where(#notebookSection .memory-card,#notebook
   .personalization-option { min-width: 0; min-height: 86px; }
   .personalization-actions { align-items: stretch; flex-direction: column; }
   .personalization-actions .commercial-primary { width: 100%; }
+  .notebook-background-preview { min-height: 150px; }
+  .notebook-background-controls { grid-template-columns: 1fr; }
+  .notebook-background-actions { display: grid; grid-template-columns: 1fr; }
+  .notebook-background-picker { width: 100%; box-sizing: border-box; }
 }

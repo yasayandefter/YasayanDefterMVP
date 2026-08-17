@@ -7,6 +7,8 @@ const users = require("../repositories/usersRepository");
 const sessions = require("../repositories/sessionRepository");
 const claims = require("../repositories/claimRepository");
 const passwordResets = require("../repositories/passwordResetRepository");
+const notebookBackgrounds = require("../repositories/notebookBackgroundRepository");
+const notebookBackground = require("../auth/notebookBackground");
 const resetToken = require("../auth/resetToken");
 const { getPasswordResetDelivery } = require("./passwordResetDelivery");
 const db = require("../db");
@@ -41,6 +43,27 @@ async function updatePreferences(token, input, dependencies = {}) {
   catch (error) { throw authError(error.code || error.message); }
   if (!updated) throw authError("UNAUTHENTICATED");
   return { user: publicUser({ ...updated, student_id: activeSession.student_id }) };
+}
+
+async function getNotebookBackground(token, dependencies = {}) {
+  const activeSession = await (dependencies.sessions || sessions).findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  return (dependencies.notebookBackgrounds || notebookBackgrounds).findByUserId(activeSession.user_id);
+}
+
+async function updateNotebookBackground(token, input, dependencies = {}) {
+  const activeSession = await (dependencies.sessions || sessions).findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  let validated;
+  try { validated = notebookBackground.validate(input); } catch (error) { throw authError(error.code || error.message); }
+  return (dependencies.notebookBackgrounds || notebookBackgrounds).upsert(activeSession.user_id, validated);
+}
+
+async function removeNotebookBackground(token, dependencies = {}) {
+  const activeSession = await (dependencies.sessions || sessions).findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  await (dependencies.notebookBackgrounds || notebookBackgrounds).remove(activeSession.user_id);
+  return { ok: true };
 }
 
 async function updateProfile(token, input, dependencies = {}) {
@@ -169,4 +192,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, updatePreferences, changePassword, requestPasswordReset, completePasswordReset, claimStudent };
+module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, updatePreferences, getNotebookBackground, updateNotebookBackground, removeNotebookBackground, changePassword, requestPasswordReset, completePasswordReset, claimStudent };

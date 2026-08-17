@@ -1,0 +1,14 @@
+"use strict";
+const assert = require("node:assert/strict");
+const background = require("../auth/notebookBackground");
+const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+const webp = Buffer.from("524946460400000057454250", "hex");
+const jpeg = Buffer.from("ffd8ffe000104a464946", "hex");
+assert.equal(background.MAX_BACKGROUND_BYTES, 900 * 1024);
+assert.equal(background.detectContentType(png), "image/png"); assert.equal(background.detectContentType(webp), "image/webp"); assert.equal(background.detectContentType(jpeg), "image/jpeg");
+for (const bad of [Buffer.from("<svg><script>1</script></svg>"), Buffer.from("GIF89a"), Buffer.from("<html>")]) assert.equal(background.detectContentType(bad), null);
+assert.equal(background.validate({ data: png, contentType: "image/png", position: "top", overlay: 70, blur: 12 }).position, "top");
+for (const bad of [{data:png,contentType:"image/jpeg"},{data:Buffer.alloc(background.MAX_BACKGROUND_BYTES+1),contentType:"image/png"},{data:png,contentType:"image/png",position:"left"},{data:png,contentType:"image/png",overlay:71},{data:png,contentType:"image/png",blur:13}]) assert.throws(()=>background.validate(bad));
+const client = require("node:fs").readFileSync("assets/js/personalization.js", "utf8");
+assert.match(client,/8 \* 1024 \* 1024/); assert.match(client,/createImageBitmap/); assert.match(client,/canvas\.toBlob/); assert.match(client,/indexedDB\.open/); assert.doesNotMatch(client,/innerHTML/);
+console.log("PASS  notebook background bounds, magic bytes, settings, native processing, IndexedDB and safe DOM contract");
