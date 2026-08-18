@@ -32,6 +32,7 @@ const metrics = require("./brain/metrics");
 const database = require("./db");
 const databaseConfig = require("./db/config");
 const authConfig = require("./auth/config");
+const smartNote = require("./auth/smartNote");
 const authRoutes = require("./routes/auth");
 const { validateAuthOrigin } = require("./auth/origin");
 const { optionalAuth } = require("./middleware/auth");
@@ -472,7 +473,7 @@ function requireStudentContext(req, res, body = {}) {
     }
     const requested = cleanText(req.query?.studentId || body.studentId || "", 100);
     if (req.auth.role === "TEACHER" && requested) return requested;
-    if (req.auth.role === "TEACHER") return "";
+    if (req.auth.role === "TEACHER") return { kind: "user", id: req.auth.userId };
     res.status(403).json({ ok: false, error: { code: "FORBIDDEN", message: "Bu kaynağa erişim yetkiniz yok." }, requestId: req.requestId });
     return null;
   }
@@ -5146,7 +5147,9 @@ app.get("/api/images", async (req, res) => {
 app.get("/api/memory/list", async (req, res, next) => {
   if (req.repositories?.mode !== "postgres") return next();
   const studentId = requireStudentContext(req, res); if (studentId === null) return;
-  try { return res.json({ ok: true, memories: await req.repositories.memory.findByStudent(studentId), requestId: req.requestId }); }
+  const workspaceArea = cleanText(req.query?.workspaceArea || "", 40); const contentType = cleanText(req.query?.contentType || "", 40); const search = cleanText(req.query?.q || "", 80);
+  if ((workspaceArea && !smartNote.WORKSPACE_AREAS.includes(workspaceArea)) || (contentType && !smartNote.CONTENT_TYPES.includes(contentType))) return res.status(400).json({ ok:false,error:{code:"INVALID_SMART_NOTE",message:"Defter filtresi geçersiz."},requestId:req.requestId });
+  try { return res.json({ ok: true, memories: await req.repositories.memory.findByStudent(studentId, { workspaceArea, contentType, search, limit:req.query?.limit, offset:req.query?.offset }), requestId: req.requestId }); }
   catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Hafıza kayıtları şu anda alınamadı." }, requestId: req.requestId }); }
 });
 app.post("/api/memory/save", async (req, res, next) => {
@@ -5154,9 +5157,23 @@ app.post("/api/memory/save", async (req, res, next) => {
   const studentId = requireStudentContext(req, res, req.body || {}); if (studentId === null) return;
   try {
     const topic = cleanText(req.body?.topic || req.body?.title || "", 240); if (!topic) return res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "Konu belirtilmelidir." }, requestId: req.requestId });
-    const memory = await req.repositories.memory.upsertTopic({ id: crypto.randomUUID(), studentId, topic, normalizedTopic: normalize(topic).slice(0, 240), title: cleanText(req.body?.title || topic, 240), summary: cleanText(req.body?.summary || "", 4000), keyConcepts: Array.isArray(req.body?.keyConcepts) ? req.body.keyConcepts : [], keyFacts: Array.isArray(req.body?.keyFacts) ? req.body.keyFacts : [], relatedTopics: Array.isArray(req.body?.relatedTopics) ? req.body.relatedTopics : [] });
+    let primaryArea = "research"; if (req.auth?.userId && req.repositories.workspacePreferences) primaryArea = (await req.repositories.workspacePreferences.findByUserId(req.auth.userId))?.primaryArea || "research";
+    const meta = smartNote.normalize({ workspaceArea:req.body?.workspaceArea || primaryArea, contentType:req.body?.contentType || "research", customTitle:req.body?.customTitle, tags:req.body?.tags || [] }, { research:true });
+    const memory = await req.repositories.memory.upsertTopic({ id: crypto.randomUUID(), studentId, topic, normalizedTopic: normalize(topic).slice(0, 240), title: cleanText(req.body?.title || topic, 240), summary: cleanText(req.body?.summary || "", 4000), keyConcepts: Array.isArray(req.body?.keyConcepts) ? req.body.keyConcepts : [], keyFacts: Array.isArray(req.body?.keyFacts) ? req.body.keyFacts : [], relatedTopics: Array.isArray(req.body?.relatedTopics) ? req.body.relatedTopics : [], ...meta });
     return res.json({ ok: true, memory, requestId: req.requestId });
-  } catch (_) { return res.status(503).json({ ok: false, error: { code: "STORAGE_UNAVAILABLE", message: "Hafıza kaydı şu anda saklanamadı." }, requestId: req.requestId }); }
+  } catch (error) { const invalid=error?.code==="INVALID_SMART_NOTE"; return res.status(invalid?400:503).json({ ok: false, error: { code: invalid?"INVALID_SMART_NOTE":"STORAGE_UNAVAILABLE", message: invalid?"Defter metadata alanları geçersiz.":"Hafıza kaydı şu anda saklanamadı." }, requestId: req.requestId }); }
+});
+
+app.post("/api/memory", async (req,res,next)=>{
+  if(req.repositories?.mode!=="postgres")return next(); const owner=requireStudentContext(req,res,req.body||{});if(owner===null)return;
+  try{const value=smartNote.normalize({title:req.body?.title,content:req.body?.content,workspaceArea:req.body?.workspaceArea,contentType:req.body?.contentType,tags:req.body?.tags,metadata:req.body?.metadata});const id=crypto.randomUUID();const memory=await req.repositories.memory.createNote({id,studentId:owner,topic:value.title,title:value.title,summary:value.content,...value});return res.status(201).json({ok:true,memory,requestId:req.requestId});}
+  catch(error){const invalid=error?.code==="INVALID_SMART_NOTE";return res.status(invalid?400:503).json({ok:false,error:{code:invalid?"INVALID_SMART_NOTE":"STORAGE_UNAVAILABLE",message:invalid?"Not alanları geçersiz.":"Not şu anda oluşturulamadı."},requestId:req.requestId});}
+});
+
+app.patch("/api/memory/:id",async(req,res,next)=>{
+  if(req.repositories?.mode!=="postgres")return next();const owner=requireStudentContext(req,res,req.body||{});if(owner===null)return;const id=cleanText(req.params.id||"",100);if(!/^[0-9a-f-]{36}$/i.test(id))return res.status(404).json({ok:false,error:{code:"NOT_FOUND",message:"Defter kaydı bulunamadı."},requestId:req.requestId});
+  try{const value=smartNote.normalize({title:req.body?.customTitle||req.body?.title||"Defter kaydı",content:req.body?.content||"Korunan araştırma içeriği",workspaceArea:req.body?.workspaceArea,contentType:req.body?.contentType,tags:req.body?.tags,metadata:req.body?.metadata});const result=await req.repositories.memory.updateOwned(id,owner,value);if(!result.exists)return res.status(404).json({ok:false,error:{code:"NOT_FOUND",message:"Defter kaydı bulunamadı."},requestId:req.requestId});if(!result.memory)return res.status(403).json({ok:false,error:{code:"FORBIDDEN",message:"Bu kaydı düzenleme yetkiniz yok."},requestId:req.requestId});return res.json({ok:true,memory:result.memory,requestId:req.requestId});}
+  catch(error){const invalid=error?.code==="INVALID_SMART_NOTE";return res.status(invalid?400:503).json({ok:false,error:{code:invalid?"INVALID_SMART_NOTE":"STORAGE_UNAVAILABLE",message:invalid?"Not alanları geçersiz.":"Not şu anda güncellenemedi."},requestId:req.requestId});}
 });
 
 app.delete("/api/memory/:id", async (req, res, next) => {

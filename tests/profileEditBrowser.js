@@ -74,6 +74,9 @@ async function isFocused(locator) {
   await page.getByLabel("Parola tekrar").fill(password);
   await page.getByRole("button", { name: "Hesap oluştur" }).click();
   await page.locator("#editProfileButton").waitFor({ state: "visible" });
+  await page.locator(".workspace-dialog[open]").waitFor();
+  await page.getByRole("button", { name: "Şimdilik geç" }).click();
+  await page.locator(".workspace-dialog").waitFor({ state: "hidden" });
 
   const opener = page.locator("#editProfileButton");
   await opener.focus();

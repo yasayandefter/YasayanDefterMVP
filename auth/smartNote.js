@@ -1,0 +1,15 @@
+"use strict";
+
+const WORKSPACE_AREAS = Object.freeze(["learning", "work", "research", "personal", "creative", "daily_life"]);
+const CONTENT_TYPES = Object.freeze(["research", "note", "meeting", "project", "idea", "draft", "journal", "list", "plan", "reference"]);
+const PROJECT_STATUSES = Object.freeze(["idea", "active", "paused", "done"]);
+const LIMITS = Object.freeze({ title: 120, content: 12000, tags: 8, tag: 32, date: 10 });
+
+function invalid() { const error = new Error("INVALID_SMART_NOTE"); error.code = "INVALID_SMART_NOTE"; return error; }
+function text(value, maximum, required = false) { if (value === undefined || value === null) value = ""; if (typeof value !== "string") throw invalid(); const clean = value.trim(); if ((required && !clean) || clean.length > maximum) throw invalid(); return clean; }
+function enumValue(value, allowed, fallback) { const clean = text(value === undefined ? fallback : value, 40, true).toLowerCase(); if (!allowed.includes(clean)) throw invalid(); return clean; }
+function tags(value = []) { if (!Array.isArray(value) || value.length > LIMITS.tags) throw invalid(); const clean = value.map(item => text(item, LIMITS.tag, true)); if (new Set(clean.map(item => item.toLocaleLowerCase("tr-TR"))).size !== clean.length) throw invalid(); return clean; }
+function metadata(value = {}, contentType = "note") { if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid(); const allowed = new Set(["date", "status", "template"]); if (Object.keys(value).some(key => !allowed.has(key))) throw invalid(); const result = {}; if (value.date !== undefined) { const date = text(value.date, LIMITS.date); if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw invalid(); if (date) result.date = date; } if (value.status !== undefined) { if (contentType !== "project") throw invalid(); result.status = enumValue(value.status, PROJECT_STATUSES, "idea"); } if (value.template !== undefined) result.template = text(value.template, 40); return result; }
+function normalize(value, options = {}) { if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid(); const allowed = new Set(options.research ? ["workspaceArea", "contentType", "customTitle", "tags"] : ["title", "content", "workspaceArea", "contentType", "tags", "metadata"]); if (Object.keys(value).some(key => !allowed.has(key))) throw invalid(); const contentType = enumValue(value.contentType, CONTENT_TYPES, options.research ? "research" : "note"); return { ...(options.research ? {} : { title: text(value.title, LIMITS.title, true), content: text(value.content, LIMITS.content, true) }), workspaceArea: enumValue(value.workspaceArea, WORKSPACE_AREAS, "research"), contentType, customTitle: options.research ? text(value.customTitle, LIMITS.title) : text(value.title, LIMITS.title, true), tags: tags(value.tags), noteMetadata: options.research ? {} : metadata(value.metadata, contentType) }; }
+
+module.exports = { WORKSPACE_AREAS, CONTENT_TYPES, PROJECT_STATUSES, LIMITS, normalize, invalid };

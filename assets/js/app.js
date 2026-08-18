@@ -3733,7 +3733,9 @@ currentResearch.structuredContent?.keyConcepts || [],
 
 relatedTopics:
 currentResearch.structuredContent?.relatedTopics ||
-currentResearch.relatedTopics || []
+currentResearch.relatedTopics || [],
+
+...(window.YDSmartNoteSaveOptions || {})
 
 };
 
@@ -3772,11 +3774,18 @@ function memoryToNotebook(memory){
 return {
 id:memory.id,
 title:memory.title || memory.topic || "Kayıtlı araştırma",
+originalTitle:memory.originalTitle || memory.topic || memory.title || "",
 question:memory.topic || memory.title || "",
 summary:memory.summary || "",
 facts:memory.keyFacts || [],
 interesting:"",
-date:memory.updatedAt ? new Date(memory.updatedAt).toLocaleString("tr-TR") : ""
+date:memory.updatedAt ? new Date(memory.updatedAt).toLocaleString("tr-TR") : "",
+updatedAt:memory.updatedAt || "",
+workspaceArea:memory.workspaceArea || "research",
+contentType:memory.contentType || "research",
+customTitle:memory.customTitle || "",
+tags:Array.isArray(memory.tags) ? memory.tags : [],
+noteMetadata:memory.noteMetadata || {}
 };
 
 }
@@ -3867,6 +3876,10 @@ function renderNotebook(errorMessage){
     if(!box) return;
 
     const saved = getSavedTopics();
+if(window.YDSmartNotes?.render && window.YasayanDefterAuth?.authenticated === true){
+window.YDSmartNotes.render(saved,errorMessage);
+return;
+}
 if(!saved.length){
 
 box.innerHTML =
@@ -3941,7 +3954,7 @@ actions.append(cancel,remove); dialog.append(title,message,actions); document.bo
 }
 const message = dialog.querySelector(".memory-delete-message"); message.textContent = `“${item.title || "Bu araştırma"}” Defterim'den kalıcı olarak silinsin mi?`;
 const cancel = dialog.querySelector(".memory-delete-cancel"); const remove = dialog.querySelector(".memory-delete-confirm");
-let settled = false; const finish = value=>{ if(settled) return; settled = true; dialog.close(); resolve(value); };
+let settled = false; const finish = value=>{ if(settled) return; settled = true; dialog.close(); message.textContent = ""; resolve(value); };
 cancel.onclick = ()=>finish(false); remove.onclick = ()=>finish(true); dialog.oncancel = event=>{ event.preventDefault(); finish(false); };
 dialog.showModal(); cancel.focus();
 });
