@@ -3781,6 +3781,9 @@ facts:memory.keyFacts || [],
 interesting:"",
 date:memory.updatedAt ? new Date(memory.updatedAt).toLocaleString("tr-TR") : "",
 updatedAt:memory.updatedAt || "",
+createdAt:memory.createdAt || "",
+isPinned:Boolean(memory.isPinned),
+isArchived:Boolean(memory.isArchived),
 workspaceArea:memory.workspaceArea || "research",
 contentType:memory.contentType || "research",
 customTitle:memory.customTitle || "",
@@ -3804,6 +3807,7 @@ const response = await fetch(API + "/api/memory/list", { headers:{ "Accept":"app
 if(!response.ok) throw new Error("MEMORY_LIST_FAILED");
 const data = await response.json();
 persistentNotebook = Array.isArray(data.memories) ? data.memories.map(memoryToNotebook) : [];
+window.YDSmartNotes?.setPage?.(data.page || {});
 renderNotebook();
 updateSaveButton();
 

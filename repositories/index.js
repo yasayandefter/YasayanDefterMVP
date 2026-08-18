@@ -14,12 +14,13 @@ function postgresRepositories() {
     quiz: require("./quizRepository"),
     sessions: require("./sessionRepository"),
     claims: require("./claimRepository"),
-    workspacePreferences: require("./workspacePreferencesRepository")
+    workspacePreferences: require("./workspacePreferencesRepository"),
+    noteFilterPresets: require("./noteFilterPresetsRepository")
   };
 }
 
 function jsonRepositories() {
-  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, learningActivity: null, quiz: null, sessions: null, claims: null, workspacePreferences: null };
+  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, learningActivity: null, quiz: null, sessions: null, claims: null, workspacePreferences: null, noteFilterPresets: null };
 }
 
 function getRepositories(env = process.env) { return getConfig(env).storageMode === "postgres" ? postgresRepositories() : jsonRepositories(); }
