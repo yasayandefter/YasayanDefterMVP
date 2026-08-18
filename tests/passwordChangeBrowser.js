@@ -40,6 +40,7 @@ async function submitLogin(page, rawPassword) { await page.getByLabel("Kullanıc
   await page.getByLabel("Parola", { exact: true }).fill(oldPassword);
   await page.getByLabel("Parola tekrar").fill(oldPassword);
   await page.getByRole("button", { name: "Hesap oluştur" }).click();
+  await page.locator(".workspace-dialog[open]").waitFor(); await page.getByRole("button", { name: "Şimdilik geç" }).click(); await page.locator(".workspace-dialog").waitFor({ state: "hidden" });
   const opener = page.locator("#changePasswordButton"); await opener.waitFor({ state: "visible" }); await opener.focus(); await opener.click();
   const form = page.locator("[data-password-form]"); await form.waitFor();
   assert.equal(await page.locator('.auth-card[role="dialog"]').getAttribute("aria-modal"), "true");

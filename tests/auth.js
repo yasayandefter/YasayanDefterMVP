@@ -85,7 +85,7 @@ loginResult.then(result => {
   const originalTransaction = db.withTransaction;
   db.withTransaction = async callback => callback({});
   try {
-    await assert.rejects(() => authService.claimStudent({ claimCode: "abc", username: "", rawPassword: "correct horse battery" }), error => error.code === "CLAIM_INVALID");
+    await assert.rejects(() => authService.claimStudent({ claimCode: "abc", username: "", rawPassword: "correct horse battery" }, { config: local }), error => error.code === "CLAIM_INVALID");
   } finally {
     db.withTransaction = originalTransaction;
   }

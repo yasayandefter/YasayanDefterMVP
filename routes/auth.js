@@ -14,7 +14,7 @@ const service = dependencies.authService || authService;
 const limiter = dependencies.limiter || authRateLimiter;
 const configProvider = dependencies.getConfig || getConfig;
 const originValidator = dependencies.validateAuthOrigin || validateAuthOrigin;
-function safeAuthError(error) { const allowed = new Set(["UNAUTHENTICATED", "INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "EMAIL_TAKEN", "INVALID_USERNAME", "INVALID_EMAIL", "INVALID_PASSWORD", "PASSWORD_UNCHANGED", "RESET_TOKEN_INVALID", "INVALID_PREFERENCES", "INVALID_BACKGROUND_IMAGE", "INVALID_BACKGROUND_SETTINGS"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
+function safeAuthError(error) { const allowed = new Set(["UNAUTHENTICATED", "INVALID_CREDENTIALS", "ACCOUNT_DISABLED", "CLAIM_INVALID", "CLAIM_EXPIRED", "CLAIM_USED", "CLAIM_LOCKED", "USERNAME_TAKEN", "EMAIL_TAKEN", "INVALID_USERNAME", "INVALID_EMAIL", "INVALID_PASSWORD", "PASSWORD_UNCHANGED", "RESET_TOKEN_INVALID", "INVALID_PREFERENCES", "INVALID_WORKSPACE", "INVALID_BACKGROUND_IMAGE", "INVALID_BACKGROUND_SETTINGS"]); return allowed.has(error.code || error.message) ? (error.code || error.message) : "AUTH_FAILED"; }
 function profileMessage(code) { return ({ UNAUTHENTICATED: "Oturum açmanız gerekiyor.", INVALID_CREDENTIALS: "Mevcut parola yanlış.", USERNAME_TAKEN: "Bu kullanıcı adı zaten kullanılıyor.", EMAIL_TAKEN: "Bu e-posta adresi zaten kullanılıyor.", INVALID_USERNAME: "Kullanıcı adı geçersiz.", INVALID_EMAIL: "E-posta adresi geçersiz.", AUTH_FAILED: "Profil güncellenemedi." })[code] || authMessage(code); }
 function authMessage(code) { return ({ INVALID_CREDENTIALS: "Kimlik bilgileri geçersiz.", ACCOUNT_DISABLED: "Hesap devre dışı.", CLAIM_INVALID: "Davet kodu geçersiz.", CLAIM_EXPIRED: "Davet kodunun süresi dolmuş.", CLAIM_USED: "Davet kodu daha önce kullanılmış.", CLAIM_LOCKED: "Davet kodu geçici olarak kilitlendi.", USERNAME_TAKEN: "Kullanıcı adı kullanılıyor.", EMAIL_TAKEN: "E-posta adresi kullanılıyor.", INVALID_USERNAME: "Kullanıcı adı geçersiz.", INVALID_EMAIL: "E-posta adresi geçersiz.", INVALID_PASSWORD: "Parola kurallara uygun değil.", AUTH_FAILED: "Kimlik doğrulama tamamlanamadı." })[code] || "Kimlik doğrulama tamamlanamadı."; }
 function passwordMessage(code) { return ({ UNAUTHENTICATED: "Oturum açmanız gerekiyor.", INVALID_CREDENTIALS: "Mevcut parola doğru değil.", INVALID_PASSWORD: "Yeni parola en az 8, en fazla 128 karakter olmalıdır.", PASSWORD_UNCHANGED: "Yeni parola mevcut parolanızdan farklı olmalıdır.", AUTH_FAILED: "Parola değiştirilemedi." })[code] || "Parola değiştirilemedi."; }
@@ -73,6 +73,24 @@ router.patch("/preferences", async (req, res) => {
     const status = code === "UNAUTHENTICATED" ? 401 : code === "AUTH_FAILED" ? 500 : 400;
     const message = code === "INVALID_PREFERENCES" ? "Görünüm tercihi geçersiz." : code === "UNAUTHENTICATED" ? "Oturum açmanız gerekiyor." : "Görünüm tercihi kaydedilemedi.";
     return res.status(status).json({ ok: false, error: { code, message } });
+  }
+});
+
+router.get("/workspace", async (req, res) => {
+  const config = enabledForRequest(res); if (!config) return;
+  try { const token = parseCookies(req.headers.cookie || "")[config.cookieName]; return res.json({ ok: true, workspace: await service.getWorkspace(token, { workspacePreferences: dependencies.workspacePreferencesRepository }) }); }
+  catch (error) { const code = safeAuthError(error); return res.status(code === "UNAUTHENTICATED" ? 401 : 500).json({ ok: false, error: { code, message: code === "UNAUTHENTICATED" ? "Oturum açmanız gerekiyor." : "Çalışma alanı alınamadı." } }); }
+});
+
+router.put("/workspace", async (req, res) => {
+  const config = enabledForRequest(res); if (!config || !originGuard(req, res)) return;
+  try {
+    const token = parseCookies(req.headers.cookie || "")[config.cookieName];
+    const value = { selectedAreas: req.body?.selectedAreas, primaryArea: req.body?.primaryArea, onboardingCompleted: req.body?.onboardingCompleted };
+    return res.json({ ok: true, workspace: await service.updateWorkspace(token, value, { workspacePreferences: dependencies.workspacePreferencesRepository }) });
+  } catch (error) {
+    const code = safeAuthError(error); const status = code === "UNAUTHENTICATED" ? 401 : code === "INVALID_WORKSPACE" ? 400 : 500;
+    return res.status(status).json({ ok: false, error: { code, message: code === "INVALID_WORKSPACE" ? "Çalışma alanı seçimi geçersiz." : code === "UNAUTHENTICATED" ? "Oturum açmanız gerekiyor." : "Çalışma alanı kaydedilemedi." } });
   }
 });
 

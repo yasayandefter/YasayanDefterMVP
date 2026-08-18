@@ -15,7 +15,7 @@ const bounded = config.getConfig({ STORAGE_MODE: "postgres", DATABASE_URL: "post
 assert.equal(bounded.poolMax, 50);
 assert.equal(bounded.idleTimeoutMillis, 1000);
 assert.equal(bounded.connectionTimeoutMillis, 10000);
-assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]);
+assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]);
 assert.ok(migrations.listMigrations().every(item => item.sql.length > 100));
 for (const repository of ["studentsRepository", "classroomsRepository", "memoryRepository", "learningActivityRepository", "quizRepository", "sessionRepository", "usersRepository", "claimRepository", "membershipRepository"]) {
   const loaded = require(path.join("..", "repositories", repository));

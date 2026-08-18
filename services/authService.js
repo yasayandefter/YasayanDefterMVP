@@ -9,6 +9,8 @@ const claims = require("../repositories/claimRepository");
 const passwordResets = require("../repositories/passwordResetRepository");
 const notebookBackgrounds = require("../repositories/notebookBackgroundRepository");
 const notebookBackground = require("../auth/notebookBackground");
+const workspace = require("../auth/workspace");
+const workspacePreferences = require("../repositories/workspacePreferencesRepository");
 const resetToken = require("../auth/resetToken");
 const { getPasswordResetDelivery } = require("./passwordResetDelivery");
 const db = require("../db");
@@ -43,6 +45,21 @@ async function updatePreferences(token, input, dependencies = {}) {
   catch (error) { throw authError(error.code || error.message); }
   if (!updated) throw authError("UNAUTHENTICATED");
   return { user: publicUser({ ...updated, student_id: activeSession.student_id }) };
+}
+
+async function getWorkspace(token, dependencies = {}) {
+  const activeSession = await (dependencies.sessions || sessions).findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  const stored = await (dependencies.workspacePreferences || workspacePreferences).findByUserId(activeSession.user_id);
+  return stored || workspace.defaults(false);
+}
+
+async function updateWorkspace(token, input, dependencies = {}) {
+  const activeSession = await (dependencies.sessions || sessions).findValidSession(token);
+  if (!activeSession) throw authError("UNAUTHENTICATED");
+  let normalized;
+  try { normalized = workspace.normalize(input); } catch (_) { throw authError("INVALID_WORKSPACE"); }
+  return (dependencies.workspacePreferences || workspacePreferences).upsert(activeSession.user_id, normalized);
 }
 
 async function getNotebookBackground(token, dependencies = {}) {
@@ -192,4 +209,4 @@ async function claimStudent({ claimCode, username, rawPassword }, dependencies =
   });
 }
 
-module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, updatePreferences, getNotebookBackground, updateNotebookBackground, removeNotebookBackground, changePassword, requestPasswordReset, completePasswordReset, claimStudent };
+module.exports = { PASSWORD_RESET_TTL_SECONDS, PASSWORD_RESET_REQUEST_MESSAGE, authError, login, register, logout, session, updateProfile, updatePreferences, getWorkspace, updateWorkspace, getNotebookBackground, updateNotebookBackground, removeNotebookBackground, changePassword, requestPasswordReset, completePasswordReset, claimStudent };

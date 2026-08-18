@@ -49,9 +49,9 @@
 
   function loginForm() {
     var form = el("form", { class: "auth-form", "data-login-form": "", novalidate: "" });
-    form.appendChild(el("p", { class: "auth-kicker" }, "Öğrenme yolculuğun"));
+    form.appendChild(el("p", { class: "auth-kicker" }, "Kişisel çalışma alanın"));
     form.appendChild(el("h1", {}, "Yaşayan Defter'e Giriş"));
-    form.appendChild(el("p", { class: "auth-lede" }, "Araştırmalarına, hafızana ve öğrenme yolculuğuna kaldığın yerden devam et."));
+    form.appendChild(el("p", { class: "auth-lede" }, "Araştırmalarına, notlarına, fikirlerine ve çalışmalarına kaldığın yerden devam et."));
     form.appendChild(field("Kullanıcı adı veya e-posta", "identifier", "text", "username"));
     form.appendChild(field("Parola", "password", "password", "current-password"));
     var submit = el("button", { type: "submit", class: "auth-primary" }, "Giriş yap");
@@ -86,7 +86,7 @@
     var form = el("form", { class: "auth-form", "data-register-form": "", novalidate: "" });
     form.appendChild(el("p", { class: "auth-kicker" }, "Bireysel hesap"));
     form.appendChild(el("h1", {}, "Hesap oluştur"));
-    form.appendChild(el("p", { class: "auth-lede" }, "Okul veya sınıf bağlantısı olmadan kendi öğrenme alanını oluştur."));
+    form.appendChild(el("p", { class: "auth-lede" }, "Kendine ait araştırma, not ve üretim alanını oluştur."));
     form.appendChild(field("Kullanıcı adı", "username", "text", "username"));
     var emailField = field("E-posta (opsiyonel)", "email", "email", "email"); emailField.querySelector("input").removeAttribute("required"); form.appendChild(emailField);
     form.appendChild(field("Parola", "newPassword", "password", "new-password"));

@@ -1,11 +1,12 @@
 "use strict";
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const port = 3197;
-const child = spawn(process.execPath, ["server.js"], { cwd: root, env: { ...process.env, PORT: String(port) }, stdio: ["ignore", "pipe", "pipe"] });
+const port = 31000 + crypto.randomInt(10000);
+const child = spawn(process.execPath, ["server.js"], { cwd: root, env: { ...process.env, PORT: String(port), ACCESS_MODE: "local-pilot", AUTH_MODE: "local", STORAGE_MODE: "json", DATABASE_URL: "", APP_ORIGIN: "", NODE_ENV: "test" }, stdio: ["ignore", "pipe", "pipe"] });
 let output = ""; child.stdout.on("data", chunk => { output += chunk; }); child.stderr.on("data", chunk => { output += chunk; });
 async function waitReady() { for (let i = 0; i < 80; i += 1) { try { const response = await fetch(`http://127.0.0.1:${port}/api/status`); if (response.ok) return; } catch (_) {} await new Promise(resolve => setTimeout(resolve, 50)); } throw new Error(`server not ready: ${output}`); }
 async function run() {

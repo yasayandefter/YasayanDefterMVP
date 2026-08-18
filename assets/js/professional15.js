@@ -31,7 +31,7 @@
         var header = document.querySelector("#brainEngineWorkspace > .header");
         if (!header || document.getElementById("commercialNav")) return;
         var nav = el("nav", { id: "commercialNav", class: "commercial-nav", "aria-label": "Brain Engine bölümleri" });
-        [["home", "Ana sayfa", "brainEngineWorkspace"], ["research", "Araştır", "questionInput"], ["teacher", "Öğretmen", "teacherDashboard"], ["quiz", "Quiz", "quizQuestion"], ["notebook", "Notebook", "notebookSection"], ["profile", "Profil", "commercialProfile"], ["settings", "Ayarlar", "commercialSettings"]].forEach(function (item) {
+        [["home", "Ana sayfa", "brainEngineWorkspace"], ["research", "Araştır", "questionInput"], ["notebook", "Defterim", "notebookSection"], ["quiz", "Quiz", "quizQuestion"], ["teacher", "Öğretmen araçları", "teacherDashboard"], ["profile", "Profil", "commercialProfile"], ["settings", "Ayarlar", "commercialSettings"]].forEach(function (item) {
             var button = el("button", { type: "button", "data-target": item[2], class: "commercial-nav-item" }, item[1]);
             button.addEventListener("click", function () { if (item[0] === "settings") { openSettings(); } else if (item[0] === "profile") { scrollTo("commercialProfile"); } else { scrollTo(item[2]); } });
             nav.appendChild(button);
