@@ -17,12 +17,13 @@ function postgresRepositories() {
     workspacePreferences: require("./workspacePreferencesRepository"),
     noteFilterPresets: require("./noteFilterPresetsRepository"),
     smartCollections: require("./smartCollectionsRepository"),
-    intelligenceFeedback: require("./intelligenceFeedbackRepository")
+    intelligenceFeedback: require("./intelligenceFeedbackRepository"),
+    homeIntelligence: require("./homeIntelligenceRepository")
   };
 }
 
 function jsonRepositories() {
-  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, learningActivity: null, quiz: null, sessions: null, claims: null, workspacePreferences: null, noteFilterPresets: null, smartCollections: null, intelligenceFeedback: null };
+  return { mode: "json", users: null, students: null, classrooms: null, memberships: null, memory: null, learningActivity: null, quiz: null, sessions: null, claims: null, workspacePreferences: null, noteFilterPresets: null, smartCollections: null, intelligenceFeedback: null, homeIntelligence: null };
 }
 
 function getRepositories(env = process.env) { return getConfig(env).storageMode === "postgres" ? postgresRepositories() : jsonRepositories(); }
