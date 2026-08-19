@@ -34,6 +34,8 @@ const databaseConfig = require("./db/config");
 const authConfig = require("./auth/config");
 const smartNote = require("./auth/smartNote");
 const noteOrganization = require("./auth/noteOrganization");
+const contextRequest = require("./auth/contextIntelligence");
+const contextIntelligence = require("./services/contextIntelligence");
 const authRoutes = require("./routes/auth");
 const { validateAuthOrigin } = require("./auth/origin");
 const { optionalAuth } = require("./middleware/auth");
@@ -5144,6 +5146,11 @@ app.get("/api/images", async (req, res) => {
 /* ========================================================
    API — MEMORY LIST
 ======================================================== */
+
+function requirePersonalIntelligenceContext(req,res,body={}){if(req.auth?.role==="TEACHER"&&cleanText(req.query?.studentId||body.studentId||"",100)){res.status(403).json({ok:false,error:{code:"FORBIDDEN",message:"Kişisel bağlantılar sınıf verileriyle birleştirilemez."},requestId:req.requestId});return null;}return requireStudentContext(req,res,body);}
+async function intelligencePreferences(req){return req.auth?.userId&&req.repositories.workspacePreferences?(await req.repositories.workspacePreferences.findByUserId(req.auth.userId))||{}:{};}
+app.get("/api/intelligence/context",async(req,res,next)=>{if(req.repositories?.mode!=="postgres")return next();const owner=requirePersonalIntelligenceContext(req,res);if(owner===null)return;const id=cleanText(req.query?.recordId||"",100);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return res.status(400).json({ok:false,error:{code:"INVALID_CONTEXT_REQUEST",message:"Kayıt kimliği geçersiz."},requestId:req.requestId});try{const target=await req.repositories.memory.findOwnedById(id,owner);if(!target.exists)return res.status(404).json({ok:false,error:{code:"NOT_FOUND",message:"Defter kaydı bulunamadı."},requestId:req.requestId});if(!target.memory)return res.status(403).json({ok:false,error:{code:"FORBIDDEN",message:"Bu kayıt için bağlantı görüntüleme yetkiniz yok."},requestId:req.requestId});const candidates=await req.repositories.memory.findIntelligenceCandidates(owner,200),context=contextIntelligence.build(target.memory,candidates,await intelligencePreferences(req));return res.json({ok:true,context,requestId:req.requestId});}catch(_){return res.status(503).json({ok:false,error:{code:"STORAGE_UNAVAILABLE",message:"Bağlantılar şu anda oluşturulamadı."},requestId:req.requestId});}});
+app.post("/api/intelligence/suggest",async(req,res,next)=>{if(req.repositories?.mode!=="postgres")return next();const owner=requirePersonalIntelligenceContext(req,res,req.body||{});if(owner===null)return;try{const input=contextRequest.suggest(req.body),candidates=await req.repositories.memory.findIntelligenceCandidates(owner,200),context=contextIntelligence.build({...input,topic:input.query||input.title,title:input.title||input.query},candidates,await intelligencePreferences(req));return res.json({ok:true,context,requestId:req.requestId});}catch(error){if(error?.code==="INVALID_CONTEXT_REQUEST")return res.status(400).json({ok:false,error:{code:error.code,message:"Bağlam isteği geçersiz."},requestId:req.requestId});return res.status(503).json({ok:false,error:{code:"STORAGE_UNAVAILABLE",message:"Öneriler şu anda oluşturulamadı."},requestId:req.requestId});}});
 
 app.get("/api/memory/list", async (req, res, next) => {
   if (req.repositories?.mode !== "postgres") return next();

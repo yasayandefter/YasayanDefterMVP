@@ -295,6 +295,7 @@ async function researchTopic() {
            results.classList.add("visible");
 
         }
+        window.dispatchEvent(new CustomEvent("research:completed", { detail: { query: question, research: data } }));
 
         const sections =
             document.querySelectorAll(
