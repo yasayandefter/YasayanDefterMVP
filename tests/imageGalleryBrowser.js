@@ -15,6 +15,7 @@ function fixture(query,current=false){
   return {ok:true,query,title:query,mode:current?"current":"standard",currentState:current?"CURRENT_EMPTY":undefined,intent:current?"CURRENT_NEWS":"SCIENCE",summary:`${query} özeti`,text:`${query} özeti`,images,articles:[],sources:[],brain:{category:"Bilim",facts:[],flashcards:[]},ai:{},structuredContent:{summary:`${query} özeti`,sections:[],keyFacts:[],keyConcepts:[],interestingFacts:[],followUpQuestions:[],limitations:current?["Güncel görsel bulunamadı."]:[]},reliability:{score:60,level:"medium",sourceCount:0}};
 }
 async function render(page,data){await page.evaluate(value=>{renderResearch(value);document.querySelector("#results")?.classList.add("visible");},data);}
+async function openVisuals(page){await page.waitForFunction(()=>window.YDResearchWorkspace&&document.querySelector('[data-research-tab="visuals"]'));await page.evaluate(()=>window.YDResearchWorkspace.activate("visuals",false));await page.locator("#yd-research-panel-visuals").waitFor({state:"visible"});}
 (async()=>{
   child=spawn(process.execPath,["server.js"],{cwd:process.cwd(),env:{...process.env,PORT:String(port),VERCEL:"1",NODE_ENV:"production",AUTH_MODE:"",STORAGE_MODE:"",DATABASE_URL:"",ACCESS_MODE:""},stdio:["ignore","ignore","ignore"]});
   await ready();browser=await chromium.launch({executablePath:EDGE,headless:true});
@@ -23,6 +24,7 @@ async function render(page,data){await page.evaluate(value=>{renderResearch(valu
   await page.goto(base);
   for(const query of ["Atatürk","Mars","DNA","Kara delik","Mars vs Dünya"]){
     await render(page,fixture(query));
+    await openVisuals(page);
     assert.equal(await page.locator("#imagesContainer .image-card").count(),3);
     assert.equal(await page.locator("#imagesContainer .image-card-hero").count(),1);
     assert.match(await page.locator("#imagesContainer .image-caption").first().innerText(),/CC BY-SA 4.0/);

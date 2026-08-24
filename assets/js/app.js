@@ -417,7 +417,7 @@ function setCurrentEmptyLayout(currentEmpty) {
     const results = $("results");
     if (!results) return;
     results.classList.toggle("current-empty-results", currentEmpty);
-    results.querySelectorAll(":scope > .section").forEach(section => {
+    results.querySelectorAll(":scope > .section, #researchWorkspace156 .yd-research-panel > .section").forEach(section => {
         if (section.id !== "professionalResult") section.hidden = currentEmpty;
     });
     const memoryBanner = $("livingMemoryResultBanner");
