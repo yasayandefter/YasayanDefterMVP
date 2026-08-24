@@ -150,7 +150,7 @@
     results.prepend(root);
     moveSections(results);
     syncHeader(); syncAvailability(); activate("overview", false);
-    observer = new MutationObserver(function () { moveSections(results); syncHeader(); syncAvailability(); });
+    observer = new MutationObserver(function () { moveSections(results); syncHeader(); syncAvailability(); var login = document.getElementById("researchContextPanel"); if (login?.classList.contains("context-login")) document.querySelector(".hero-search")?.insertAdjacentElement("afterend", login); });
     observer.observe(results, { subtree: true, childList: true, characterData: true });
     stateObserver = new MutationObserver(syncAvailability);
     stateObserver.observe(results, { attributes: true, attributeFilter: ["class"] });

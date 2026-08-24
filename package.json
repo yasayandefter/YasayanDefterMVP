@@ -15,6 +15,7 @@
     "test:frontend": "node tests/frontendRender.js",
     "test:workspace-shell": "node tests/workspaceShell156.js",
     "test:research-workspace": "node tests/researchWorkspace156.js && node tests/researchWorkspaceBrowser.js",
+    "test:notebook-workspace": "node tests/notebookWorkspace156.js && node tests/notebookWorkspaceBrowser.js",
     "test:memory": "node tests/memory.js",
     "test:memory-delete": "node tests/memoryDelete.js",
     "test:quiz": "node tests/quiz.js",
