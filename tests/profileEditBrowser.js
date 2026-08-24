@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { Pool } = require("pg");
 const { chromium } = require("playwright-core");
+const { navigateTo, reloadTo } = require("./helpers/workspaceShellNavigation");
 
 if (!process.env.TEST_DATABASE_URL) {
   console.log("SKIP  profile edit Edge E2E: TEST_DATABASE_URL is not set");
@@ -40,6 +41,7 @@ async function login(page, identifier) {
   await page.getByLabel("Kullanıcı adı veya e-posta").fill(identifier);
   await page.getByLabel("Parola", { exact: true }).fill(password);
   await page.getByLabel("Parola", { exact: true }).press("Enter");
+  await navigateTo(page, "profile");
   await page.locator("#editProfileButton").waitFor({ state: "visible" });
 }
 
@@ -73,10 +75,11 @@ async function isFocused(locator) {
   await page.getByLabel("Parola", { exact: true }).fill(password);
   await page.getByLabel("Parola tekrar").fill(password);
   await page.getByRole("button", { name: "Hesap oluştur" }).click();
-  await page.locator("#editProfileButton").waitFor({ state: "visible" });
   await page.locator(".workspace-dialog[open]").waitFor();
   await page.getByRole("button", { name: "Şimdilik geç" }).click();
   await page.locator(".workspace-dialog").waitFor({ state: "hidden" });
+  await navigateTo(page, "profile");
+  await page.locator("#editProfileButton").waitFor({ state: "visible" });
 
   const opener = page.locator("#editProfileButton");
   await opener.focus();
@@ -110,9 +113,9 @@ async function isFocused(locator) {
   await page.getByLabel("Mevcut parola").press("Enter");
   await page.locator(".auth-shell").waitFor({ state: "hidden" });
   assert.equal(await page.locator("#commercialProfileName").textContent(), "Edge Profile");
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 0);
 
-  await page.reload();
+  await reloadTo(page, "profile");
   await page.locator("#editProfileButton").waitFor({ state: "visible" });
   assert.equal((await page.evaluate(async () => await (await fetch("/api/auth/session")).json())).user.username, newName);
   await page.getByRole("button", { name: /Çıkış yap/ }).click();

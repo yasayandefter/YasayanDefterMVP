@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { Pool } = require("pg");
 const { chromium } = require("playwright-core");
+const { navigateTo } = require("./helpers/workspaceShellNavigation");
 
 if (!process.env.TEST_DATABASE_URL) { console.log("SKIP  password change Edge E2E: TEST_DATABASE_URL is not set"); process.exit(0); }
 const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
@@ -41,6 +42,7 @@ async function submitLogin(page, rawPassword) { await page.getByLabel("Kullanıc
   await page.getByLabel("Parola tekrar").fill(oldPassword);
   await page.getByRole("button", { name: "Hesap oluştur" }).click();
   await page.locator(".workspace-dialog[open]").waitFor(); await page.getByRole("button", { name: "Şimdilik geç" }).click(); await page.locator(".workspace-dialog").waitFor({ state: "hidden" });
+  await navigateTo(page, "profile");
   const opener = page.locator("#changePasswordButton"); await opener.waitFor({ state: "visible" }); await opener.focus(); await opener.click();
   const form = page.locator("[data-password-form]"); await form.waitFor();
   assert.equal(await page.locator('.auth-card[role="dialog"]').getAttribute("aria-modal"), "true");
@@ -62,12 +64,12 @@ async function submitLogin(page, rawPassword) { await page.getByLabel("Kullanıc
   const beforeMismatch = passwordRequests; await page.getByLabel("Yeni parola tekrar").press("Enter"); await page.locator(".auth-message.is-error").waitFor(); assert.match(await page.locator(".auth-message.is-error").textContent(), /eşleşmiyor/); assert.equal(passwordRequests, beforeMismatch, "mismatch stays client-side");
   await page.getByLabel("Yeni parola tekrar").fill(newPassword); await page.getByLabel("Yeni parola tekrar").press("Enter");
   await page.locator(".auth-message.is-success").waitFor(); assert.match(await page.locator(".auth-message.is-success").textContent(), /başarıyla değiştirildi/);
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 0);
   await page.locator(".auth-shell").waitFor({ state: "hidden" }); assert.equal((await page.evaluate(async () => await (await fetch("/api/auth/session")).json())).authenticated, true);
   await page.getByRole("button", { name: /Çıkış yap/ }).click(); await page.locator("[data-open-login]").waitFor(); await openLogin(page); await submitLogin(page, oldPassword);
   await page.locator(".auth-message.is-error").waitFor(); assert.match(await page.locator(".auth-message.is-error").textContent(), /geçersiz/);
   assert.equal(consoleErrors.every(text => /Failed to load resource/.test(text)), true); consoleErrors.length = 0;
-  await page.getByLabel("Parola", { exact: true }).fill(newPassword); await page.getByLabel("Parola", { exact: true }).press("Enter"); await opener.waitFor({ state: "visible" });
+  await page.getByLabel("Parola", { exact: true }).fill(newPassword); await page.getByLabel("Parola", { exact: true }).press("Enter"); await navigateTo(page, "profile"); await opener.waitFor({ state: "visible" });
   assert.deepEqual(consoleErrors, []); assert.deepEqual(pageErrors, []); assert.deepEqual(unexpected, []);
   console.log("PASS  real Edge password change errors, success, session, old/new login, a11y, 390px, and clean runtime");
 })().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; }).finally(async () => {
