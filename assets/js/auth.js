@@ -324,6 +324,7 @@
     var backdrop = el("div", { class: "auth-backdrop", "aria-hidden": "true" }); backdrop.addEventListener("click", closeAuth); shell.appendChild(backdrop);
     shell.appendChild(el("div", { class: "auth-card", role: "dialog", "aria-modal": "true", "aria-label": "Hesap erişimi" }));
     document.body.prepend(shell);
+    document.querySelectorAll("[data-landing-login]").forEach(function (node) { node.addEventListener("click", function (event) { event.preventDefault(); renderLogin(event); }); });
     document.addEventListener("keydown", function (event) {
       if (shell.hidden) return;
       if (event.key === "Escape") { event.preventDefault(); closeAuth(); return; }

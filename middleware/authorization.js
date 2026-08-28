@@ -22,7 +22,7 @@ async function authorizationGuard(req, res, next) {
   if (!req.path.startsWith("/api")) return next();
   if (req.path.startsWith("/api/auth") || req.path === "/api/status" || req.path === "/api/health") return next();
   const demoRequested = config.accessMode === "public-demo" || String(req.get?.("x-demo-mode") || "").toLowerCase() === "true";
-  const demoSafe = req.path === "/api/research" || req.path.startsWith("/api/quiz/");
+  const demoSafe = req.path.startsWith("/api/quiz/");
   if (demoRequested && demoSafe) { req.demo = true; req.demoSession = String(req.get?.("x-demo-session") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || "anonymous"; return next(); }
   if (config.accessMode === "public-demo") return sendError(res, { code: "UNAUTHENTICATED" });
   if (config.authMode !== "production") return next();

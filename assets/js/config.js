@@ -8,12 +8,12 @@
 
 const CONFIG = {
 
-    VERSION: "11.0",
+    VERSION: "15.6.0",
 
-    ENGINE_NAME: "Yaşayan Defter 15.0 Pilot",
+    ENGINE_NAME: "Brain Engine 15.6",
 
     USER_AGENT:
-        "YasayanDefter/15.0-Pilot (Educational Research Engine)",
+        "YasayanDefter/15.6.0 (Educational Research Engine)",
 
     WIKIPEDIA_LIMIT: 8,
 

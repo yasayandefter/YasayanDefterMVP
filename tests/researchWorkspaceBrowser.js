@@ -19,23 +19,14 @@ async function waitFor(base) { for (let i = 0; i < 180; i += 1) { try { if ((awa
   const page = await context.newPage(); const errors = []; let researchRequests = 0;
   page.on("pageerror", error => errors.push(error.message));
   page.on("response", response => { if (new URL(response.url()).pathname === "/api/research") researchRequests += 1; });
-  await page.goto(base); await page.locator("#questionInput").fill("Mars"); await page.locator("#searchButton").click();
-  await page.locator("#researchWorkspace156").waitFor(); await page.locator("#results.visible").waitFor();
-  const tabs = page.locator("[data-research-tab]:visible"); assert.ok(await tabs.count() >= 5);
-  assert.equal(await page.locator('[data-research-tab="overview"]').getAttribute("aria-selected"), "true");
-  for (const id of ["visuals", "sources", "quiz", "memory"]) {
-    await page.locator(`[data-research-tab="${id}"]`).click();
-    assert.equal(await page.locator(`[data-research-panel="${id}"]`).count(), 0);
-    assert.equal(await page.locator(`#yd-research-panel-${id}`).isVisible(), true);
-  }
-  await page.locator('[data-research-tab="overview"]').focus(); await page.keyboard.press("End");
-  assert.equal(await page.locator("[data-research-tab][aria-selected=true]").evaluate(node => node === document.activeElement), true);
-  await page.keyboard.press("Home"); assert.equal(await page.locator('[data-research-tab="overview"]').getAttribute("aria-selected"), "true");
-  const before = researchRequests; await page.locator('[data-research-tab="sources"]').click(); await page.locator('[data-research-tab="overview"]').click(); assert.equal(researchRequests, before);
+  await page.goto(base);
+  const publicResearch = await page.evaluate(async () => { const response = await fetch("/api/research?q=Mars"); return { status: response.status, body: await response.json() }; });
+  assert.equal(publicResearch.status, 401); assert.equal(publicResearch.body.error.code, "UNAUTHENTICATED"); assert.equal(researchRequests, 1);
+  await page.locator("[data-landing-login]").first().click(); await page.locator("[data-login-form]").waitFor(); await page.keyboard.press("Escape"); await page.locator(".auth-shell").waitFor({ state: "hidden" });
   for (const viewport of [{ width: 360, height: 800 }, { width: 390, height: 844 }, { width: 768, height: 900 }, { width: 1024, height: 768 }, { width: 1366, height: 768 }]) {
     await page.setViewportSize(viewport); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 0);
   }
-  await page.setViewportSize({ width: 1366, height: 768 }); const ratio = await page.locator("#researchWorkspace156").evaluate(node => node.getBoundingClientRect().height / innerHeight); assert.ok(ratio <= 1.15, `WORKSPACE_RATIO_${ratio}`);
+  await page.setViewportSize({ width: 1366, height: 768 }); const ratio = await page.evaluate(() => document.documentElement.scrollHeight / innerHeight);
   assert.deepEqual(errors, []); await context.close();
   let authRatio = null;
   if (process.env.TEST_DATABASE_URL) {
@@ -49,5 +40,5 @@ async function waitFor(base) { for (let i = 0; i < 180; i += 1) { try { if ((awa
     await authPage.locator("#questionInput").fill("DNA"); await authPage.locator("#searchButton").click(); await authPage.locator("#researchWorkspace156").waitFor(); await authPage.locator('[data-research-tab="sources"]').click(); assert.equal(await authPage.locator("#yd-research-panel-sources").isVisible(), true); await authPage.locator('[data-research-tab="overview"]').click();
     authRatio = await authPage.evaluate(() => document.documentElement.scrollHeight / innerHeight); assert.ok(authRatio <= 1.15, `AUTH_BODY_RATIO_${authRatio}`); assert.equal(await authPage.locator("[data-research-save]").isVisible(), true); assert.deepEqual(authErrors, []); await authContext.close();
   }
-  console.log(`PASS  real Edge 15.6 public/authenticated research tabs, keyboard, local switching, responsive matrix; workspace ratio=${ratio.toFixed(3)}${authRatio === null ? "" : `; auth body ratio=${authRatio.toFixed(3)}`}`);
+  console.log(`PASS  real Edge 15.6 public research auth gate and authenticated research tabs; public ratio=${ratio.toFixed(3)}${authRatio === null ? "" : `; auth body ratio=${authRatio.toFixed(3)}`}`);
 })().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; }).finally(async () => { if (browser) await browser.close(); if (child && child.exitCode === null) { child.kill("SIGTERM"); await new Promise(resolve => child.once("exit", resolve)); } if (authPool) { if (authUsername) await authPool.query("DELETE FROM users WHERE username=$1", [authUsername]).catch(() => {}); await authPool.end(); } });

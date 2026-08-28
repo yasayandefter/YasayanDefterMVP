@@ -66,6 +66,8 @@ async function waitForServer() {
   const status = await statusResponse.json();
   assert.equal(statusResponse.status, 200);
   assert.equal(status.ok, true);
+  assert.equal(status.version, "15.6.0");
+  assert.equal(status.engine, "Brain Engine 15.6");
   assert.equal(status.accessMode, "public-demo");
   assert.equal(status.storageMode, "ephemeral");
   assert.equal(status.researchAvailable, true);
@@ -77,9 +79,9 @@ async function waitForServer() {
 
   const researchResponse = await fetch(`${base}/api/research?q=${encodeURIComponent("atatürk")}`);
   const research = await researchResponse.json();
-  assert.equal(researchResponse.status, 200);
-  assert.equal(research.ok, true);
-  assert.ok(String(research.summary || research.text || research.title || "").length > 0);
+  assert.equal(researchResponse.status, 401);
+  assert.equal(research.ok, false);
+  assert.equal(research.error.code, "UNAUTHENTICATED");
 
   const protectedResponse = await fetch(`${base}/api/progress`);
   assert.equal(protectedResponse.status, 401);
@@ -88,7 +90,7 @@ async function waitForServer() {
   const exitCode = await new Promise(resolve => child.once("exit", resolve));
   child = null;
   assert.equal(exitCode, 0, "read-only filesystem trap observed a persistent filesystem call");
-  console.log("PASS  Vercel public-demo import, status, session, research, protection, no-DB, and mkdir/read/write trap=0");
+  console.log("PASS  Vercel public landing, 15.6 status metadata, authenticated-only research, protection, no-DB, and mkdir/read/write trap=0");
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; }).finally(async () => {
   if (child && child.exitCode === null) { child.kill("SIGTERM"); await new Promise(resolve => child.once("exit", resolve)); }
 });
