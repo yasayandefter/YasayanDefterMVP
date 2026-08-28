@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "smoke": "node tests/smoke.js",
     "test:smoke": "node tests/smoke.js",
     "test:logger": "node tests/logger.js",
     "test:reliability": "node tests/sourceReliability.js",
@@ -18,6 +19,7 @@
     "test:notebook-workspace": "node tests/notebookWorkspace156.js && node tests/notebookWorkspaceBrowser.js",
     "test:collections-workspace": "node tests/collectionsWorkspace156.js && node tests/collectionsWorkspaceBrowser.js",
     "test:premium-polish": "node tests/premiumPolish156.js && node tests/premiumPolishBrowser.js",
+    "test:home-visual-refinement": "node tests/homeVisualRefinement156.js && node tests/homeVisualRefinementBrowser.js",
     "test:memory": "node tests/memory.js",
     "test:memory-delete": "node tests/memoryDelete.js",
     "test:quiz": "node tests/quiz.js",

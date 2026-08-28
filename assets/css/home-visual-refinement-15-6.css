@@ -1,0 +1,48 @@
+/* Yaşayan Defter 15.6 — Home visual refinement. Presentation only. */
+.yd-auth-shell body{background:radial-gradient(800px 420px at 18% 0,rgba(37,117,165,.1),transparent 66%),radial-gradient(900px 460px at 82% -12%,rgba(78,76,164,.1),transparent 68%),var(--ydp-bg)}
+.yd-shell-viewport{width:min(1220px,100%)}
+.yd-home-panel{display:block;min-height:calc(100dvh - 88px)}
+.yd-home-main{gap:11px}
+.yd-home-intro{position:relative;overflow:hidden;padding:20px 24px 22px;background:linear-gradient(140deg,rgba(17,35,54,.94),rgba(9,19,32,.92));box-shadow:0 18px 46px rgba(0,0,0,.18)}
+.yd-home-intro:after{content:"";position:absolute;z-index:0;right:-110px;top:-160px;width:360px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(71,174,216,.11),transparent 67%);pointer-events:none}
+.yd-home-intro>*{position:relative;z-index:1}
+.yd-home-intro h1{font-size:clamp(1.75rem,2.5vw,2.25rem)}
+.yd-home-prompt{margin:2px 0 14px}
+.yd-home-search{grid-template-columns:auto minmax(0,1fr) auto;width:min(820px,100%);max-width:none;min-height:54px;box-sizing:border-box;padding:5px 5px 5px 14px;border-color:rgba(112,205,242,.3);background:rgba(4,12,22,.74);box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 10px 28px rgba(0,0,0,.12);transition:border-color .18s ease,box-shadow .18s ease}
+.yd-home-search:focus-within{border-color:rgba(112,212,245,.58);box-shadow:0 0 0 3px rgba(112,212,245,.09),0 12px 30px rgba(0,0,0,.15)}
+.yd-home-search-icon{align-self:center;color:var(--ydp-accent);font-size:1.25rem;line-height:1}
+.yd-home-search input{min-height:42px;padding:7px 9px}
+.yd-home-search button{min-height:42px;padding-inline:21px}
+.yd-metrics-rail{display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr));align-items:stretch;gap:0;padding:9px 12px;border:1px solid var(--ydp-line);border-radius:16px;background:linear-gradient(100deg,rgba(13,27,44,.88),rgba(11,23,38,.78));box-shadow:0 10px 30px rgba(0,0,0,.1)}
+.yd-metrics-rail>.yd-eyebrow{align-self:center;margin:0;padding:0 18px 0 4px;white-space:nowrap}
+.yd-metric{position:relative;display:grid;align-content:center;gap:1px;min-height:48px;padding:2px 18px;border:0;border-left:1px solid var(--ydp-line)}
+.yd-metric span{font-size:.69rem;letter-spacing:.035em;text-transform:uppercase}
+.yd-metric strong{text-align:left;font-size:.88rem;color:var(--ydp-text)}
+.yd-action-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.yd-action-card{min-height:142px;padding:17px 16px;border-radius:16px;background:linear-gradient(145deg,rgba(19,37,58,.92),rgba(11,22,37,.9));box-shadow:0 10px 28px rgba(0,0,0,.11)}
+.yd-action-card:hover{transform:translateY(-2px);box-shadow:0 15px 34px rgba(0,0,0,.16)}
+.yd-action-icon{width:34px;height:34px;border-color:rgba(112,205,242,.22);background:linear-gradient(145deg,rgba(70,177,219,.16),rgba(108,97,190,.09))}
+.yd-action-card strong{font-size:.98rem}
+.yd-action-card small{font-size:.77rem}
+.yd-action-arrow{right:15px;top:17px;color:#8498ad;transition:transform .18s ease,color .18s ease}
+.yd-action-card:hover .yd-action-arrow{transform:translateX(2px);color:var(--ydp-accent)}
+.yd-suggestions{gap:8px;padding:0 1px 1px}
+.yd-suggestions button{min-height:36px;padding-inline:13px;color:var(--ydp-muted);background:rgba(11,24,39,.7)}
+.yd-suggestions button:hover{border-color:var(--ydp-line-strong);color:var(--ydp-body);background:var(--ydp-accent-soft)}
+.yd-home-panel .workspace-home{width:100%;max-width:none;box-sizing:border-box;margin:0;padding:0}
+.yd-home-panel .workspace-home-card{box-sizing:border-box;width:100%;padding:14px}
+.yd-home-panel .home-intelligence{padding:11px 14px;border-radius:15px}
+.yd-home-panel .home-intelligence:not(:has(.home-context-item)){display:none}
+.yd-home-panel .home-context-items{gap:8px}
+.yd-home-panel .home-context-item{min-height:58px;align-items:center;padding:9px 11px}
+.yd-home-empty{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:58px;padding:10px 14px;border:1px solid var(--ydp-line);border-radius:15px;background:rgba(11,23,38,.68)}
+.yd-home-main:has(#homeIntelligence .home-context-item) .yd-home-empty{display:none}
+.yd-home-empty .yd-eyebrow{margin-bottom:2px;font-size:.62rem}
+.yd-home-empty h2{margin:0;font-size:.91rem;letter-spacing:-.015em}
+.yd-home-empty p:last-child{margin:1px 0 0;color:var(--ydp-muted);font-size:.74rem}
+.yd-home-empty-action{flex:0 0 auto;min-height:38px;padding:0 13px;border:1px solid var(--ydp-line-strong);border-radius:9px;background:var(--ydp-accent-soft);color:var(--ydp-body);font-weight:680;cursor:pointer}
+.yd-home-empty-action:hover{background:rgba(68,177,219,.2);color:var(--ydp-text)}
+@media(max-width:1024px){.yd-shell-viewport{width:min(980px,100%)}.yd-action-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.yd-action-card:nth-child(n+4){min-height:116px}.yd-metrics-rail{grid-template-columns:repeat(4,minmax(0,1fr))}.yd-metrics-rail>.yd-eyebrow{grid-column:1/-1;padding:0 3px 5px}.yd-metric:first-of-type{border-left:0}}
+@media(max-width:767px){.yd-home-panel{min-height:auto}.yd-home-main{gap:10px}.yd-home-intro{padding:16px}.yd-home-search{min-height:50px;padding-left:11px}.yd-home-search input,.yd-home-search button{min-height:44px}.yd-metrics-rail{grid-template-columns:repeat(4,minmax(0,1fr));padding:8px}.yd-metric{min-height:44px;padding:2px 8px}.yd-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.yd-action-card{min-height:112px}.yd-action-card:last-child{grid-column:1/-1}.yd-home-empty{align-items:flex-start}.yd-home-empty-action{min-height:44px}}
+@media(max-width:600px){.yd-home-intro h1{font-size:1.6rem}.yd-home-search{grid-template-columns:auto minmax(0,1fr)}.yd-home-search button{grid-column:1/-1;width:100%}.yd-action-grid{grid-template-columns:1fr}.yd-action-card,.yd-action-card:nth-child(n+4),.yd-action-card:last-child{grid-column:auto;min-height:108px}.yd-metrics-rail{grid-template-columns:repeat(2,minmax(0,1fr))}.yd-metric{border-left:0;border-top:1px solid var(--ydp-line)}.yd-metric:nth-of-type(odd){border-right:1px solid var(--ydp-line)}.yd-home-empty{display:grid}.yd-home-empty-action{width:100%}}
+@media(prefers-reduced-motion:reduce){.yd-home-search,.yd-action-arrow{transition:none}}

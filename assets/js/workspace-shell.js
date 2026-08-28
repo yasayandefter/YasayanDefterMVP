@@ -78,11 +78,11 @@
     var main = el("div", { class: "yd-home-main" });
     var intro = el("div", { class: "yd-home-intro" });
     var name = user && (user.displayName || user.username || user.email) || "";
-    intro.append(el("p", { class: "yd-eyebrow" }, "KONTROL MERKEZİ"), el("h1", { id: "yd-home-title", tabindex: "-1" }, "Merhaba" + (name ? " " + name : "")), el("p", { class: "yd-home-prompt" }, "Bugün ne yapmak istersin?"));
+    intro.append(el("p", { class: "yd-eyebrow" }, "KONTROL MERKEZİ"), el("h1", { id: "yd-home-title", tabindex: "-1" }, "Merhaba" + (name ? ", " + name : "")), el("p", { class: "yd-home-prompt" }, "Bugün ne üzerinde çalışmak istersin?"));
     var search = el("form", { class: "yd-home-search", role: "search", "aria-label": "Araştır" });
-    var input = el("input", { type: "search", autocomplete: "off", placeholder: "Bir konu, fikir veya çalışma ara…", "aria-label": "Araştırma konusu" });
+    var input = el("input", { type: "search", autocomplete: "off", placeholder: "Bir konu, fikir veya soru araştır…", "aria-label": "Araştırma konusu" });
     var submit = el("button", { type: "submit" }, "Araştır");
-    search.append(input, submit);
+    search.append(el("span", { class: "yd-home-search-icon", "aria-hidden": "true" }, "⌕"), input, submit);
     search.addEventListener("submit", function (event) {
       event.preventDefault();
       var original = document.getElementById("questionInput");
@@ -92,18 +92,24 @@
     intro.append(search);
     var cards = el("div", { class: "yd-action-grid", "aria-label": "Ana çalışma alanları" });
     [["research", "Bilgiyi keşfet ve doğrula"], ["notebook", "Notlarına ve çalışmalarına dön"], ["collections", "Kayıtlarını bir araya getir"], ["personal", "Sana uygun önerileri gör"], ["profile", "Hesabını ve ilerlemeni yönet"]].forEach(function (item) { cards.append(actionCard(item[0], item[1])); });
-    main.append(intro, cards);
-    var secondary = el("aside", { class: "yd-home-secondary", "aria-label": "Kısa durum" });
-    secondary.append(el("p", { class: "yd-eyebrow" }, "BUGÜN"));
+    main.append(intro);
+    var metrics = el("section", { class: "yd-metrics-rail", "aria-label": "Bugünün özeti" });
+    metrics.append(el("p", { class: "yd-eyebrow" }, "BUGÜN"));
     [["commercialXp", "XP"], ["commercialProfileLevel", "Seviye"], ["commercialStreak", "Seri"], ["commercialGoalLabel", "Hedef"]].forEach(function (item) {
-      var card = el("div", { class: "yd-metric", "data-metric-source": item[0] }); card.append(el("span", {}, item[1]), el("strong", {}, "—")); secondary.append(card);
+      var card = el("div", { class: "yd-metric", "data-metric-source": item[0] }); card.append(el("span", {}, item[1]), el("strong", {}, "—")); metrics.append(card);
     });
     var suggestions = el("div", { class: "yd-suggestions", "aria-label": "Hızlı öneriler" });
     ["Güncel araştırmalar", "Son notlar", "Aktif projeler", "Yeni fikir"].forEach(function (text) { var b = el("button", { type: "button" }, text); b.onclick = function () { activate(text === "Son notlar" || text === "Aktif projeler" || text === "Yeni fikir" ? "notebook" : "research", true); }; suggestions.append(b); });
-    main.append(suggestions);
+    main.append(metrics, cards, suggestions);
     var intelligence = document.getElementById("workspaceHome");
     if (intelligence) main.append(intelligence);
-    panel.append(main, secondary);
+    var empty = el("section", { class: "yd-home-empty", "aria-labelledby": "yd-home-empty-title" });
+    var emptyCopy = el("div", {});
+    emptyCopy.append(el("p", { class: "yd-eyebrow" }, "KALDIĞIN YER"), el("h2", { id: "yd-home-empty-title" }, "Henüz devam eden bir çalışma yok."), el("p", {}, "Bir araştırmaya veya nota başladığında burada görünecek."));
+    var emptyAction = el("button", { type: "button", class: "yd-home-empty-action" }, "Yeni araştırma başlat");
+    emptyAction.addEventListener("click", function () { activate("research", true); });
+    empty.append(emptyCopy, emptyAction); main.append(empty);
+    panel.append(main);
     return panel;
   }
 
