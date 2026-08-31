@@ -1,7 +1,10 @@
 "use strict";
 const assert=require("node:assert/strict"),fs=require("node:fs");
-const html=fs.readFileSync("index.html","utf8"),js=fs.readFileSync("assets/js/collections-workspace.js","utf8"),css=fs.readFileSync("assets/css/collections-workspace-15-6.css","utf8"),pkg=require("../package.json");
+const html=fs.readFileSync("index.html","utf8"),js=fs.readFileSync("assets/js/collections-workspace.js","utf8"),css=fs.readFileSync("assets/css/collections-workspace-15-6.css","utf8"),detail=fs.readFileSync("assets/js/smart-collections.js","utf8"),media=fs.readFileSync("assets/js/collection-media.js","utf8"),mediaCss=fs.readFileSync("assets/css/collection-media-15-7.css","utf8"),pkg=require("../package.json");
 assert.match(html,/collections-workspace-15-6\.css/);assert.match(html,/collections-workspace\.js/);assert.equal(pkg.scripts["test:collections-workspace"],"node tests/collectionsWorkspace156.js && node tests/collectionsWorkspaceBrowser.js");
 for(const contract of ["collectionsWorkspace156","data-collection-view","Koleksiyon görünümü","MutationObserver","keydown","aria-pressed"])assert.match(js,new RegExp(contract));
 for(const contract of ["overflow:auto","repeat\\(4","repeat\\(2","max-width:540px","prefers-reduced-motion","focus-visible"])assert.match(css,new RegExp(contract));
-assert.doesNotMatch(js,/upload|type=["']file|audio|video|pdf/i);assert.doesNotMatch(js,/innerHTML/);console.log("PASS  premium bounded collections workspace, grid/list, keyboard, responsive and no fake media controls");
+for(const contract of ["data-content-grid\": \"unified","Tümü","Notlar","Belgeler","Görseller","Ses","Video","aria-pressed","applyContentView","mediaMount\\?\\.destroy"])assert.match(detail,new RegExp(contract));
+for(const contract of ["Belge","Görsel","Dinle","Oynat","createPreviewController","AbortController","aria-busy","Dosya kontrol ediliyor","Oturum aç"])assert.match(media,new RegExp(contract));
+for(const contract of ["var\\(--yd156-line",":has\\(.yd-media-preview:not\\(\\[hidden\\]\\)\\)","yd-media-preview\\[hidden\\] \\{ display: none","max-width: 900px","prefers-reduced-motion"])assert.match(mediaCss,new RegExp(contract));
+assert.doesNotMatch(js,/upload|type=["']file|audio|video|pdf/i);assert.doesNotMatch(js,/innerHTML/);assert.doesNotMatch(detail,/noteSection|mediaSection/);console.log("PASS  premium bounded Collections workspace, unified knowledge grid, semantic filters, collapsed preview, lifecycle and responsive contracts");

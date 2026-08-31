@@ -20,6 +20,9 @@ assert.equal(media.validateFile(file("large.png", "image/png", 10 * 1024 * 1024 
 assert.equal(media.errorState("MEDIA_QUOTA_EXCEEDED"), "quota-exceeded");
 assert.equal(media.errorState("UNAUTHENTICATED"), "auth-expired");
 assert.equal(media.errorState("MEDIA_STORAGE_DISABLED"), "storage-unavailable");
+assert.equal(media.stateMessage("quota-exceeded"), "Medya alanın dolu. Yeni dosya eklemek için mevcut medyalardan birini sil.");
+assert.equal(media.stateMessage("auth-expired"), "Oturumun sona erdi. Devam etmek için yeniden giriş yap.");
+assert.match(media.stateMessage("storage-unavailable"), /şu anda kullanılamıyor/);
 assert.ok(media.STATES.includes("verifying") && media.STATES.includes("retry"));
 const migration016 = fs.readFileSync("db/migrations/016_b2_media_provider.sql", "utf8");
 assert.match(migration016, /DROP CONSTRAINT IF EXISTS media_assets_provider_check/);
@@ -62,7 +65,8 @@ function xhrFactory() {
   assert.ok(calls.some(call => call.method === "DELETE" && call.path.endsWith("000000000001")));
   assert.ok(calls.some(call => call.path.endsWith("000000000002/complete")));
   assert.ok(states.some(state => state.state === "progress" && state.progress === 50));
-  assert.ok(states.some(state => state.state === "verifying"));
+  assert.ok(states.some(state => state.state === "progress" && state.message === "Yükleniyor · %50"));
+  assert.ok(states.some(state => state.state === "verifying" && state.message === "Dosya kontrol ediliyor"));
   assert.equal(JSON.stringify(controller.getState()).includes("signed.invalid"), false);
 
   const quota = media.createController({ request: async () => { const error = new Error("Kota dolu"); error.code = "MEDIA_QUOTA_EXCEEDED"; throw error; }, xhrFactory });

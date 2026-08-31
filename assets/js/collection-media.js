@@ -47,6 +47,13 @@
     return "error";
   }
 
+  function stateMessage(state, fallback) {
+    if (state === "quota-exceeded") return "Medya alanın dolu. Yeni dosya eklemek için mevcut medyalardan birini sil.";
+    if (state === "auth-expired") return "Oturumun sona erdi. Devam etmek için yeniden giriş yap.";
+    if (state === "storage-unavailable") return "Medya yükleme şu anda kullanılamıyor. Dosyan korunmadı; daha sonra yeniden deneyebilirsin.";
+    return fallback || "Yükleme tamamlanamadı.";
+  }
+
   function createController(options) {
     options = options || {};
     var request = options.request || async function (path, init) {
@@ -85,7 +92,7 @@
         Object.entries(upload.headers || {}).forEach(function (entry) { xhr.setRequestHeader(entry[0], entry[1]); });
         xhr.upload.onprogress = function (event) {
           var progress = event.lengthComputable && event.total ? Math.min(100, Math.round(event.loaded * 100 / event.total)) : 0;
-          transition("progress", { progress: progress, message: progress ? "%" + progress + " yüklendi" : "Yükleniyor" });
+          transition("progress", { progress: progress, message: progress ? "Yükleniyor · %" + progress : "Yükleniyor" });
         };
         xhr.onload = function () { if (xhr.status >= 200 && xhr.status < 300) resolve(); else { var error = new Error("Doğrudan yükleme başarısız."); error.code = "DIRECT_UPLOAD_FAILED"; reject(error); } };
         xhr.onerror = xhr.onabort = function () { var error = new Error("Doğrudan yükleme kesildi."); error.code = "DIRECT_UPLOAD_FAILED"; reject(error); };
@@ -98,18 +105,19 @@
       var validated = validateFile(file);
       if (!validated.ok) return transition(validated.state, validated);
       try {
-        transition("uploading", { progress: 0, message: "Yükleme yetkisi hazırlanıyor" });
+        transition("uploading", { progress: 0, message: "Yükleme hazırlanıyor" });
         var initialized = await request("/api/media/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: validated.filename, mimeType: validated.mimeType, mediaType: validated.mediaType, sizeBytes: validated.sizeBytes, collectionId: collectionId }) });
         attempt = { id: initialized.asset.id };
         await put(file, initialized.upload);
-        transition("verifying", { progress: 100, message: "Dosya sunucuda doğrulanıyor" });
+        transition("verifying", { progress: 100, message: "Dosya kontrol ediliyor" });
         var completed = await request("/api/media/" + encodeURIComponent(attempt.id) + "/complete", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
         attempt = null;
-        transition("success", { progress: 100, message: "Medya koleksiyona eklendi", asset: completed.asset });
         await changed(completed.asset);
+        transition("success", { progress: 100, message: "Dosya koleksiyonuna eklendi.", asset: completed.asset });
         return current;
       } catch (error) {
-        return transition(errorState(error.code), { progress: current.progress, code: error.code || "MEDIA_OPERATION_FAILED", message: error.message || "Yükleme tamamlanamadı." });
+        var state = errorState(error.code);
+        return transition(state, { progress: current.progress, code: error.code || "MEDIA_OPERATION_FAILED", message: stateMessage(state, error.message) });
       }
     }
 
@@ -135,54 +143,52 @@
     var dialog = el("dialog", { id: "collectionMediaUploadDialog", class: "yd-media-upload-sheet", "aria-labelledby": "collectionMediaUploadTitle" });
     var form = el("form", { method: "dialog" });
     var title = el("h2", { id: "collectionMediaUploadTitle" }, "Medya Yükle");
-    var copy = el("p", {}, "PDF, görsel, ses veya video dosyanı doğrudan özel depolamaya yükle.");
+    var copy = el("p", {}, "PDF, görsel, ses veya video dosyanı koleksiyonuna güvenli biçimde ekle.");
     var input = el("input", { type: "file", accept: Object.keys(POLICIES).join(","), "aria-label": "Yüklenecek medya" });
     var progress = el("progress", { max: "100", value: "0", "aria-label": "Yükleme ilerlemesi" });
     var status = el("p", { class: "yd-media-upload-status", role: "status", "aria-live": "polite" }, "Bir dosya seç.");
     var actions = el("div", { class: "yd-media-upload-actions" });
     var cancel = el("button", { type: "button" }, "Vazgeç");
     var submit = el("button", { type: "button" }, "Yükle");
-    var retry = el("button", { type: "button", hidden: "" }, "Yeniden Dene");
-    var controller = createController({ onChanged: onChanged, onState: function (state) {
+    var retry = el("button", { type: "button", hidden: "" }, "Yeniden dene"), successFocus = null;
+    var controller = createController({ onChanged: async function (asset) { successFocus = await onChanged(asset); return successFocus; }, onState: function (state) {
       dialog.dataset.mediaState = state.state; progress.value = state.progress || 0; status.textContent = state.message || state.state;
       var busy = ["validating", "uploading", "progress", "verifying", "retry"].includes(state.state);
-      input.disabled = busy; submit.disabled = busy; retry.hidden = !["error", "quota-exceeded", "auth-expired", "storage-unavailable"].includes(state.state);
-      if (state.state === "success") root.setTimeout(function () { dialog.close(); }, 450);
+      form.setAttribute("aria-busy", String(busy)); input.disabled = busy || state.state === "success"; submit.textContent = ["unsupported-file", "file-too-large"].includes(state.state) ? "Başka dosya seç" : "Yükle"; submit.disabled = busy || state.state === "success" || ["quota-exceeded", "auth-expired", "storage-unavailable"].includes(state.state); submit.hidden = state.state === "success";
+      retry.hidden = state.state !== "error"; retry.textContent = "Yeniden dene";
+      if (state.state === "auth-expired") { retry.hidden = false; retry.textContent = "Oturum aç"; }
+      if (["unsupported-file", "file-too-large"].includes(state.state)) { input.focus(); }
+      if (state.state === "success") { cancel.textContent = "Bitti"; cancel.focus(); }
+      if (["error", "auth-expired"].includes(state.state)) retry.focus();
     } });
     input.addEventListener("click", function () { controller.transition("selecting", { message: "Dosya seçiliyor" }); });
     input.addEventListener("change", function () { var check = validateFile(input.files[0]); controller.transition(check.ok ? "idle" : check.state, check.ok ? { message: input.files[0].name + " seçildi" } : check); });
-    submit.onclick = function () { controller.upload(input.files[0], collectionId); };
-    retry.onclick = function () { controller.retry(); };
+    submit.onclick = function () { if (["unsupported-file", "file-too-large"].includes(dialog.dataset.mediaState)) { input.click(); return; } controller.upload(input.files[0], collectionId); };
+    retry.onclick = function () { if (dialog.dataset.mediaState === "auth-expired") { dialog.close(); document.querySelector("[data-open-login]")?.click(); return; } controller.retry(); };
     cancel.onclick = async function () { await controller.cleanup(); dialog.close(); };
     dialog.oncancel = function (event) { event.preventDefault(); cancel.click(); };
-    dialog.onclose = function () { returnFocus?.focus?.(); dialog.remove(); };
+    dialog.onclose = function () { (successFocus || returnFocus)?.focus?.(); dialog.remove(); };
     actions.append(cancel, retry, submit); form.append(title, copy, input, progress, status, actions); dialog.append(form); document.body.append(dialog); dialog.showModal(); input.focus();
     return dialog;
   }
 
-  function preview(asset, host, onChanged) {
-    host.replaceChildren(); host.dataset.previewType = String(asset.mediaType || "").toLowerCase();
-    var head = el("header", { class: "yd-media-preview-head" });
-    var heading = el("h3", {}, asset.safeFilename || asset.originalFilename);
-    var close = el("button", { type: "button", "aria-label": "Medya önizlemesini kapat" }, "Kapat");
-    var body = el("div", { class: "yd-media-preview-body" }, "Özel erişim hazırlanıyor…");
-    var meta = el("p", { class: "yd-media-meta" }, asset.mediaType + " · " + formatBytes(asset.sizeBytes));
-    var actions = el("div", { class: "yd-media-preview-actions" });
-    var remove = el("button", { type: "button" }, "Koleksiyondan Çıkar");
-    var destroy = el("button", { type: "button", class: "is-danger" }, "Medyayı Kalıcı Sil");
-    function teardown() { body.querySelectorAll("img,audio,video").forEach(function (node) { node.removeAttribute("src"); node.load?.(); }); body.querySelectorAll("a[href]").forEach(function (node) { node.removeAttribute("href"); }); host.replaceChildren(); host.hidden = true; }
-    close.onclick = teardown;
-    remove.onclick = async function () { if (!root.confirm("Medya yalnızca bu koleksiyondan çıkarılsın mı? Dosya korunur.")) return; await apiRequest("/api/collections/" + encodeURIComponent(host.dataset.collectionId) + "/media/" + encodeURIComponent(asset.id), { method: "DELETE" }); teardown(); await onChanged(); };
-    destroy.onclick = async function () { if (!root.confirm("Medya kalıcı olarak silinsin mi? Bu işlem dosyayı da kaldırır.")) return; await apiRequest("/api/media/" + encodeURIComponent(asset.id), { method: "DELETE" }); teardown(); await onChanged(); };
-    head.append(heading, close); actions.append(remove, destroy); host.append(head, body, meta, actions); host.hidden = false;
-    apiRequest("/api/media/" + encodeURIComponent(asset.id) + "/access").then(function (data) {
-      body.replaceChildren(); var url = data.access.url;
-      if (asset.mediaType === "PDF") { var link = el("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, "PDF’i Özel Olarak Aç"); body.append(link); }
-      if (asset.mediaType === "IMAGE") body.append(el("img", { src: url, alt: asset.safeFilename || "Koleksiyon görseli" }));
-      if (asset.mediaType === "AUDIO") body.append(el("audio", { src: url, controls: "", preload: "metadata" }));
-      if (asset.mediaType === "VIDEO") body.append(el("video", { src: url, controls: "", preload: "metadata", playsinline: "" }));
-    }).catch(function (error) { body.textContent = error.message; });
+  function createPreviewController(host, onChanged) {
+    var generation = 0, aborter = null, origin = null, activeCard = null;
+    function clearTransient() { host.querySelectorAll("img,audio,video").forEach(function (node) { node.removeAttribute("src"); node.load?.(); }); host.querySelectorAll("a[href]").forEach(function (node) { node.removeAttribute("href"); }); }
+    function close(options) { options = options || {}; generation += 1; aborter?.abort(); aborter = null; clearTransient(); activeCard?.classList.remove("is-preview-active"); activeCard = null; host.replaceChildren(); host.hidden = true; host.removeAttribute("aria-busy"); var target = origin; origin = null; if (options.restoreFocus !== false && target?.isConnected) target.focus(); }
+    async function open(asset, source) {
+      close({ restoreFocus: false }); origin = source; activeCard = source?.closest(".yd-media-card") || null; activeCard?.classList.add("is-preview-active"); host.hidden = false; host.dataset.previewType = String(asset.mediaType || "").toLowerCase(); host.setAttribute("aria-busy", "true");
+      var requestGeneration = ++generation, head = el("header", { class: "yd-media-preview-head" }), heading = el("h3", { tabindex: "-1" }, asset.safeFilename || asset.originalFilename), closeButton = el("button", { type: "button", "aria-label": "Önizlemeyi kapat" }, "Kapat"), body = el("div", { class: "yd-media-preview-body", role: "status", "aria-live": "polite" }), loading = el("div", { class: "yd-media-preview-state" }, "Önizleme hazırlanıyor…"), meta = el("p", { class: "yd-media-meta" }, typeLabel(asset.mediaType) + " · " + formatBytes(asset.sizeBytes) + formatDate(asset.createdAt)), actions = el("div", { class: "yd-media-preview-actions" }), remove = el("button", { type: "button" }, "Koleksiyondan çıkar"), destroyButton = el("button", { type: "button", class: "is-danger" }, "Dosyayı kalıcı sil");
+      body.append(loading); closeButton.onclick = function () { close(); }; remove.onclick = async function () { if (!root.confirm("Dosya yalnızca bu koleksiyondan çıkarılsın mı? Dosya korunur.")) return; remove.disabled = true; try { await apiRequest("/api/collections/" + encodeURIComponent(host.dataset.collectionId) + "/media/" + encodeURIComponent(asset.id), { method: "DELETE" }); close({ restoreFocus: false }); await onChanged(); } catch (_) { remove.disabled = false; body.textContent = "Dosya koleksiyondan çıkarılamadı."; } }; destroyButton.onclick = async function () { if (!root.confirm("Dosya kalıcı olarak silinsin mi? Bu işlem geri alınamaz.")) return; destroyButton.disabled = true; try { await apiRequest("/api/media/" + encodeURIComponent(asset.id), { method: "DELETE" }); close({ restoreFocus: false }); await onChanged(); } catch (_) { destroyButton.disabled = false; body.textContent = "Dosya silinemedi."; } };
+      head.append(heading, closeButton); actions.append(remove, destroyButton); host.append(head, body, meta, actions); heading.focus(); aborter = typeof AbortController === "function" ? new AbortController() : null;
+      async function load() { body.replaceChildren(el("div", { class: "yd-media-preview-state" }, "Önizleme hazırlanıyor…")); host.setAttribute("aria-busy", "true"); try { var data = await apiRequest("/api/media/" + encodeURIComponent(asset.id) + "/access", aborter ? { signal: aborter.signal } : undefined); if (requestGeneration !== generation || host.hidden || !host.isConnected) return; body.replaceChildren(); var url = data.access.url; if (asset.mediaType === "PDF") body.append(el("a", { href: url, target: "_blank", rel: "noopener noreferrer" }, "PDF’i aç")); if (asset.mediaType === "IMAGE") body.append(el("img", { src: url, alt: asset.safeFilename || "Koleksiyon görseli" })); if (asset.mediaType === "AUDIO") body.append(el("audio", { src: url, controls: "", preload: "metadata" })); if (asset.mediaType === "VIDEO") body.append(el("video", { src: url, controls: "", preload: "metadata", playsinline: "" })); host.removeAttribute("aria-busy"); } catch (error) { if (requestGeneration !== generation || error.name === "AbortError") return; host.removeAttribute("aria-busy"); var retry = el("button", { type: "button" }, "Yeniden dene"); retry.onclick = function () { aborter = typeof AbortController === "function" ? new AbortController() : null; load(); }; body.replaceChildren(el("p", {}, "Önizleme yüklenemedi."), retry); retry.focus(); } }
+      load();
+    }
+    return Object.freeze({ open: open, close: close, destroy: function () { close({ restoreFocus: false }); } });
   }
+
+  function typeLabel(type) { return ({ PDF: "Belge", IMAGE: "Görsel", AUDIO: "Ses", VIDEO: "Video" })[type] || "İçerik"; }
+  function formatDate(value) { if (!value) return ""; var date = new Date(value); return Number.isNaN(date.getTime()) ? "" : " · " + new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric" }).format(date); }
 
   async function apiRequest(path, init) {
     var response = await fetch(path, init);
@@ -191,34 +197,38 @@
     return body;
   }
 
-  function renderCard(asset, previewHost, onChanged) {
-    var card = el("article", { class: "yd-media-card", tabindex: "0", "data-media-type": String(asset.mediaType || "").toLowerCase() });
-    var mark = el("div", { class: "yd-media-card-mark", "aria-hidden": "true" }, ({ PDF: "PDF", IMAGE: "IMG", AUDIO: "AUD", VIDEO: "VID" })[asset.mediaType] || "MED");
+  function renderCard(asset, previewController, onChanged) {
+    var kind = ({ PDF: "document", IMAGE: "image", AUDIO: "audio", VIDEO: "video" })[asset.mediaType] || "media", label = typeLabel(asset.mediaType);
+    var card = el("article", { class: "yd-media-card", "data-media-type": String(asset.mediaType || "").toLowerCase(), "data-content-kind": kind, "data-media-id": asset.id, "data-search-text": ((asset.safeFilename || asset.originalFilename || "") + " " + label).toLocaleLowerCase("tr-TR") });
+    var visual = el("div", { class: "yd-content-visual yd-content-visual-" + kind, "aria-hidden": "true" }, ({ PDF: "≡", IMAGE: "◇", AUDIO: "◖", VIDEO: "▷" })[asset.mediaType] || "·");
+    var mark = el("span", { class: "yd-media-card-mark" }, label);
     var name = el("strong", {}, asset.safeFilename || asset.originalFilename);
-    var meta = el("span", {}, asset.mediaType + " · " + formatBytes(asset.sizeBytes));
-    var open = el("button", { type: "button" }, asset.mediaType === "PDF" ? "Özel Aç" : "Önizle");
-    open.onclick = function () { preview(asset, previewHost, onChanged); };
-    card.onkeydown = function (event) { if ((event.key === "Enter" || event.key === " ") && event.target === card) { event.preventDefault(); open.click(); } };
-    card.append(mark, name, meta, open); return card;
+    name.title = asset.safeFilename || asset.originalFilename || "";
+    var meta = el("span", { class: "yd-content-meta" }, formatBytes(asset.sizeBytes) + formatDate(asset.createdAt));
+    var open = el("button", { type: "button", "aria-label": (asset.safeFilename || asset.originalFilename) + (asset.mediaType === "PDF" ? " PDF’ini aç" : " önizle") }, asset.mediaType === "PDF" ? "PDF’i aç" : asset.mediaType === "AUDIO" ? "Dinle" : asset.mediaType === "VIDEO" ? "Oynat" : "Önizle");
+    open.onclick = function () { previewController.open(asset, open); };
+    card.append(visual, mark, name, meta, open); return card;
   }
 
   async function mount(options) {
-    var collectionId = options.collectionId, grid = options.grid, previewHost = options.previewHost, status = options.status;
+    var collectionId = options.collectionId, grid = options.grid, previewHost = options.previewHost, status = options.status, onRendered = options.onRendered || function () {};
     previewHost.dataset.collectionId = collectionId;
-    async function refresh() {
+    var previewController = createPreviewController(previewHost, refresh);
+    async function refresh(focusId) {
       try {
         status.textContent = "Koleksiyon medyası yükleniyor.";
         var data = await apiRequest("/api/collections/" + encodeURIComponent(collectionId) + "/media");
-        grid.replaceChildren();
-        if (!data.media.length) grid.append(el("p", { class: "yd-media-empty" }, "Bu koleksiyonda henüz medya yok."));
-        data.media.forEach(function (asset) { grid.append(renderCard(asset, previewHost, refresh)); });
+        grid.querySelectorAll(".yd-media-card").forEach(function (card) { card.remove(); });
+        data.media.forEach(function (asset) { grid.append(renderCard(asset, previewController, refresh)); }); onRendered();
         status.textContent = data.media.length + " medya gösteriliyor.";
-        return data.media;
+        var targetCard = focusId ? [...grid.querySelectorAll(".yd-media-card")].find(function (card) { return card.dataset.mediaId === String(focusId); }) : null;
+        if (targetCard) { targetCard.classList.add("is-new"); root.setTimeout(function () { targetCard.classList.remove("is-new"); }, 900); }
+        return targetCard?.querySelector("button") || null;
       } catch (error) { status.textContent = error.message; return []; }
     }
     await refresh();
-    return { refresh: refresh, openUpload: function (focus) { return uploadDialog(collectionId, refresh, focus); } };
+    return { refresh: refresh, openUpload: function (focus) { return uploadDialog(collectionId, function (asset) { return refresh(asset?.id); }, focus); }, destroy: previewController.destroy };
   }
 
-  return Object.freeze({ POLICIES: POLICIES, STATES: STATES, formatBytes: formatBytes, validateFile: validateFile, errorState: errorState, createController: createController, uploadDialog: uploadDialog, renderCard: renderCard, mount: mount });
+  return Object.freeze({ POLICIES: POLICIES, STATES: STATES, formatBytes: formatBytes, validateFile: validateFile, errorState: errorState, stateMessage: stateMessage, createController: createController, createPreviewController: createPreviewController, uploadDialog: uploadDialog, renderCard: renderCard, mount: mount });
 }));
