@@ -20,7 +20,7 @@
     "test:collections-workspace": "node tests/collectionsWorkspace156.js && node tests/collectionsWorkspaceBrowser.js",
     "test:premium-polish": "node tests/premiumPolish156.js && node tests/premiumPolishBrowser.js",
     "test:home-visual-refinement": "node tests/homeVisualRefinement156.js && node tests/homeVisualRefinementBrowser.js",
-    "test:media": "node tests/mediaService.js && node tests/mediaRepository.js && node tests/r2Storage.js",
+    "test:media": "node tests/mediaService.js && node tests/mediaRepository.js && node tests/r2Storage.js && node tests/b2Storage.js",
     "test:media-postgres": "node tests/mediaPostgres.js",
     "test:media-all": "npm run test:media && npm run test:media-postgres",
     "test:memory": "node tests/memory.js",

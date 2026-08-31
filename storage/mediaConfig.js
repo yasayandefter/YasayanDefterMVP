@@ -15,33 +15,48 @@ const MIME_POLICIES = Object.freeze({
 });
 
 function integer(env, name, fallback, minimum, maximum) {
-  const value = Number.parseInt(env[name] || "", 10);
-  return Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : fallback;
+  const raw = String(env[name] ?? "").trim();
+  if (!raw) return { value: fallback, valid: true };
+  if (!/^\d+$/.test(raw)) return { value: fallback, valid: false };
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= minimum && value <= maximum
+    ? { value, valid: true }
+    : { value: fallback, valid: false };
 }
 
 function getMediaConfig(env = process.env) {
   const provider = String(env.MEDIA_STORAGE_PROVIDER || "").trim().toLowerCase();
-  const accountId = String(env.R2_ACCOUNT_ID || "").trim();
-  const accessKeyId = String(env.R2_ACCESS_KEY_ID || "").trim();
-  const secretAccessKey = String(env.R2_SECRET_ACCESS_KEY || "").trim();
-  const bucket = String(env.R2_BUCKET_NAME || "").trim();
-  const required = { accountId, accessKeyId, secretAccessKey, bucket };
+  const isB2 = provider === "b2";
+  const accountId = isB2 ? "" : String(env.R2_ACCOUNT_ID || "").trim();
+  const accessKeyId = String((isB2 ? env.B2_KEY_ID : env.R2_ACCESS_KEY_ID) ?? "").trim();
+  const secretAccessKey = String((isB2 ? env.B2_APPLICATION_KEY : env.R2_SECRET_ACCESS_KEY) ?? "").trim();
+  const bucket = String((isB2 ? env.B2_BUCKET_NAME : env.R2_BUCKET_NAME) ?? "").trim();
+  const endpoint = String((isB2 ? env.B2_ENDPOINT : env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "")) ?? "").trim();
+  const region = String((isB2 ? env.B2_REGION : "auto") ?? "").trim();
+  const required = isB2 ? { endpoint, region, accessKeyId, secretAccessKey, bucket } : { accountId, accessKeyId, secretAccessKey, bucket };
   const missing = Object.entries(required).filter(([, value]) => !value).map(([name]) => name);
-  const configured = provider === "r2" && missing.length === 0;
-  const errorCode = !provider ? "MEDIA_STORAGE_DISABLED" : provider !== "r2" ? "MEDIA_STORAGE_PROVIDER_INVALID" : missing.length ? "MEDIA_STORAGE_CONFIG_INCOMPLETE" : null;
+  const supported = provider === "r2" || provider === "b2" || provider === "mock";
+  const configured = supported && (provider === "mock" || missing.length === 0);
+  const uploadTtl = integer(env, "MEDIA_UPLOAD_URL_TTL_SECONDS", 600, 300, 900);
+  const readTtl = integer(env, "MEDIA_READ_URL_TTL_SECONDS", 600, 60, 900);
+  const maxBytes = integer(env, "MEDIA_MAX_TOTAL_BYTES_PER_USER", 1024 * MIB, 100 * MIB, 100 * 1024 * MIB);
+  const maxAssets = integer(env, "MEDIA_MAX_ASSET_COUNT_PER_USER", 500, 1, 10000);
+  const invalidPolicy = [uploadTtl, readTtl, maxBytes, maxAssets].some(item => !item.valid);
+  const errorCode = !provider ? "MEDIA_STORAGE_DISABLED" : !supported ? "MEDIA_STORAGE_PROVIDER_INVALID" : missing.length && provider !== "mock" ? "MEDIA_STORAGE_CONFIG_INCOMPLETE" : invalidPolicy ? "MEDIA_STORAGE_CONFIG_INVALID" : null;
   return Object.freeze({
     provider: provider || "disabled",
-    configured,
+    configured: configured && !invalidPolicy,
     errorCode,
     accountId,
     accessKeyId,
     secretAccessKey,
     bucket,
-    endpoint: String(env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "")).trim(),
-    uploadTtlSeconds: integer(env, "MEDIA_UPLOAD_URL_TTL_SECONDS", 600, 300, 900),
-    readTtlSeconds: integer(env, "MEDIA_READ_URL_TTL_SECONDS", 600, 60, 900),
-    maxTotalBytesPerUser: integer(env, "MEDIA_MAX_TOTAL_BYTES_PER_USER", 1024 * MIB, 100 * MIB, 100 * 1024 * MIB),
-    maxAssetCountPerUser: integer(env, "MEDIA_MAX_ASSET_COUNT_PER_USER", 500, 1, 10000),
+    endpoint,
+    region,
+    uploadTtlSeconds: uploadTtl.value,
+    readTtlSeconds: readTtl.value,
+    maxTotalBytesPerUser: maxBytes.value,
+    maxAssetCountPerUser: maxAssets.value,
     mimePolicies: MIME_POLICIES
   });
 }

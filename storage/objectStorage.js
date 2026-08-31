@@ -10,7 +10,9 @@ function unavailable(config) {
 function createObjectStorage(options = {}) {
   const config = options.config || getMediaConfig(options.env);
   if (!config.configured) return unavailable(config);
+  if (config.provider === "mock") return require("./mockObjectStorage").createMockObjectStorage(options.mockOptions);
   if (config.provider === "r2") return require("./r2Storage").createR2Storage(config, options.dependencies);
+  if (config.provider === "b2") return require("./b2Storage").createB2Storage(config, options.dependencies);
   return unavailable({ ...config, errorCode: "MEDIA_STORAGE_PROVIDER_INVALID" });
 }
 

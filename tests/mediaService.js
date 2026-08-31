@@ -25,6 +25,8 @@ const user = { userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", role: "USER" };
   assert.equal(getMediaConfig({}).configured, false); assert.equal(getMediaConfig({ MEDIA_STORAGE_PROVIDER: "r2" }).errorCode, "MEDIA_STORAGE_CONFIG_INCOMPLETE");
   const secretConfig = { MEDIA_STORAGE_PROVIDER: "r2", R2_ACCOUNT_ID: "account", R2_ACCESS_KEY_ID: "access-secret", R2_SECRET_ACCESS_KEY: "private-secret", R2_BUCKET_NAME: "private-bucket" };
   assert.equal(getMediaConfig(secretConfig).configured, true); assert.equal(JSON.stringify(publicMediaConfig(secretConfig)).includes("secret"), false);
+  assert.equal(getMediaConfig({ ...secretConfig, MEDIA_UPLOAD_URL_TTL_SECONDS: "invalid" }).errorCode, "MEDIA_STORAGE_CONFIG_INVALID");
+  assert.equal(getMediaConfig({ ...secretConfig, MEDIA_MAX_TOTAL_BYTES_PER_USER: "1" }).configured, false);
   assert.equal(safeFilename("../../gizli/../sunum.pdf"), "sunum.pdf");
   assert.equal(safeFilename("..\\..\\resim<script>.png"), "resim-script-.png");
   await assert.rejects(service.requestUpload(null, {}), error => error.code === "UNAUTHENTICATED");

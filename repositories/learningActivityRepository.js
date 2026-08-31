@@ -53,7 +53,7 @@ async function getMetrics(studentId, now = null, client = db) {
       SELECT COALESCE((SELECT count(*) FROM ranked, anchor WHERE activity_date = anchor_date - (position::int - 1)), 0)::int AS current_streak,
              EXISTS (SELECT 1 FROM activity_days, bounds WHERE activity_date = today) AS active_today,
              (SELECT max(activity_date)::text FROM activity_days) AS last_active_date,
-             (SELECT count(*)::int FROM research_activity_events, bounds WHERE ${researchWhere} AND completed_at >= week_start AT TIME ZONE '${TIME_ZONE}' AND completed_at <= bounds.metric_now) AS weekly_completed,
+             (SELECT count(*)::int FROM research_activity_events, bounds WHERE ${researchWhere} AND completed_at >= week_start::timestamp AT TIME ZONE '${TIME_ZONE}' AND completed_at <= bounds.metric_now) AS weekly_completed,
              (SELECT count(*)::int FROM research_activity_events, bounds WHERE ${researchWhere} AND completed_at <= bounds.metric_now) AS research_total,
              (SELECT count(*)::int FROM quiz_attempts, bounds WHERE ${quizWhere} AND status = 'COMPLETED' AND completed_at IS NOT NULL AND completed_at <= bounds.metric_now) AS completed_quizzes,
              (SELECT COALESCE(sum(amount),0)::int FROM xp_events WHERE ${quizWhere}) AS quiz_xp,

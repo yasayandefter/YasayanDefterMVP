@@ -3710,8 +3710,8 @@ currentAnalysis?.topic ||
 "",
 
 topic:
-currentAnalysis?.topic ||
 currentResearch.title ||
+currentAnalysis?.topic ||
 "",
 
 query:

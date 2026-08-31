@@ -8,7 +8,6 @@ if (!process.env.TEST_DATABASE_URL) { console.log("SKIP  learning streak: TEST_D
 if (process.env.DATABASE_URL && process.env.DATABASE_URL !== process.env.TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL_ONLY");
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL; process.env.STORAGE_MODE = "postgres";
 
-const migrations = require("../db/migrate");
 const activity = require("../repositories/learningActivityRepository");
 const repositories = require("../repositories");
 const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 2 });
@@ -23,7 +22,6 @@ async function quiz(scope, at) { const ownerUserId = scope?.kind === "user" ? sc
 async function metrics(scope) { return activity.getMetrics(scope, NOW, pool); }
 
 (async () => {
-  await migrations.migrate();
   await pool.query("INSERT INTO users(id,role,username,display_name,password_hash,status) VALUES($1,'USER',$2,'A','fixture','ACTIVE'),($3,'USER',$4,'B','fixture','ACTIVE'),($5,'STUDENT',$6,'SA','fixture','ACTIVE'),($7,'STUDENT',$8,'SB','fixture','ACTIVE')", [ids.userA,`streak_a_${ids.userA}`,ids.userB,`streak_b_${ids.userB}`,ids.studentUserA,`streak_sa_${ids.studentA}`,ids.studentUserB,`streak_sb_${ids.studentB}`]);
   await pool.query("INSERT INTO students(id,user_id,display_name) VALUES($1,$2,'A'),($3,$4,'B')", [ids.studentA,ids.studentUserA,ids.studentB,ids.studentUserB]);
 
