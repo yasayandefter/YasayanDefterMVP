@@ -39,6 +39,7 @@ const contextIntelligence = require("./services/contextIntelligence");
 const smartCollection = require("./auth/smartCollection");
 const homeIntelligence = require("./services/homeIntelligence");
 const authRoutes = require("./routes/auth");
+const { createMediaRouter } = require("./routes/media");
 const { validateAuthOrigin } = require("./auth/origin");
 const { optionalAuth } = require("./middleware/auth");
 const { authorizationGuard } = require("./middleware/authorization");
@@ -126,6 +127,7 @@ app.use(async (req, res, next) => {
   try { req.repositories = repositoryFactory.getRepositories(); } catch (_) { req.repositories = null; }
   return next();
 });
+app.use("/api/media", createMediaRouter());
 app.use((req, res, next) => {
   try {
     if (authConfig.getConfig().authMode !== "production") return next();

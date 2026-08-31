@@ -15,12 +15,13 @@ const bounded = config.getConfig({ STORAGE_MODE: "postgres", DATABASE_URL: "post
 assert.equal(bounded.poolMax, 50);
 assert.equal(bounded.idleTimeoutMillis, 1000);
 assert.equal(bounded.connectionTimeoutMillis, 10000);
-assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]);
+assert.deepEqual(migrations.listMigrations().map(item => item.version), ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014", "015"]);
 assert.ok(migrations.listMigrations().every(item => item.sql.length > 100));
 for (const repository of ["studentsRepository", "classroomsRepository", "memoryRepository", "learningActivityRepository", "quizRepository", "sessionRepository", "usersRepository", "claimRepository", "membershipRepository"]) {
   const loaded = require(path.join("..", "repositories", repository));
   assert.ok(loaded.name);
 }
+assert.equal(require("../repositories/mediaAssetsRepository").name, "mediaAssets");
 assert.equal(config.publicConfig({ STORAGE_MODE: "json", NODE_ENV: "test", DATABASE_URL: "postgres://secret" }).storageMode, "json");
 assert.equal(JSON.stringify(config.publicConfig({ STORAGE_MODE: "postgres", NODE_ENV: "test", DATABASE_URL: "postgres://secret" })).includes("DATABASE_URL"), false);
 assert.ok(fs.existsSync(path.join(__dirname, "..", "db", "migrations", "001_initial_schema.sql")));
