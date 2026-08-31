@@ -23,6 +23,8 @@
     "test:media": "node tests/mediaService.js && node tests/mediaRepository.js && node tests/r2Storage.js && node tests/b2Storage.js",
     "test:media-postgres": "node tests/mediaPostgres.js",
     "test:media-all": "npm run test:media && npm run test:media-postgres",
+    "test:collection-media": "node tests/collectionMedia.js && node tests/collectionMediaBrowser.js",
+    "test:collection-media-postgres": "node tests/collectionMediaPostgres.js",
     "test:memory": "node tests/memory.js",
     "test:memory-delete": "node tests/memoryDelete.js",
     "test:quiz": "node tests/quiz.js",
