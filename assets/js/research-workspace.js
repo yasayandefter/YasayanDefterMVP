@@ -15,6 +15,7 @@
   var active = "overview";
   var observer;
   var stateObserver;
+  var overviewOwners = ["visuals", "quiz"];
 
   function el(tag, attrs, text) {
     var node = document.createElement(tag);
@@ -66,8 +67,20 @@
   function panelHasContent(id) {
     var panel = panels[id];
     if (!panel) return false;
-    if (id === "overview" || id === "visuals" || id === "sources" || id === "quiz" || id === "memory") return panel.children.length > 0;
+    var owned = root?.querySelectorAll('[data-research-owner="' + id + '"]') || [];
+    if (id === "overview" || id === "visuals" || id === "sources" || id === "quiz" || id === "memory") return owned.length > 0;
     return Array.from(panel.querySelectorAll("#knowledgeMap > *, #knowledgeMap [class]")).length > 0 || Boolean(document.getElementById("knowledgeMap")?.textContent?.trim());
+  }
+
+  function placeSections() {
+    if (!root) return;
+    root.querySelectorAll("[data-research-owner]").forEach(function (section) {
+      var owner = section.dataset.researchOwner;
+      var destination = active === "overview" && overviewOwners.includes(owner) ? panels.overview : panels[owner];
+      if (destination && section.parentNode !== destination) destination.append(section);
+    });
+    var banner = document.getElementById("livingMemoryResultBanner");
+    if (banner && banner.parentNode !== panels.overview) panels.overview.append(banner);
   }
 
   function syncAvailability() {
@@ -86,6 +99,7 @@
     var button = tabs?.querySelector('[data-research-tab="' + id + '"]:not([hidden])');
     if (!button || !panels[id]) return;
     active = id;
+    placeSections();
     tabs.querySelectorAll("[data-research-tab]").forEach(function (tab) {
       var selected = tab === button;
       tab.setAttribute("aria-selected", String(selected));
@@ -121,8 +135,12 @@
   function moveSections(results) {
     Array.from(results.children).forEach(function (section) {
       if (section === root || !section.matches("section, [data-research-section]")) return;
-      panels[definitionFor(section).id].append(section);
+      var owner = definitionFor(section).id;
+      section.dataset.researchOwner = owner;
+      var destination = active === "overview" && overviewOwners.includes(owner) ? panels.overview : panels[owner];
+      destination.append(section);
     });
+    placeSections();
   }
 
   function build() {
@@ -157,5 +175,8 @@
   }
 
   document.addEventListener("DOMContentLoaded", build);
+  window.addEventListener("research:completed", function () {
+    activate("overview", false);
+  });
   window.YDResearchWorkspace = { activate: activate, build: build, tabs: definitions.map(function (item) { return item.id; }) };
 }());
