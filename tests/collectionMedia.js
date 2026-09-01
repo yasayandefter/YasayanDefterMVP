@@ -32,18 +32,19 @@ const calls = [];
 const states = [];
 let attempt = 0;
 let failPut = true;
+const xhrs = [];
 const request = async (path, options = {}) => {
   calls.push({ path, method: options.method || "GET", body: options.body || null });
   if (path === "/api/media/uploads") {
     attempt += 1;
-    return { asset: { id: `10000000-0000-4000-8000-00000000000${attempt}` }, upload: { url: `https://signed.invalid/attempt-${attempt}`, method: "PUT", headers: { "Content-Type": "application/pdf" }, expiresInSeconds: 600 } };
+    return { asset: { id: `10000000-0000-4000-8000-00000000000${attempt}` }, upload: { url: `https://signed.invalid/attempt-${attempt}`, method: "PUT", headers: { "Content-Type": "application/pdf" }, signedHeaders: ["content-length", "content-type"], expectedSizeBytes: 2048, expiresInSeconds: 600 } };
   }
   if (path.endsWith("/complete")) return { asset: { id: path.split("/")[3], status: "READY" } };
   if (options.method === "DELETE") return { deleted: true };
   throw new Error("UNEXPECTED_REQUEST");
 };
 function xhrFactory() {
-  return {
+  const xhr = {
     upload: {}, headers: {}, status: 0, withCredentials: true,
     open(method, url) { this.method = method; this.url = url; },
     setRequestHeader(name, value) { this.headers[name] = value; },
@@ -52,7 +53,7 @@ function xhrFactory() {
       this.status = failPut ? 500 : 200;
       this.onload();
     }
-  };
+  }; xhrs.push(xhr); return xhr;
 }
 
 (async () => {
@@ -64,9 +65,11 @@ function xhrFactory() {
   assert.equal(result.state, "success"); assert.equal(attempt, 2);
   assert.ok(calls.some(call => call.method === "DELETE" && call.path.endsWith("000000000001")));
   assert.ok(calls.some(call => call.path.endsWith("000000000002/complete")));
+  assert.equal(JSON.parse(calls.find(call => call.path === "/api/media/uploads").body).sizeBytes, 2048);
   assert.ok(states.some(state => state.state === "progress" && state.progress === 50));
   assert.ok(states.some(state => state.state === "progress" && state.message === "Yükleniyor · %50"));
   assert.ok(states.some(state => state.state === "verifying" && state.message === "Dosya kontrol ediliyor"));
+  assert.equal(xhrs.every(xhr => xhr.withCredentials === false), true); assert.equal(xhrs.every(xhr => !("Content-Length" in xhr.headers)), true); assert.equal(xhrs.every(xhr => xhr.headers["Content-Type"] === "application/pdf"), true);
   assert.equal(JSON.stringify(controller.getState()).includes("signed.invalid"), false);
 
   const quota = media.createController({ request: async () => { const error = new Error("Kota dolu"); error.code = "MEDIA_QUOTA_EXCEEDED"; throw error; }, xhrFactory });

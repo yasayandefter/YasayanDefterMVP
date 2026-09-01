@@ -8,11 +8,11 @@ The Node/Vercel function accepts small JSON metadata requests only; its existing
 
 ## Lifecycles
 
-Upload: authenticate → validate allowlisted MIME, category, size, filename and optional collection → check quota → create `PENDING` metadata → issue a 10-minute PUT authorization bound to the object key and content type → direct browser upload → completion request → B2 `HeadObject` verification of presence, size, MIME and ETag → `READY`. A record is never marked ready before verification.
+Upload: authenticate → validate allowlisted MIME, category, size, filename and optional collection → lock the user row → transactionally validate quota/abuse limits and reserve `PENDING` metadata → issue a 10-minute PUT authorization bound to the object key, exact `Content-Length`, and normalized `Content-Type` → direct browser upload → completion request → B2 `HeadObject` verification of presence, exact size, policy maximum, MIME and ETag → lock/recheck quota and state → `READY`. Browser code sets only `Content-Type`; the user agent supplies `Content-Length`. A record is never marked ready before authoritative verification.
 
 Read: authenticate → load by ID and enforce `user_id` ownership → require `READY` → issue a 10-minute GET authorization for exactly that key. PostgreSQL stores only the key.
 
-Delete: authenticate and verify ownership → set `DELETING` → server-side B2 `DeleteObject` → delete metadata (collection relation cascades). Object deletion is idempotent. A storage failure leaves `DELETING`, and the same delete call can safely retry. No other user's key is accepted from the client.
+Delete: authenticate and verify ownership → set `DELETING` → server-side B2 `DeleteObject` → retain a tombstone while a recent upload authorization could still be replayed → bounded cleanup deletes the key again and removes metadata (collection relation cascades). Older assets can finalize immediately. Object deletion is idempotent. A storage failure leaves `DELETING` for retry. No other user's key is accepted from the client.
 
 ## Validation, keys, quota, and Collections
 
@@ -20,7 +20,9 @@ Supported MIME categories are centralized in `storage/mediaConfig.js`: PDF (`app
 
 Keys are generated server-side as `users/{sha256-owner-prefix}/media/{uuid}/{sanitized-filename}`. Raw paths, client keys, and client user IDs are rejected. The UUID prevents collisions, the non-reversible owner prefix scopes objects, and filenames are normalized and stripped of traversal/control characters.
 
-Quota checks occur before authorization. Defaults are configurable through `MEDIA_MAX_TOTAL_BYTES_PER_USER` (1 GiB) and `MEDIA_MAX_ASSET_COUNT_PER_USER` (500). `PENDING`, `READY`, and `DELETING` allocations count toward quota. The documented quota concurrency limitation remains; this adapter phase does not introduce a risky schema redesign.
+Quota reservation and `PENDING` creation share one PostgreSQL transaction. The authenticated `users` row is locked before usage is aggregated; the optional collection is locked second. This serializes same-user initializations while different users remain independent. Defaults are configurable through `MEDIA_MAX_TOTAL_BYTES_PER_USER` (1 GiB) and `MEDIA_MAX_ASSET_COUNT_PER_USER` (500). `PENDING`, `READY`, `FAILED`, and `DELETING` allocations count until metadata is proven object-free and removed.
+
+Abuse controls are database-backed under the same user lock: `MEDIA_MAX_OUTSTANDING_UPLOADS_PER_USER` defaults to 3, while `MEDIA_UPLOAD_INIT_LIMIT_PER_WINDOW` defaults to 10 within `MEDIA_UPLOAD_INIT_WINDOW_SECONDS` (900). Invalid overrides make media configuration unavailable with a sanitized code.
 
 `smart_collection_media_items` is separate from the existing note-only `smart_collection_items`, preserving all current CRUD and suggestion semantics. Repository transactions lock the owned collection and enforce the existing combined 100-member maximum.
 
@@ -36,6 +38,9 @@ Active B2 server-only variables:
 - `B2_APPLICATION_KEY`
 - optional `MEDIA_UPLOAD_URL_TTL_SECONDS`, `MEDIA_READ_URL_TTL_SECONDS` (defaults: 600 seconds)
 - optional `MEDIA_MAX_TOTAL_BYTES_PER_USER`, `MEDIA_MAX_ASSET_COUNT_PER_USER`
+- optional `MEDIA_MAX_OUTSTANDING_UPLOADS_PER_USER` (default 3)
+- optional `MEDIA_UPLOAD_INIT_LIMIT_PER_WINDOW` (default 10) and `MEDIA_UPLOAD_INIT_WINDOW_SECONDS` (default 900)
+- optional cleanup bounds: `MEDIA_CLEANUP_BATCH_SIZE` (default 50, maximum 100) and `MEDIA_CLEANUP_STALE_SECONDS` (default/minimum 1800)
 
 The R2 adapter remains available with its existing `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, and optional `R2_ENDPOINT` contract when `MEDIA_STORAGE_PROVIDER=r2`. Local/provider-isolated tests may use `MEDIA_STORAGE_PROVIDER=mock`.
 
@@ -49,13 +54,16 @@ Allowed operations are `s3_put`, `s3_get`, and `s3_head`; allowed headers are `*
 
 ## Failure and orphan strategy
 
-- Expired `PENDING`: a bounded scheduled/manual cleanup queries records older than the configured operational threshold, HEADs/deletes any object, then removes metadata.
+- Expired `PENDING` and `FAILED`: the cleanup command atomically claims a bounded indexed database batch, transitions candidates to `DELETING`, deletes their exact keys, and removes metadata only beyond the replay-safe age.
 - Upload succeeded but completion failed: retry completion; HEAD verification is idempotent. Expired records are handled by the same cleanup.
 - DB record exists but object is missing: completion returns `MEDIA_OBJECT_MISSING`; reads never authorize non-`READY` records.
 - Object exists without a DB row: a future bounded inventory reconciliation compares the private bucket prefix to database keys and deletes only objects older than a safety window.
+- Verification mismatch: transition to `DELETING`, immediately attempt deletion, and retain a tombstone until the PUT authorization plus safety margin has expired.
 - Failed deletion: retain `DELETING` for retry; never silently return it to `READY`.
 
-Phase 1 provides cleanup candidate queries but deliberately does not add a background scheduler. Phase 2 integration points remain the Collections media list, upload controls, progress UI, retry/cancel UX, and an operator-invoked bounded cleanup job.
+Run `npm run media:cleanup -- --dry-run` for a read-only aggregate preview or `npm run media:cleanup` for exactly one bounded batch. Dry-run performs no storage calls or writes. Logs contain status counts only—never filenames, keys, owners, URLs, or credentials. Exit codes are 0 for success, 1 for partial provider failure, and 2 for configuration/database preflight failure. No public cleanup endpoint, ordinary-request cleanup, endless loop, or bucket-wide listing exists.
+
+Historical object-without-metadata reconciliation, magic-byte inspection, checksum binding, and persistent download rate limiting remain documented operational debt. Production GO still requires a controlled real-B2 browser test proving exact-length PUT success and altered-length rejection; unit tests alone do not establish B2 compatibility.
 
 ## Local validation
 

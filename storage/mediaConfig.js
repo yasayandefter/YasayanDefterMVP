@@ -41,7 +41,10 @@ function getMediaConfig(env = process.env) {
   const readTtl = integer(env, "MEDIA_READ_URL_TTL_SECONDS", 600, 60, 900);
   const maxBytes = integer(env, "MEDIA_MAX_TOTAL_BYTES_PER_USER", 1024 * MIB, 100 * MIB, 100 * 1024 * MIB);
   const maxAssets = integer(env, "MEDIA_MAX_ASSET_COUNT_PER_USER", 500, 1, 10000);
-  const invalidPolicy = [uploadTtl, readTtl, maxBytes, maxAssets].some(item => !item.valid);
+  const maxOutstanding = integer(env, "MEDIA_MAX_OUTSTANDING_UPLOADS_PER_USER", 3, 1, 20);
+  const initLimit = integer(env, "MEDIA_UPLOAD_INIT_LIMIT_PER_WINDOW", 10, 1, 100);
+  const initWindow = integer(env, "MEDIA_UPLOAD_INIT_WINDOW_SECONDS", 900, 60, 86400);
+  const invalidPolicy = [uploadTtl, readTtl, maxBytes, maxAssets, maxOutstanding, initLimit, initWindow].some(item => !item.valid);
   const errorCode = !provider ? "MEDIA_STORAGE_DISABLED" : !supported ? "MEDIA_STORAGE_PROVIDER_INVALID" : missing.length && provider !== "mock" ? "MEDIA_STORAGE_CONFIG_INCOMPLETE" : invalidPolicy ? "MEDIA_STORAGE_CONFIG_INVALID" : null;
   return Object.freeze({
     provider: provider || "disabled",
@@ -57,13 +60,22 @@ function getMediaConfig(env = process.env) {
     readTtlSeconds: readTtl.value,
     maxTotalBytesPerUser: maxBytes.value,
     maxAssetCountPerUser: maxAssets.value,
+    maxOutstandingUploadsPerUser: maxOutstanding.value,
+    uploadInitLimitPerWindow: initLimit.value,
+    uploadInitWindowSeconds: initWindow.value,
     mimePolicies: MIME_POLICIES
   });
 }
 
-function publicMediaConfig(env = process.env) {
-  const config = getMediaConfig(env);
-  return { provider: config.provider, available: config.configured, errorCode: config.errorCode, uploadTtlSeconds: config.uploadTtlSeconds, readTtlSeconds: config.readTtlSeconds, maxTotalBytesPerUser: config.maxTotalBytesPerUser, maxAssetCountPerUser: config.maxAssetCountPerUser };
+function getMediaCleanupConfig(env = process.env) {
+  const batch = integer(env, "MEDIA_CLEANUP_BATCH_SIZE", 50, 1, 100);
+  const stale = integer(env, "MEDIA_CLEANUP_STALE_SECONDS", 1800, 1800, 604800);
+  return Object.freeze({ configured: batch.valid && stale.valid, errorCode: batch.valid && stale.valid ? null : "MEDIA_CLEANUP_CONFIG_INVALID", batchSize: batch.value, staleSeconds: stale.value, retrySeconds: 300 });
 }
 
-module.exports = { MIB, MIME_POLICIES, getMediaConfig, publicMediaConfig };
+function publicMediaConfig(env = process.env) {
+  const config = getMediaConfig(env);
+  return { provider: config.provider, available: config.configured, errorCode: config.errorCode, uploadTtlSeconds: config.uploadTtlSeconds, readTtlSeconds: config.readTtlSeconds, maxTotalBytesPerUser: config.maxTotalBytesPerUser, maxAssetCountPerUser: config.maxAssetCountPerUser, maxOutstandingUploadsPerUser: config.maxOutstandingUploadsPerUser };
+}
+
+module.exports = { MIB, MIME_POLICIES, getMediaConfig, getMediaCleanupConfig, publicMediaConfig };

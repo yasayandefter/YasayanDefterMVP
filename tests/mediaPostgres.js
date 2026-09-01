@@ -48,7 +48,7 @@ async function call(path, method = "GET", body, cookie) { const response = await
   app.locals.mediaStorageFactory = () => createMockObjectStorage({ objects: Object.fromEntries(storage.objects), failDelete: true });
   assert.equal((await call(`/api/media/${assetId}`, "DELETE", null, sessions[0])).response.status, 503); assert.equal((await pool.query("SELECT status FROM media_assets WHERE id=$1", [assetId])).rows[0].status, "DELETING");
   app.locals.mediaStorageFactory = () => storage;
-  assert.equal((await call(`/api/media/${assetId}`, "DELETE", null, sessions[0])).response.status, 200); assert.equal(Number((await pool.query("SELECT COUNT(*) n FROM media_assets WHERE id=$1", [assetId])).rows[0].n), 0);
+  const deleted = await call(`/api/media/${assetId}`, "DELETE", null, sessions[0]); assert.equal(deleted.response.status, 200); assert.equal(deleted.body.cleanupPending, true); assert.equal((await pool.query("SELECT status FROM media_assets WHERE id=$1", [assetId])).rows[0].status, "DELETING");
   console.log("PASS  media PostgreSQL auth, ownership, collection relation, MIME/size/quota, verification, private read, delete retry and cleanup");
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; }).finally(async () => {
   if (server) await new Promise(resolve => server.close(resolve));

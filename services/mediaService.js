@@ -39,22 +39,39 @@ function createMediaService(options) {
   if (!repository) throw new Error("MEDIA_REPOSITORY_REQUIRED");
   if (!objectStorage) throw new Error("OBJECT_STORAGE_REQUIRED");
 
+  const limits = Object.freeze({
+    maxTotalBytesPerUser: config.maxTotalBytesPerUser,
+    maxAssetCountPerUser: config.maxAssetCountPerUser,
+    maxOutstandingUploadsPerUser: config.maxOutstandingUploadsPerUser ?? 3,
+    uploadInitLimitPerWindow: config.uploadInitLimitPerWindow ?? 10,
+    uploadInitWindowSeconds: config.uploadInitWindowSeconds ?? 900
+  });
+
+  async function rejectVerifiedObject(asset, code) {
+    await repository.markDeleting(asset.id, asset.userId);
+    await objectStorage.deleteObject({ key: asset.storageKey }).catch(() => {});
+    throw mediaError(code, 409);
+  }
+
   return Object.freeze({
     async requestUpload(auth, input) {
       const userId = requireUser(auth);
       if (!config.configured || !objectStorage.available) throw mediaError(config.errorCode || "MEDIA_STORAGE_UNAVAILABLE", 503);
       const value = validateUploadInput(input, config);
-      const usage = await repository.usageForUser(userId);
-      if (usage.assetCount >= config.maxAssetCountPerUser || usage.totalBytes + value.sizeBytes > config.maxTotalBytesPerUser) throw mediaError("MEDIA_QUOTA_EXCEEDED", 409);
       const id = randomUUID();
       const key = storageKey(userId, id, value.safeFilename);
-      const result = await repository.createPending({ id, userId, storageProvider: config.provider, storageKey: key, ...value });
-      if (!result.asset) throw mediaError(result.reason === "COLLECTION_CAPACITY" ? "COLLECTION_CAPACITY_EXCEEDED" : "COLLECTION_ACCESS_DENIED", 403);
+      const result = await repository.reservePending({ id, userId, storageProvider: config.provider, storageKey: key, ...value }, limits);
+      if (!result.asset) {
+        if (result.reason === "QUOTA") throw mediaError("MEDIA_QUOTA_EXCEEDED", 409);
+        if (result.reason === "OUTSTANDING") throw mediaError("MEDIA_OUTSTANDING_LIMIT", 429);
+        if (result.reason === "INIT_RATE") throw mediaError("MEDIA_UPLOAD_INIT_RATE_LIMIT", 429);
+        throw mediaError(result.reason === "COLLECTION_CAPACITY" ? "COLLECTION_CAPACITY_EXCEEDED" : "COLLECTION_ACCESS_DENIED", 403);
+      }
       try {
         const upload = await objectStorage.createUploadAuthorization({ key, mimeType: value.mimeType, sizeBytes: value.sizeBytes });
         return { asset: publicAsset(result.asset), upload };
       } catch (error) {
-        await repository.markFailed(id, userId).catch(() => {});
+        await repository.deleteMetadata(id, userId).catch(() => {});
         throw mediaError("MEDIA_STORAGE_UNAVAILABLE", 503);
       }
     },
@@ -67,8 +84,13 @@ function createMediaService(options) {
       if (found.asset.status !== "PENDING") throw mediaError("MEDIA_STATE_INVALID", 409);
       const head = await objectStorage.headObject({ key: found.asset.storageKey });
       if (!head.exists) throw mediaError("MEDIA_OBJECT_MISSING", 409);
-      if (head.sizeBytes !== found.asset.sizeBytes || String(head.mimeType || "").toLowerCase() !== found.asset.mimeType) { await repository.markFailed(id, userId); throw mediaError("MEDIA_OBJECT_MISMATCH", 409); }
-      return publicAsset(await repository.markReady(id, userId, { etag: head.etag || null }));
+      const policy = config.mimePolicies[found.asset.mimeType];
+      const actualMime = String(head.mimeType || "").trim().toLowerCase();
+      if (!Number.isSafeInteger(head.sizeBytes) || !policy || head.sizeBytes < 1 || head.sizeBytes !== found.asset.sizeBytes || head.sizeBytes > policy.maxBytes || actualMime !== found.asset.mimeType) return rejectVerifiedObject(found.asset, "MEDIA_OBJECT_MISMATCH");
+      const completed = await repository.finalizeReady(id, userId, limits, { etag: head.etag || null });
+      if (!completed.asset || completed.reason === "STATE") throw mediaError(completed.reason === "STATE" ? "MEDIA_STATE_INVALID" : "MEDIA_NOT_FOUND", completed.reason === "STATE" ? 409 : 404);
+      if (completed.reason === "QUOTA") return rejectVerifiedObject(found.asset, "MEDIA_QUOTA_EXCEEDED");
+      return publicAsset(completed.asset);
     },
     async createReadAuthorization(auth, id) {
       const userId = requireUser(auth); uuid(id);
@@ -88,8 +110,10 @@ function createMediaService(options) {
       const deleting = await repository.markDeleting(id, userId);
       try { await objectStorage.deleteObject({ key: deleting.storageKey }); }
       catch (_) { throw mediaError("MEDIA_DELETE_RETRY_REQUIRED", 503); }
-      await repository.deleteMetadata(id, userId);
-      return { deleted: true, id };
+      const replaySafeAt = Date.parse(deleting.createdAt || "") + 1800 * 1000;
+      const tombstoneRetained = Number.isFinite(replaySafeAt) && Date.now() < replaySafeAt;
+      if (!tombstoneRetained) await repository.deleteMetadata(id, userId);
+      return { deleted: true, id, cleanupPending: tombstoneRetained };
     }
   });
 }

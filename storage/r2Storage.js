@@ -13,9 +13,10 @@ function createR2Storage(config, dependencies = {}) {
   return Object.freeze({
     provider: "r2",
     available: true,
-    async createUploadAuthorization({ key, mimeType }) {
-      const command = new api.PutObjectCommand({ Bucket: config.bucket, Key: key, ContentType: mimeType });
-      return { url: await api.getSignedUrl(client, command, { expiresIn: config.uploadTtlSeconds }), method: "PUT", headers: { "Content-Type": mimeType }, expiresInSeconds: config.uploadTtlSeconds };
+    async createUploadAuthorization({ key, mimeType, sizeBytes }) {
+      const signedHeaders = new Set(["content-length", "content-type"]);
+      const command = new api.PutObjectCommand({ Bucket: config.bucket, Key: key, ContentType: mimeType, ContentLength: sizeBytes });
+      return { url: await api.getSignedUrl(client, command, { expiresIn: config.uploadTtlSeconds, signableHeaders: signedHeaders }), method: "PUT", headers: { "Content-Type": mimeType }, signedHeaders: [...signedHeaders], expectedSizeBytes: sizeBytes, expiresInSeconds: config.uploadTtlSeconds };
     },
     async createReadAuthorization({ key }) {
       const command = new api.GetObjectCommand({ Bucket: config.bucket, Key: key });
