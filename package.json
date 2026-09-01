@@ -1,6 +1,6 @@
 {
   "name": "yasayan-defter",
-  "version": "15.6.0",
+  "version": "15.7.0",
   "description": "Yaşayan Defter 15.0 Pilot",
   "main": "server.js",
   "engines": {

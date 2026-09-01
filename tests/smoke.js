@@ -120,7 +120,7 @@ async function run() {
       const result = await request(baseUrl, "GET", "/api/status");
       assert.equal(result.response.status, 200);
       assert.equal(result.json.ok, true);
-      assert.equal(result.json.version, "15.6.0");
+      assert.equal(result.json.version, "15.7.0");
       assert.equal(result.json.engine, "Brain Engine 15.6");
       assert.ok(requestIdOf(result));
       assertNoObjectString(result);

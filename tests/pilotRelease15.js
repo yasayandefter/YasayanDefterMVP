@@ -47,6 +47,6 @@ for (const value of [index, app, server]) {
   assert.doesNotMatch(value, /Brain Engine (?:10|11)\.0|Yaşayan Defter 13 Professional|Version 11\.0/i);
 }
 assert.match(index, /Yaşayan Defter 15\.0 Pilot/);
-assert.equal(require("../package.json").version, "15.6.0");
+assert.equal(require("../package.json").version, "15.7.0");
 
 console.log("PASS  Yaşayan Defter 15.0 pilot product modes, honest profile, Brain Score, Defterim, auth accessibility, and branding");

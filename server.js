@@ -45,6 +45,7 @@ const { optionalAuth } = require("./middleware/auth");
 const { authorizationGuard } = require("./middleware/authorization");
 const repositoryFactory = require("./repositories");
 const { filesystemPersistenceEnabled } = require("./runtime/storagePolicy");
+const { VERSION } = require("./runtime/release");
 
 app.locals.repositoryFactory = repositoryFactory;
 
@@ -62,9 +63,6 @@ console.warn = (...args) => bridgeConsole("warn", args);
 console.error = (...args) => bridgeConsole("error", args);
 
 const {
-
-    VERSION,
-
     ENGINE_NAME
 
 } = CONFIG;
@@ -6274,7 +6272,7 @@ app.get(
       paidAI:
         false,
 
-        status: "ok",
+        status: health.ok ? "ok" : "degraded",
         uptimeSec: Math.round(process.uptime()),
       storageHealth: health.ephemeral ? "ephemeral" : health.ok ? "ok" : "unavailable",
       observability: { requests: metrics.state.requests.total, errors: metrics.state.requests.errors }

@@ -9,7 +9,7 @@ const shell = fs.readFileSync("assets/js/workspace-shell.js", "utf8");
 const css = fs.readFileSync("assets/css/home-visual-refinement-15-6.css", "utf8");
 
 assert.match(html, /home-visual-refinement-15-6\.css/);
-assert.equal(pkg.version, "15.6.0");
+assert.equal(pkg.version, "15.7.0");
 assert.equal(pkg.scripts["test:home-visual-refinement"], "node tests/homeVisualRefinement156.js && node tests/homeVisualRefinementBrowser.js");
 assert.match(shell, /Bugün ne üzerinde çalışmak istersin\?/);
 assert.match(shell, /Bir konu, fikir veya soru araştır…/);
