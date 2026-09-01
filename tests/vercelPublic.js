@@ -66,7 +66,7 @@ async function waitForServer() {
   const status = await statusResponse.json();
   assert.equal(statusResponse.status, 200);
   assert.equal(status.ok, true);
-  assert.equal(status.version, "15.6.0");
+  assert.equal(status.version, "15.7.0");
   assert.equal(status.engine, "Brain Engine 15.6");
   assert.equal(status.accessMode, "public-demo");
   assert.equal(status.storageMode, "ephemeral");
