@@ -6,6 +6,18 @@
   var shell;
   var touchStart = null;
   var legacyObserver;
+  var workspacePanels = {};
+
+  // The route registry, not result renderers or page styles, owns visibility.
+  function syncOwnership() {
+    Object.keys(workspacePanels).forEach(function (name) {
+      var panel = workspacePanels[name];
+      var selected = name === active;
+      if (panel.hidden === selected) panel.hidden = !selected;
+      panel.inert = !selected;
+      panel.setAttribute("aria-hidden", String(!selected));
+    });
+  }
 
   function el(tag, attrs, text) {
     var node = document.createElement(tag);
@@ -39,9 +51,7 @@
       button.setAttribute("aria-selected", String(selected));
       button.setAttribute("tabindex", selected ? "0" : "-1");
     });
-    shell.querySelectorAll("[data-shell-panel]").forEach(function (panel) {
-      panel.hidden = panel.dataset.shellPanel !== name;
-    });
+    syncOwnership();
     var legacy = target(name) && document.getElementById(target(name));
     if (legacy) legacy.hidden = false;
     if (focus) (shell.querySelector('[data-shell-panel="' + name + '"] h1, [data-shell-panel="' + name + '"] h2') || legacy)?.focus?.({ preventScroll: true });
@@ -138,6 +148,10 @@
   }
 
   function mountLegacy() {
+    // Home can be populated asynchronously; it always belongs to Home.
+    var home = document.getElementById("workspaceHome");
+    var continuity = workspacePanels.home?.querySelector(".yd-home-continuity");
+    if (home && continuity && home.parentNode !== continuity) continuity.prepend(home);
     var map = { research: [document.querySelector(".hero"), document.getElementById("loading"), document.getElementById("errorBox"), document.getElementById("results")], notebook: [document.getElementById("notebookSection")], collections: [document.getElementById("collectionsSection")], profile: [document.getElementById("commercialProfile")] };
     Object.keys(map).forEach(function (name) { var host = shell.querySelector('[data-mount="' + name + '"]'); map[name].filter(Boolean).forEach(function (node) { if (host && node.parentNode !== host) host.append(node); }); });
     var account = document.querySelector("[data-auth-user]:not(.auth-public-actions)");
@@ -175,7 +189,10 @@
     var nav = el("nav", { class: "yd-shell-nav", role: "tablist", "aria-label": "Ana çalışma alanları" }); pages.forEach(function (name) { nav.append(navButton(name)); });
     var viewport = el("main", { class: "yd-shell-viewport", "aria-live": "off" });
     viewport.append(homePanel(auth.user), simplePanel("research", "Araştır", "Bir konuyu keşfet, kaynakları incele ve sonuçlarını defterine taşı."), simplePanel("notebook", "Defterim", "Notların, projelerin ve fikirlerin tek çalışma alanında."), simplePanel("collections", "Koleksiyonlar", "İlgili kayıtları anlamlı gruplar halinde düzenle."), simplePanel("personal", "Benim İçin", "Çalışma alanlarına ve son etkinliklerine göre seçilen kısa yollar."), simplePanel("profile", "Profil", "Hesap, tercihler ve ikincil öğrenme metrikleri."));
+    Array.from(viewport.children).forEach(function (panel) { workspacePanels[panel.dataset.shellPanel] = panel; });
     shell.append(top, nav, viewport); app.prepend(shell); mountLegacy();
+    var ownershipObserver = new MutationObserver(syncOwnership);
+    Object.values(workspacePanels).forEach(function (panel) { ownershipObserver.observe(panel, { attributes: true, attributeFilter: ["hidden"] }); });
     var personal = shell.querySelector('[data-mount="personal"]'); personal.append(el("div", { class: "yd-personal-copy" }, "Öneriler ve devam ettiğin çalışmalar ana sayfadaki kompakt akışta güncellenir."));
     var observer = new MutationObserver(syncMetrics); observer.observe(shell, { subtree: true, childList: true, characterData: true });
     legacyObserver = new MutationObserver(mountLegacy);

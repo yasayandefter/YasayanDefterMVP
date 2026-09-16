@@ -30,7 +30,7 @@
     var section = document.getElementById("collectionsSection"), cards = document.getElementById("collectionCards"), toolbar = section?.querySelector(".collections-toolbar"); if (!section || !cards || root) return;
     root = el("div", { id: "collectionsWorkspace156", class: "yd-collections-workspace", "data-collection-view": "grid" });
     var header = el("header", { class: "yd-collections-header" }), copy = el("div", {}), create = toolbar?.querySelector("button");
-    copy.append(el("p", { class: "yd-collections-eyebrow" }, "PERSONAL ARCHIVE"), el("h2", { tabindex: "-1" }, "Koleksiyonlar"), el("p", {}, "Notlarını, araştırmalarını ve içeriklerini bir arada tut."));
+    copy.append(el("p", { class: "yd-collections-eyebrow" }, "DEFTERİNİN BÖLÜMLERİ"), el("h2", { tabindex: "-1" }, "Koleksiyonlar"), el("p", {}, "Notlarını, araştırmalarını ve içeriklerini bir arada tut."));
     if (create) { create.classList.add("yd-collections-create"); create.textContent = "Yeni Koleksiyon"; }
     header.append(copy); if (create) header.append(create);
     var controls = el("div", { class: "yd-collections-controls" }), search = toolbar?.querySelector("#collectionSearch"), sort = toolbar?.querySelector("#collectionSort"), views = el("div", { class: "yd-collection-views", role: "group", "aria-label": "Koleksiyon görünümü" });

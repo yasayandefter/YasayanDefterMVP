@@ -15,7 +15,25 @@
   var active = "overview";
   var observer;
   var stateObserver;
-  var overviewOwners = ["visuals", "quiz"];
+  var overviewOwners = [];
+
+  // Decorative UI glyphs only; result content still comes from the existing renderer.
+  function glyph(name) {
+    var paths = {
+      overview: "M12 5C8 2 3 3 2 4v15c3-2 7-2 10 0 3-2 7-2 10 0V4c-3-2-7-2-10 1v14",
+      visuals: "M3 3h18v18H3z M3 16l6-6 5 5 3-3 4 4 M16 7h.01",
+      sources: "M5 2h10l4 4v16H5z M15 2v5h4 M8 11h8 M8 15h8 M8 18h5",
+      quiz: "M9 3C4 3 3 8 5 10c-4 3-2 8 2 8 0 3 5 4 5 0V6c0-3-3-4-3-3 M15 3c5 0 6 5 4 7 4 3 2 8-2 8 0 3-5 4-5 0 M7 8h3 M14 12h4",
+      map: "M8 6l8 5 M8 18l8-5 M4 3h5v5H4z M16 9h5v6h-5z M4 16h5v5H4z",
+      memory: "M3 5c0-4 18-4 18 0s-18 4-18 0v14c0 4 18 4 18 0V5 M3 12c0 4 18 4 18 0",
+      category: "M2 6h8l2 3h10v12H2z M2 6V3h8l2 3h8v3",
+      facts: "M8 17c0-3-4-4-4-9a8 8 0 0116 0c0 5-4 6-4 9 M8 18h8 M9 21h6",
+      progress: "M3 15h3v6H3z M10 9h3v12h-3z M17 3h3v18h-3z"
+    };
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("class", "yd-research-glyph"); svg.setAttribute("aria-hidden", "true");
+    var path = document.createElementNS(svg.namespaceURI, "path"); path.setAttribute("d", paths[name] || paths.overview); svg.append(path); return svg;
+  }
 
   function el(tag, attrs, text) {
     var node = document.createElement(tag);
@@ -42,25 +60,38 @@
     }) || definitions[0];
   }
 
-  function titleText() {
-    return document.querySelector("#professionalResult .professional-result-title")?.textContent?.trim() || document.getElementById("topicTitle")?.textContent?.trim() || "Araştırma sonucu";
-  }
-
   function syncHeader() {
     if (!root) return;
-    var title = root.querySelector("[data-research-title]");
-    if (title.textContent !== titleText()) title.textContent = titleText();
-    var category = document.getElementById("topicCategory")?.textContent?.trim() || "Araştırma";
-    var sources = document.getElementById("heroSources")?.textContent?.trim();
-    var context = root.querySelector("[data-research-context]");
-    var contextText = category + (sources && sources !== "0" ? " · " + sources + " kaynak" : " · kaynaklı çalışma alanı");
-    if (context.textContent !== contextText) context.textContent = contextText;
     var original = document.getElementById("saveTopicButton");
     var proxy = root.querySelector("[data-research-save]");
     if (original && proxy) {
-      var saveText = original.textContent?.trim() || "Defterime Kaydet";
+      var saveText = original.classList.contains("saved") ? "Defterime kaydedildi" : "Defterime kaydet";
       if (proxy.textContent !== saveText) proxy.textContent = saveText;
       proxy.classList.toggle("is-saved", original.classList.contains("saved"));
+      var topic = document.querySelector("#yd-research-panel-overview .topic-header");
+      if (topic && proxy.parentNode !== topic) topic.append(proxy);
+    }
+    syncTopicImage();
+    ["heroCategory", "heroSources", "heroImages", "heroFacts"].forEach(function (id, index) {
+      var chip = document.getElementById(id)?.parentElement;
+      if (chip && !chip.querySelector("svg")) chip.prepend(glyph(["category", "sources", "visuals", "facts"][index]));
+    });
+    syncOverviewLayers();
+  }
+
+  function syncTopicImage() {
+    var image = document.querySelector("#topicImageBox img");
+    var box = document.getElementById("topicImageBox");
+    if (!image || !box) return;
+    function classify() {
+      if (!image.naturalWidth || !image.naturalHeight) return;
+      var ratio = image.naturalWidth / image.naturalHeight;
+      box.dataset.mediaShape = ratio < .88 ? "portrait" : ratio > 1.35 ? "landscape" : "balanced";
+    }
+    classify();
+    if (!image.dataset.ydCompositionBound) {
+      image.dataset.ydCompositionBound = "true";
+      image.addEventListener("load", classify, { once: true });
     }
   }
 
@@ -70,6 +101,95 @@
     var owned = root?.querySelectorAll('[data-research-owner="' + id + '"]') || [];
     if (id === "overview" || id === "visuals" || id === "sources" || id === "quiz" || id === "memory") return owned.length > 0;
     return Array.from(panel.querySelectorAll("#knowledgeMap > *, #knowledgeMap [class]")).length > 0 || Boolean(document.getElementById("knowledgeMap")?.textContent?.trim());
+  }
+
+  function meaningfulText(node) {
+    var value = node?.textContent?.replace(/\s+/g, " ").trim() || "";
+    return value && value !== "—" ? value : "";
+  }
+
+  function syncOverviewLayers() {
+    if (!root) return;
+    var follow = document.getElementById("followContainer");
+    if (follow) {
+      follow.classList.remove("yd-horizontal-rail");
+      follow.closest(".section")?.querySelectorAll(".yd-rail-controls").forEach(function (node) { node.remove(); });
+    }
+    var discovery = root.querySelector("[data-overview-discovery]");
+    var preview = discovery?.querySelector("[data-discovery-images]");
+    var sourceImages = Array.from(document.querySelectorAll("#imagesContainer .image-card img")).filter(function (image) { return image.src && !image.hidden; }).slice(0, 4);
+    if (preview) {
+      var signature = sourceImages.map(function (image) { return image.currentSrc || image.src; }).join("|");
+      if (preview.dataset.signature !== signature) {
+        preview.dataset.signature = signature;
+        preview.replaceChildren();
+        sourceImages.forEach(function (source) {
+          var image = el("img", { src: source.currentSrc || source.src, alt: source.alt || "Araştırma görseli", loading: "eager", role: "button", tabindex: "0", "aria-label": (source.alt || "Araştırma görseli") + " — Görselleri aç" });
+          var frame = el("figure", { class: "yd-discovery-frame" });
+          var caption = el("figcaption", {}, (source.alt || "").replace(/\.(?:jpe?g|png|webp|gif)$/i, "").replace(/[_-]+/g, " "));
+          frame.append(image, caption);
+          function classifyPreview() {
+            if (!image.naturalWidth || !image.naturalHeight) return;
+            var ratio = image.naturalWidth / image.naturalHeight;
+            image.dataset.mediaShape = ratio < .86 ? "portrait" : ratio > 1.35 ? "landscape" : "balanced";
+            frame.dataset.mediaShape = image.dataset.mediaShape;
+            // Give a real landscape image the large editorial opening when available.
+            var lead = Array.from(preview.children).find(function (item) { return item.dataset.mediaShape === "landscape"; });
+            if (lead && preview.firstElementChild !== lead) preview.prepend(lead);
+          }
+          classifyPreview();
+          image.addEventListener("load", classifyPreview, { once: true });
+          image.addEventListener("click", function () { activate("visuals", false); });
+          image.addEventListener("keydown", function (event) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate("visuals", true); } });
+          preview.append(frame);
+        });
+      }
+      discovery.hidden = sourceImages.length === 0;
+      root.classList.toggle("has-discovery", sourceImages.length > 0);
+    }
+    var insight = discovery?.querySelector("[data-discovery-insight]");
+    var insightText = ["#interestingText", "#factsContainer .fact p", "#factsContainer .fact", "#relatedContainer button"].map(function (selector) { return meaningfulText(document.querySelector(selector)); }).find(Boolean) || "";
+    if (insight) {
+      if (insight.textContent !== insightText) insight.textContent = insightText;
+      insight.parentElement.hidden = !insightText;
+    }
+
+    var percent = meaningfulText(document.getElementById("progressPercent"));
+    var overviewPercent = root.querySelector("[data-overview-progress]");
+    if (overviewPercent && overviewPercent.textContent !== percent) overviewPercent.textContent = percent;
+    var originalFill = document.getElementById("progressFill");
+    var overviewFill = root.querySelector("[data-overview-progress-fill]");
+    if (overviewFill) overviewFill.style.width = originalFill?.style.width || percent || "0%";
+  }
+
+  function buildOverviewLayers() {
+    var discovery = el("section", { class: "yd-overview-discovery", "data-overview-discovery": "" });
+    var discoveryHead = el("div", { class: "yd-overview-layer-head" });
+    discoveryHead.append(el("h3", {}, "Keşfet"));
+    var openVisuals = el("button", { type: "button", class: "yd-overview-link" }, "Tüm görselleri aç →");
+    openVisuals.addEventListener("click", function () { activate("visuals", true); });
+    discoveryHead.append(openVisuals);
+    var discoveryBody = el("div", { class: "yd-discovery-body" });
+    var preview = el("div", { class: "yd-discovery-images", "data-discovery-images": "" });
+    var insight = el("aside", { class: "yd-discovery-insight" });
+    insight.append(el("span", {}, "Bu konuda"), el("p", { "data-discovery-insight": "" }));
+    discoveryBody.append(preview, insight); discovery.append(discoveryHead, discoveryBody);
+
+    var learning = el("section", { class: "yd-overview-learning" });
+    learning.append(el("h3", {}, "Öğrenmeye Devam Et"));
+    var items = el("div", { class: "yd-learning-continuations" });
+    var quiz = el("div", { class: "yd-learning-continuation" });
+    quiz.append(el("span", {}, "Quiz"), el("p", {}, "Kendini test et"));
+    var openQuiz = el("button", { type: "button" }, "Quiz'i aç →"); openQuiz.addEventListener("click", function () { activate("quiz", true); }); quiz.append(openQuiz);
+    var progress = el("div", { class: "yd-learning-continuation yd-learning-progress" });
+    progress.append(el("span", {}, "İlerleme"), el("strong", { "data-overview-progress": "" }, "0%"));
+    var track = el("div", { class: "yd-overview-progress-track" }); track.append(el("i", { "data-overview-progress-fill": "" })); progress.append(track);
+    var notebook = el("div", { class: "yd-learning-continuation" });
+    notebook.append(el("span", {}, "Defter"), el("p", {}, "Bu konuyu daha sonra çalış"));
+    var save = el("button", { type: "button" }, "Defterime kaydet"); save.addEventListener("click", function () { document.getElementById("saveTopicButton")?.click(); }); notebook.append(save);
+    items.append(quiz, progress, notebook); learning.append(items);
+    [quiz, progress, notebook].forEach(function (item, index) { var badge = el("span", { class: "yd-learning-icon", "aria-hidden": "true" }); badge.append(glyph(["quiz", "progress", "overview"][index])); item.prepend(badge); });
+    panels.overview.append(discovery, learning);
   }
 
   function placeSections() {
@@ -117,6 +237,7 @@
       "data-research-tab": definition.id, "aria-controls": "yd-research-panel-" + definition.id,
       "aria-selected": definition.id === active ? "true" : "false", tabindex: definition.id === active ? "0" : "-1"
     }, definition.label);
+    button.prepend(glyph(definition.id));
     button.addEventListener("click", function () { activate(definition.id, false); });
     button.addEventListener("keydown", function (event) {
       if (!/ArrowLeft|ArrowRight|Home|End|Enter| /.test(event.key)) return;
@@ -147,12 +268,8 @@
     var results = document.getElementById("results");
     if (!results || root) return;
     root = el("div", { id: "researchWorkspace156", class: "yd-research-workspace", "data-active-research-panel": active });
-    var header = el("header", { class: "yd-research-header" });
-    var heading = el("div", { class: "yd-research-heading" });
-    heading.append(el("p", { class: "yd-research-eyebrow" }, "RESEARCH WORKSPACE"), el("h2", { "data-research-title": "", tabindex: "-1" }, titleText()), el("p", { "data-research-context": "", class: "yd-research-context" }, "Kaynaklı çalışma alanı"));
     var save = el("button", { type: "button", class: "yd-research-save", "data-research-save": "" }, "Defterime Kaydet");
     save.addEventListener("click", function () { document.getElementById("saveTopicButton")?.click(); });
-    header.append(heading, save);
     tabs = el("div", { class: "yd-research-tabs", role: "tablist", "aria-label": "Araştırma sonucu bölümleri" });
     var content = el("div", { class: "yd-research-panels" });
     definitions.forEach(function (definition) {
@@ -164,7 +281,8 @@
       });
       content.append(panels[definition.id]);
     });
-    root.append(header, tabs, content);
+    buildOverviewLayers();
+    root.append(save, tabs, content);
     results.prepend(root);
     moveSections(results);
     syncHeader(); syncAvailability(); activate("overview", false);
@@ -176,6 +294,7 @@
 
   document.addEventListener("DOMContentLoaded", build);
   window.addEventListener("research:completed", function () {
+    window.YDWorkspaceShell?.activate("research", false);
     activate("overview", false);
   });
   window.YDResearchWorkspace = { activate: activate, build: build, tabs: definitions.map(function (item) { return item.id; }) };

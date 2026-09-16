@@ -58,7 +58,12 @@
       if (item.tags?.length) body.append(el("p", { class: "yd-notebook-detail-tags" }, item.tags.slice(0, 8).map(function (tag) { return "#" + tag; }).join(" ")));
       if (item.contentType !== "research") { var edit = el("button", { type: "button", class: "yd-notebook-detail-edit" }, "Düzenle"); edit.onclick = function () { closeDetail(); window.YDSmartNotes.open(item); }; body.append(edit); }
       detail.append(body); detail.querySelector("h2").focus(); addRelated(item, body);
-    } catch (_) { detail.replaceChildren(el("p", { class: "smart-note-empty" }, "Not ayrıntısı şu anda açılamıyor.")); }
+    } catch (_) {
+      var message = el("p", { class: "smart-note-empty", role: "alert" }, "Not ayrıntısı şu anda açılamıyor.");
+      var dismiss = el("button", { type: "button", "aria-label": "Not ayrıntısını kapat" }, "Kapat");
+      var errorBody = el("div", { class: "yd-notebook-detail-body" });
+      dismiss.onclick = closeDetail; errorBody.append(message, dismiss); detail.replaceChildren(errorBody); dismiss.focus();
+    }
   }
 
   function enhanceCard(card) {
@@ -74,7 +79,7 @@
   function build() {
     var section = document.getElementById("notebookSection"), list = document.getElementById("notebookList"); if (!section || !list || root) return;
     root = el("div", { id: "notebookWorkspace156", class: "yd-notebook-workspace" }); var header = el("header", { class: "yd-notebook-header" }), title = el("div", {}), create = el("button", { type: "button", class: "yd-notebook-create" }, "Yeni Not");
-    title.append(el("p", { class: "yd-notebook-eyebrow" }, "PERSONAL WORKSPACE"), el("h2", { tabindex: "-1" }, "Defterim"), el("p", {}, "Notların, araştırmaların ve fikirlerin.")); create.onclick = function () { document.querySelector("#smartNoteTools .smart-note-primary")?.click(); }; header.append(title, create);
+    title.append(el("p", { class: "yd-notebook-eyebrow" }, "KİŞİSEL DEFTERİN"), el("h2", { tabindex: "-1" }, "Defterim"), el("p", {}, "Notların, araştırmaların ve fikirlerin.")); create.onclick = function () { document.querySelector("#smartNoteTools .smart-note-primary")?.click(); }; header.append(title, create);
     var layout = el("div", { class: "yd-notebook-layout" }); rail = el("aside", { class: "yd-notebook-rail", "aria-label": "Defterim filtreleri" }); viewport = el("main", { class: "yd-notebook-viewport" }); detail = el("aside", { class: "yd-notebook-detail", "aria-label": "Not ayrıntısı", hidden: "" });
     list.parentNode.insertBefore(root, list); viewport.append(list); layout.append(rail, viewport, detail); root.append(header, layout); arrangeTools(); enhanceAll();
     observer = new MutationObserver(enhanceAll); observer.observe(list, { childList: true }); detail.addEventListener("keydown", function (event) { if (event.key === "Escape") closeDetail(); });

@@ -1,0 +1,66 @@
+/* Dedicated tools only. The approved General Overview is deliberately outside this scope. */
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) {padding:24px 0;max-height:none;overflow:visible;color:var(--rv-body)}
+html[data-shell-page=research].yd-auth-shell .yd-research-workspace:not([data-active-research-panel=overview]) {display:grid;grid-template-rows:44px auto;height:auto;overflow:visible}
+html[data-shell-page=research].yd-auth-shell .yd-research-workspace:not([data-active-research-panel=overview]) .yd-research-tabs {order:0}
+html[data-shell-page=research].yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) {grid-row:2;min-height:0;height:auto;padding:24px 0;max-height:none;overflow:visible}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview)>.section {border-bottom:0!important;margin-bottom:24px}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .section-head {padding:0 0 18px;background:none!important}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .section-head h2 {font:400 25px/1.3 var(--yd-font);color:var(--rv-ink)}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .section-title {font:400 25px/1.3 var(--yd-font)!important;color:var(--rv-ink)}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .yd-rail-controls {display:none}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .yd-horizontal-rail {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;overflow:visible;contain:none;scroll-snap-type:none;padding:0!important}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) :is(button,select,input) {border-radius:5px;border-color:var(--rv-line);background:#071923;color:var(--rv-body);font-family:var(--yd-font);font-weight:400;box-shadow:none;max-width:100%}
+html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) button:hover {border-color:var(--rv-accent);color:var(--rv-ink)}
+html.yd-auth-shell .yd-research-panel-visuals #imagesContainer {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;overflow:visible}
+html.yd-auth-shell .yd-research-panel-visuals #imagesContainer.yd-horizontal-rail {grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html.yd-auth-shell .yd-research-panel-visuals #imagesContainer>.image-card {display:flex;flex-direction:column;min-height:0;border:0;border-bottom:1px solid var(--rv-line);border-radius:0;background:none;box-shadow:none;overflow:visible;transform:none}
+html.yd-auth-shell .yd-research-panel-visuals #imagesContainer>.image-card img {display:block;width:auto;max-width:100%;height:250px;object-fit:contain;align-self:start;border-radius:2px;background:none}
+html.yd-auth-shell .yd-research-panel-visuals .image-caption {padding:16px 0;line-height:1.6}
+html.yd-auth-shell .yd-research-panel-visuals .image-caption strong {font-size:16px;font-weight:400;color:var(--rv-ink);overflow-wrap:anywhere}
+html.yd-auth-shell .yd-research-panel-visuals .image-caption :is(span,small) {color:var(--rv-muted);font-size:12px}
+html.yd-auth-shell .yd-research-panel-sources #sourcesContainer {display:grid;grid-template-columns:1fr 1fr;gap:0 40px;max-height:none;overflow:visible}
+html.yd-auth-shell .yd-research-panel-sources #sourcesContainer>* {padding:20px 0;border:0;border-bottom:1px solid var(--rv-line);border-radius:0;background:none;box-shadow:none;min-width:0;overflow-wrap:anywhere}
+html.yd-auth-shell .yd-research-panel-sources #sourcesContainer a {color:var(--rv-accent)}
+html.yd-auth-shell .yd-research-panel-sources #sourcesContainer :is(strong,h3) {font-size:16px;font-weight:400;line-height:1.5}
+html.yd-auth-shell .yd-research-panel-sources #sourcesContainer a {font-weight:400;font-size:13px}
+html.yd-auth-shell .yd-research-panel-memory #memoryContainer:empty::before {content:"Bu konu için henüz bir hafıza bağlantısı yok.";color:var(--rv-muted);font-size:14px}
+html.yd-auth-shell .yd-research-panel-quiz :is(.quiz-box,.quiz-pro-panel,.quiz-pro-card) {max-width:920px;margin-inline:auto;padding:24px;border:1px solid var(--rv-line);border-radius:5px;background:#071923;box-shadow:none}
+html.yd-auth-shell .yd-research-panel-quiz #quizQuestion {font-size:23px;line-height:1.5;font-weight:400;color:var(--rv-ink)}
+html.yd-auth-shell .yd-research-panel-quiz #quizOptions {display:grid;gap:12px;margin-top:24px}
+html.yd-auth-shell .yd-research-panel-quiz #quizOptions button {padding:16px;text-align:left;line-height:1.5}
+html.yd-auth-shell .yd-research-panel-quiz #quizProStart {background:var(--rv-accent);color:#00101a}
+/* The active quiz form owns these settings; the legacy toolbar only saves old preferences. */
+html.yd-auth-shell .yd-research-panel-quiz:has(#quizProCount) #quizSettings {display:none}
+html.yd-auth-shell .yd-research-panel-quiz :is(.pro14-toolbar,.quiz-pro-settings) {border:0;border-radius:0;padding:12px 0;background:none;box-shadow:none}
+html.yd-auth-shell .yd-research-panel-quiz .quiz-pro-settings {border-bottom:1px solid var(--rv-line);margin-bottom:24px}
+html.yd-auth-shell .yd-research-panel-quiz :is(.pro14-toolbar,.quiz-pro-settings) label {color:var(--rv-muted);font-weight:400}
+html.yd-auth-shell .yd-research-panel-map #knowledgeMap {min-height:380px;padding:24px;border:1px solid var(--rv-line);border-radius:5px;background:#071923;box-shadow:none}
+html.yd-auth-shell .yd-research-panel-map #knowledgeMap.yd-horizontal-rail {grid-template-columns:repeat(3,minmax(0,1fr))!important;padding:24px!important}
+html.yd-auth-shell .yd-research-panel-map #knowledgeMap :is(.map-node,.knowledge-node) {border-radius:5px;border-color:var(--rv-line);background:#0a2330;box-shadow:none}
+html.yd-auth-shell .yd-research-panel-map .knowledge-map-node circle {fill:#0d2a37;stroke:#528496}
+html.yd-auth-shell .yd-research-panel-map .knowledge-map-node.is-center circle {fill:#123d4c;stroke:var(--rv-accent)}
+html.yd-auth-shell .yd-research-panel-map .knowledge-map-node text {fill:var(--rv-ink);font-family:var(--yd-font);font-weight:400}
+html.yd-auth-shell .yd-research-panel-map #knowledgeMap:has(.knowledge-map-svg) {grid-template-columns:minmax(0,1fr)!important;min-height:0}
+html.yd-auth-shell .yd-research-panel-map .knowledge-map-svg {width:min(100%,900px);max-width:100%;min-height:0;grid-column:1/-1;justify-self:center}
+html.yd-auth-shell .yd-research-panel-map .yd-map-compact {grid-column:1/-1}
+.yd-map-compact {display:none}
+html.yd-auth-shell .yd-research-panel-memory :is(#memoryContainer,#flashcardsContainer) {gap:20px}
+html.yd-auth-shell .yd-research-panel-memory :is(.memory-card,.flashcard,.flashcard-front,.flashcard-back) {border-radius:5px;border-color:var(--rv-line);background:#071923;box-shadow:none;color:var(--rv-body)}
+@media(max-width:1024px) {
+ html.yd-auth-shell .yd-research-panel-map .knowledge-map-svg {display:none}
+ html.yd-auth-shell .yd-research-panel-map #knowledgeMap {min-height:0;contain:none}
+ html.yd-auth-shell .yd-research-panel-map .yd-map-compact {display:grid;gap:12px}
+ html.yd-auth-shell .yd-research-panel-map .yd-map-center {margin:0 0 8px;padding:0 0 16px;border-bottom:1px solid var(--rv-line);color:var(--rv-accent);font-size:18px;line-height:1.5;overflow-wrap:anywhere}
+ html.yd-auth-shell .yd-research-panel-map .yd-map-link {min-height:44px;padding:12px;text-align:left;white-space:normal;overflow-wrap:anywhere;font-size:14px;line-height:1.5;border-left:2px solid var(--rv-accent)}
+ html.yd-auth-shell .yd-research-panel-visuals #imagesContainer {grid-template-columns:1fr 1fr}
+ html.yd-auth-shell .yd-research-panel-visuals #imagesContainer.yd-horizontal-rail {grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:767px) {
+ html.yd-auth-shell .yd-research-panel-visuals #imagesContainer {grid-template-columns:1fr;gap:24px}
+ html.yd-auth-shell .yd-research-panel:not(.yd-research-panel-overview) .yd-horizontal-rail {grid-template-columns:minmax(0,1fr)!important}
+ html.yd-auth-shell .yd-research-panel-visuals #imagesContainer.yd-horizontal-rail,html.yd-auth-shell .yd-research-panel-map #knowledgeMap.yd-horizontal-rail {grid-template-columns:minmax(0,1fr)!important}
+ html.yd-auth-shell .yd-research-panel-visuals #imagesContainer>.image-card img {height:260px;max-width:100%}
+ html.yd-auth-shell .yd-research-panel-sources #sourcesContainer {grid-template-columns:1fr}
+ html.yd-auth-shell .yd-research-panel-quiz :is(.quiz-box,.quiz-pro-panel,.quiz-pro-card) {padding:16px}
+ html.yd-auth-shell .yd-research-panel-map #knowledgeMap {padding:12px;min-height:300px}
+}
