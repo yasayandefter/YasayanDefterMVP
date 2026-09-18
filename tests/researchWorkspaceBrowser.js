@@ -50,7 +50,10 @@ async function waitFor(base) { for (let i = 0; i < 180; i += 1) { try { if ((awa
       return { inputCount: inputs.length, buttonCount: buttons.length, inputId: inputs[0]?.id, buttonId: buttons[0]?.id, inputHit: inputs[0] && hit(inputs[0]), buttonHit: buttons[0] && hit(buttons[0]) };
     });
     assert.deepEqual(visibleControls, { inputCount: 1, buttonCount: 1, inputId: "questionInput", buttonId: "searchButton", inputHit: true, buttonHit: true });
-    await authPage.locator("#questionInput").click(); await authPage.locator("#questionInput").fill("Mustafa Kemal Atatürk"); await authPage.locator("#searchButton").click(); await authPage.locator("#researchWorkspace156").waitFor();
+    const firstResearchResponse = authPage.waitForResponse(response => new URL(response.url()).pathname === "/api/research" && response.request().method() === "GET", { timeout: 180000 });
+    await authPage.locator("#questionInput").click(); await authPage.locator("#questionInput").fill("Mustafa Kemal Atatürk"); await authPage.locator("#searchButton").click();
+    assert.equal((await firstResearchResponse).status(), 200);
+    await authPage.locator("#researchWorkspace156").waitFor();
     await authPage.locator("#yd-research-panel-overview #topicTitle").waitFor();
     assert.equal(await authPage.locator("#yd-research-panel-overview #quizQuestion").count(), 0);
     assert.equal(await authPage.locator("#yd-research-panel-overview #imagesContainer").count(), 0);
@@ -78,7 +81,9 @@ async function waitFor(base) { for (let i = 0; i < 180; i += 1) { try { if ((awa
       assert.equal(await authPage.locator("#yd-research-panel-visuals #imagesContainer").isVisible(), true);
     }
     await authPage.locator('[data-research-tab="quiz"]').click(); assert.equal(await authPage.locator("#yd-research-panel-quiz #quizQuestion").isVisible(), true);
+    const aiResponse = authPage.waitForResponse(response => new URL(response.url()).pathname === "/api/research" && response.request().method() === "GET", { timeout: 180000 });
     await authPage.locator("#questionInput").click(); await authPage.locator("#questionInput").fill("Yapay zekâ"); await authPage.locator("#searchButton").click();
+    assert.equal((await aiResponse).status(), 200);
     await authPage.waitForFunction(() => /^yapay zek[âa]$/i.test(document.getElementById("topicTitle")?.textContent?.trim() || ""));
     assert.equal(await authPage.locator('[data-research-tab="overview"]').getAttribute("aria-selected"), "true");
     assert.deepEqual(authResearchResponses, [{ method: "GET", status: 200 }, { method: "GET", status: 200 }]);

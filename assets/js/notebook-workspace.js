@@ -33,7 +33,8 @@
     rail.addEventListener("click", function () { window.setTimeout(syncAreas, 0); }); return true;
   }
 
-  function closeDetail() { if (!detail || detail.hidden) return; detail.hidden = true; root.classList.remove("has-detail"); detailReturn?.focus?.(); }
+  function closeDetail() { if (!detail || detail.hidden) return; detail.hidden = true; root.classList.remove("has-detail"); var target = detailReturn && detailReturn.isConnected ? detailReturn : document.querySelector(".yd-notebook-open"); if (target) { target.focus(); setTimeout(function () { if (target.isConnected) target.focus(); }, 0); } }
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape" && detail && !detail.hidden) closeDetail(); });
   function field(label, value) { var row = el("div", { class: "yd-notebook-detail-field" }); row.append(el("span", {}, label), el("strong", {}, value || "—")); return row; }
 
   async function loadRecord(title) {

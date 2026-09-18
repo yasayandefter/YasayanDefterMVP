@@ -9,7 +9,7 @@ function normalize(value) {
 }
 
 const SIGNALS = [
-  { pattern: /\bbugun\b|\bbugunku\b|\bsu an\b|\bsimdi\b|\btoday\b/, window: "day" },
+  { pattern: /\bbugun\b|\bbugunku\b|\bsu an(?:da)?\b|\bsimdi\b|\btoday\b/, window: "day" },
   { pattern: /\bbu hafta\b|\bbu haftaki\b|\bthis week\b/, window: "week" },
   { pattern: /\bbu ay\b|\bthis month\b/, window: "month" },
   { pattern: /\bson durum\b|\bson gelism\w*\b|\ben son\b|\ben yeni\b|\bnerede oldu\b|\blatest\b|\bcurrent\b|\brecent\b|\bnewest\b/, window: "latest" },
@@ -18,7 +18,7 @@ const SIGNALS = [
 
 const CATEGORY_SIGNALS = {
   earthquake: /deprem|earthquake|sarsinti|fay hatt/,
-  space: /mars|jupiter|merkur|mercury|uzay|astronomi|nasa|ay |gezegen|teleskop|space|planet|webb/,
+  space: /\b(mars|jupiter|merkur|mercury|uzay|astronomi|nasa|ay|gezegen|teleskop|space|planet|webb)\b/,
   technology: /teknoloji|yapay zeka|yazilim|cihaz|telefon|samsung|robot|technology|software|device/,
   science: /bilim|fizik|kimya|biyoloji|crispr|genetik|science|physics|chemistry|biology/,
   education: /egitim|ogrenme|okul|universite|education|school|university/,
@@ -40,7 +40,7 @@ function detectFreshness(query, now = new Date()) {
   const hasYear = years.length > 0;
   const hasCurrentYear = years.includes(currentYear);
   const historicalContext = hasYear && !hasCurrentYear && /\b(tarih|tarihi|dogdu|oldu|savas|donem|imparatorluk|vefat)\b/.test(text);
-  const requiresFreshness = !historicalContext && (matched.length > 0 || (hasCurrentYear && /guncel|son|haber|current|latest|today|gelisme/.test(text)));
+  const requiresFreshness = !historicalContext && (matched.length > 0 || hasCurrentYear);
   const primary = matched[0];
   return {
     requiresFreshness,

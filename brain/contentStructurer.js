@@ -1,4 +1,5 @@
 "use strict";
+const { splitSentences } = require('./sentences');
 
 const STOP_WORDS = new Set("ve veya ile için olan olarak bir bu şu daha çok bilgi konu şey yapılan nedir nasıl neden gibi olanın tarafından üzerinde arasında the and for with from that this are was what how why into about".split(/\s+/));
 const TURKISH_LOW_VALUE_WORDS = new Set("ediliyor edildi edilen olduğu oldugu adını adini olan olarak ayrıca ayrica ancak sonra önce once bugün bugun bugünkü bugunku neler oldu hakkında hakkinda araştırma arastirma kaynak kaynaklar bilgi bilgiler".split(/\s+/));
@@ -41,8 +42,8 @@ function extractSentences(input) {
   const seen = new Set();
   const sentences = [];
   for (const article of normalized.articles) {
-    for (const part of `${article.title}. ${article.text}`.split(/(?<=[.!?。！？])\s+/)) {
-      const value = clean(part);
+    for (const part of splitSentences(article.text)) {
+      const value = clean(part.replace(/\uE000/g, '.'));
       const key = tokens(value).slice(0, 24).sort().join("|");
       const nearDuplicate = [...seen].some(existing => {
         const left = new Set(existing.split("|"));
@@ -50,7 +51,7 @@ function extractSentences(input) {
         const overlap = right.filter(token => left.has(token)).length;
         return right.length >= 4 && overlap / right.length >= 0.85;
       });
-      if (value.length >= 25 && key && !seen.has(key) && !nearDuplicate) {
+      if (value.length >= 25 && !/\b\d+\.$/.test(value) && key && !seen.has(key) && !nearDuplicate) {
         seen.add(key);
         sentences.push({ text: value, article });
       }
@@ -70,7 +71,7 @@ function selectSummarySentences(sentences, context = {}) {
   const scored = sentences.map((sentence, index) => {
     const words = tokens(sentence.text);
     const overlap = topicTokens.filter(token => words.includes(token)).length;
-    const score = overlap * 4 + (sentence.text.length >= 50 ? 2 : 0) + (index === 0 ? 0.1 : 0);
+    const score = overlap * 4 + (sentence.text.length >= 50 ? 2 : 0) + (index === 0 ? 20 : 0);
     return { sentence, score, index };
   });
   scored.sort((a, b) => b.score - a.score || a.index - b.index);
@@ -80,7 +81,8 @@ function selectSummarySentences(sentences, context = {}) {
 
 function shorten(value, audienceLevel = "general") {
   const max = audienceLevel === "child" ? 180 : audienceLevel === "middle_school" ? 240 : audienceLevel === "high_school" ? 300 : 320;
-  return value.length > max ? `${value.slice(0, max - 1).trim()}…` : value;
+  // UI line clamping handles display limits; never cut source sentences.
+  return value;
 }
 
 function extractKeyConcepts(input, context = {}) {
@@ -110,7 +112,9 @@ function extractKeyFacts(input, context = {}) {
   const facts = [];
   const seen = new Set();
   for (const item of sentences) {
-    if (!/[0-9%]|\b(ilk|dördüncü|fourth|defined|tanımlanır|oluşur|bulunur|gezegen|sistem)\b/i.test(item.text)) continue;
+    // A complete, informative source assertion need not contain a number or
+    // a small vocabulary of hand-picked verbs (which excluded life science).
+    if (/[?]$/.test(item.text) || tokens(item.text).length < 4) continue;
     const key = item.text.toLocaleLowerCase("tr-TR");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -124,7 +128,8 @@ function extractKeyFacts(input, context = {}) {
       }
     }
     const confidence = supporting.size >= 3 ? "high" : supporting.size === 2 ? "medium" : "limited";
-    facts.push({ text: item.text.slice(0, 320), sourceCount: supporting.size, confidence, supportingSources: [...supporting].slice(0, 4) });
+    if (item.text.length > 600 || !/[.!?]$/.test(item.text)) continue;
+    facts.push({ text: item.text, sourceCount: supporting.size, confidence, supportingSources: [...supporting].slice(0, 4), sourceRefs: item.article.url ? [item.article.url] : [] });
     if (facts.length >= MAX_FACTS) break;
   }
   return facts;
@@ -140,12 +145,66 @@ function buildSections(input, context = {}) {
   return sections;
 }
 
-function generateFollowUpQuestions(input, context = {}) {
-  const topic = clean(context.topic || normalizeResearchInput(input).topic);
-  if (!topic || !extractSentences(input).length) return [];
-  const concepts = extractKeyConcepts(input, context).map(item => item.term).slice(0, 2);
-  return [...new Set([`${topic} neden önemlidir?`, `${topic} nasıl oluşur veya çalışır?`, ...concepts.map(term => `${term} ile ${topic} arasındaki ilişki nedir?`)] )].slice(0, 4);
+function comparisonKey(value) {
+  return clean(value).toLocaleLowerCase("tr-TR").normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 }
+
+function resolveSubjectType(input, context = {}) {
+  const normalized = normalizeResearchInput(input);
+  // The selected article's definition is stronger evidence than query intent or category.
+  const lead = comparisonKey(normalized.articles[0]?.text.slice(0, 500));
+  if (/\b(fizikci|kimyager|biyolog|matematikci|bilim insani|devlet adami|cumhurbaskani|maresal|yazar|sair|besteci|ressam|filozof|astronot|physicist|scientist|politician)\b/.test(lead)) return "PERSON";
+  if (/\b(sehridir|kentidir|sehir|city|province|cografi bolge|tarihi bolge)\b/.test(lead)) return "PLACE";
+  const aliases = { ASTRONOMY: "SPACE", BIOLOGY: "SCIENCE", CITY: "PLACE" };
+  for (const value of [context.subjectType, context.intent]) {
+    const kind = String(value || "").toUpperCase();
+    const resolved = aliases[kind] || kind;
+    if (["PERSON", "PLACE", "TECHNOLOGY", "SPACE", "SCIENCE", "HISTORY"].includes(resolved)) return resolved;
+  }
+  return "GENERAL";
+}
+
+function relatedConcepts(input, topic) {
+  const topicWords = new Set(comparisonKey(topic).split(" "));
+  // Frequency-extracted words are not entities. Require a separately titled,
+  // contextualized noun phrase (or acronym), and omit the slot if none exists.
+  return normalizeResearchInput(input).articles.filter(article => {
+    const term = comparisonKey(article.title);
+    const words = term.split(" ");
+    if (!term || words.every(word => topicWords.has(word))) return false;
+    if (words.length < 2 && !/^[A-ZÇĞİÖŞÜ]{2,8}$/.test(article.title)) return false;
+    if (words.length > 6 || /[?!]/.test(article.title) || words.some(word => STOP_WORDS.has(word))) return false;
+    const definition = comparisonKey(article.text);
+    return article.text.length >= 60 && definition.startsWith(term + " ");
+  }).map(article => article.title);
+}
+
+function generateFollowUpQuestions(input, context = {}) {
+    const topic = clean(context.topic || normalizeResearchInput(input).topic);
+    if (!topic || !extractSentences(input).length) return [];
+    const concepts = relatedConcepts(input, topic);
+    const templates = {
+      PERSON: [`${topic} hangi çalışmalarıyla tanınır?`, `${topic} alanına hangi katkılarda bulundu?`, `${topic} nasıl bir etki bıraktı?`],
+      PLACE: [`${topic} nerede bulunur?`, `${topic} hangi özellikleriyle bilinir?`, `${topic} tarihsel veya coğrafi açıdan neden önemlidir?`],
+      TECHNOLOGY: [`${topic} nasıl çalışır?`, `${topic} hangi alanlarda kullanılır?`, `${topic} hangi sınırlamalara sahiptir?`],
+      SPACE: [`${topic} nedir?`, `${topic} hangi temel özelliklere sahiptir?`, `${topic} nasıl araştırılır?`],
+      SCIENCE: [`${topic} nedir?`, `${topic} hangi temel özelliklere sahiptir?`, `${topic} nasıl araştırılır?`],
+      HISTORY: [`${topic} hangi dönemde ortaya çıktı?`, `${topic} hangi gelişmelerle şekillendi?`, `${topic} neden önemlidir?`],
+      GENERAL: [`${topic} nedir?`, `${topic} hangi özellikleriyle bilinir?`, `${topic} neden önemlidir?`]
+    };
+    const kind = resolveSubjectType(input, context);
+    const base = templates[kind] || templates.GENERAL;
+    const seen = new Set();
+    return [...base, ...concepts.map(term => `${term} ile ${topic} arasındaki ilişki nedir?`)].filter(question => {
+      const key = comparisonKey(question);
+      if (seen.has(key) || /undefined|null|\[object Object\]/.test(question)) return false;
+      if (kind === "PERSON" && question === `${topic} nedir?`) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 4);
+  }
 
 function buildStructuredContent(input, context = {}) {
   const normalized = normalizeResearchInput(input);
@@ -184,4 +243,4 @@ function buildStructuredContent(input, context = {}) {
   return output;
 }
 
-module.exports = { normalizeResearchInput, extractSentences, selectSummarySentences, extractKeyConcepts, extractKeyFacts, buildSections, generateFollowUpQuestions, buildStructuredContent };
+module.exports = { normalizeResearchInput, extractSentences, selectSummarySentences, extractKeyConcepts, extractKeyFacts, buildSections, comparisonKey, resolveSubjectType, relatedConcepts, generateFollowUpQuestions, buildStructuredContent };

@@ -16,7 +16,7 @@ const MAX_QUERY_CACHE = 200; const MAX_FEED_CACHE = 100;
 function setBounded(cache, key, value, limit) { cache.delete(key); cache.set(key, value); while (cache.size > limit) cache.delete(cache.keys().next().value); }
 const CURRENT_STOP = new Set("bugun bugunku guncel haber haberleri son gelismeler gelismeleri alanindaki dunyasinda neler oldu su an simdi bu hafta bu ay nerede what latest today news current recent developments the in of".split(" "));
 const TOPIC_TERMS = {
-  ai: /\b(ai|artificial intelligence|machine learning|deep learning|neural|llm|model|agent|yapay zeka|makine ogren)\b/,
+  ai: /\b(ai|artificial intelligence|machine learning|deep learning|neural|llm|yapay zeka|makine ogren)\b/,
   technology: /\b(technology|tech|software|hardware|computer|digital|cyber|robot|mobile|chip|semiconductor|quantum|innovation|teknoloji|yazilim|donanim|bilgisayar|robot|mobil)\b/,
   science: /\b(science|scientific|research|physics|chemistry|biology|genome|climate|quantum|bilim|arastirma|fizik|kimya|biyoloji)\b/,
   space: /\b(space|nasa|esa|planet|moon|mars|orbit|satellite|telescope|rocket|astronaut|lunar|solar|uzay|gezegen|ay|yörünge|uydu|roket)\b/,
@@ -36,6 +36,10 @@ function meaningfulTokens(query) { return normalize(query).split(/\s+/).filter(t
 function relevant(item, query, categories) {
   if (categories.includes("earthquake")) return item.category === "earthquake";
   const text = normalize(`${item.title} ${item.summary || item.text}`); const specific = categories.find(category => ["ai", "cybersecurity"].includes(category));
+  // Explicit acronyms/entities constrain a category query; broad category
+  // vocabulary alone cannot satisfy a request for a named organization.
+  const entities = (String(query).match(/\b[A-Z]{2,8}\b/g) || []).map(normalize);
+  if (entities.length && !entities.every(entity => new Set(normalize(`${item.title} ${item.summary || item.text || ''} ${item.sourceName || item.source || ''}`).split(' ')).has(entity))) return false;
   if (specific) return TOPIC_TERMS[specific].test(text);
   const primary = categories[0]; if (TOPIC_TERMS[primary]?.test(text)) return true;
   const tokens = meaningfulTokens(query); return tokens.length > 0 && tokens.some(token => text.includes(token));
@@ -89,8 +93,9 @@ async function searchCurrent(query, detection, options = {}) {
   const results = await mapLimit(selected, concurrency, async source => { const feedKey = `${source.id}|${categories.join("+")}|${windowName}`; const cachedFeed = feedCache.get(feedKey); if (cachedFeed && Date.now() - cachedFeed.createdAt < source.ttlMs) return providerItems(source, fetcher, requestOptions, categories.join("+"), windowName); const started = Date.now(); providerHealth.begin(source.id); try { const result = await providerItems(source, fetcher, requestOptions, categories.join("+"), windowName); providerHealth.success(source.id, result.durationMs, options); return result; } catch (error) { providerHealth.failure(source.id, error, Date.now() - started, options); throw error; } });
   const errors = skipped.map(source => ({ source: source.id, code: "PROVIDER_COOLDOWN", message: "Provider temporarily unavailable" })); let items = [];
   results.forEach((result, index) => { const source = selected[index]; if (result.status === "fulfilled") { items.push(...result.value.items); metrics.recordProvider(source.id, result.value.durationMs, true, result.value.items.length, result.value.cacheHit, providerHealth.snapshot(source.id, options)); } else { errors.push({ source: source.id, code: String(result.reason?.message || "PROVIDER_UNAVAILABLE").replace(/[^A-Z0-9_\-]/gi, "_").slice(0, 80), message: "Provider unavailable" }); metrics.recordProvider(source.id, providerHealth.snapshot(source.id, options).recentLatency, false, 0, false, providerHealth.snapshot(source.id, options)); } });
-  const cutoff = now - (WINDOWS[windowName] || 7) * 86400000;
-  items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff).filter(item => relevant(item, query, categories)).map(item => ({ ...currentQuality.qualityItem(item), currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
+  // "Bugün" means the calendar day in the product's Turkish locale, not yesterday's rolling 24 hours.
+  const cutoff = windowName === "day" ? Math.floor((now + 3 * 3600000) / 86400000) * 86400000 - 3 * 3600000 : now - (WINDOWS[windowName] || 7) * 86400000;
+  items = dedupe(items.filter(item => item.publishedAt && Date.parse(item.publishedAt) >= cutoff && Date.parse(item.publishedAt) <= now).filter(item => relevant(item, query, categories)).map(item => ({ ...currentQuality.qualityItem(item), currentRelevanceVerified: true })).sort((a, b) => b.authority - a.authority || Date.parse(b.publishedAt) - Date.parse(a.publishedAt)));
   items = currentQuality.rankDiverse(items, { limit: 20, genericTechnology: categories.length === 1 && categories[0] === "technology", specificCategory: ["cybersecurity", "ai"].includes(categories[0]) }); const events = clusterEvents(items, 10); const sources = [...new Set(items.map(item => item.sourceName))]; const independentDomains = new Set(items.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size;
   const value = { items, events, sources, providerErrors: errors, cacheHit: false, checkedAt: new Date(now).toISOString(), category: detection?.category || "general", categories, window: windowName, newestSourceAt: items[0]?.publishedAt || null, independentDomains, providerHealthSummary: providerHealth.summary(options) };
   metrics.recordCurrentCoverage(items.length, events.length, independentDomains);

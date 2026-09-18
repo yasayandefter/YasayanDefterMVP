@@ -245,12 +245,16 @@ async function researchTopic() {
 
             );
 
+            if (sequence !== researchSequence) return;
+
             currentAnalysis =
                 analysisData.analysis ||
                 analysisData;
 
         }
         catch (error) {
+
+            if (sequence !== researchSequence) return;
 
             if (error && error.name !== "AbortError") console.warn("Analyze endpoint başarısız.");
 
@@ -276,6 +280,7 @@ async function researchTopic() {
             setTimeout(resolve, 500)
         );
 
+        if (sequence !== researchSequence) return;
         renderResearch(data);
         renderLivingMemoryResult(data);
         if (canUsePersistentApi()) refreshLivingMemoryWorkspace(true);
@@ -456,7 +461,16 @@ function renderResearch(data){
     setCurrentEmptyLayout(currentEmpty);
     setCurrentVerifiedLayout(data);
     renderProfessionalResult(data);
-    if (currentEmpty) return;
+    if (currentEmpty) {
+        renderTopicImage({ images: [] });
+        const emptyAnalysis = data.analysis || {};
+        if ($("topicTitle")) $("topicTitle").textContent = data.title || data.query || "Araştırma sonucu";
+        if ($("topicQuestion")) $("topicQuestion").textContent = data.query || "";
+        if ($("topicCategory")) $("topicCategory").textContent = categoryLabel(data.brain?.category || emptyAnalysis.subject || "Araştırma");
+        if ($("heroSummary")) $("heroSummary").textContent = data.summary || "";
+        ["heroSources", "heroImages", "heroFacts"].forEach(id => { if ($(id)) $(id).textContent = "0"; });
+        return;
+    }
 
  const required = [
         "topicTitle",
@@ -1389,52 +1403,15 @@ Her aracın bir görevi olduğu gibi bunun da bir amacı vardır.
 ========================================================= */
 
 function renderTopicImage(data){
-
-const box = $("topicImageBox");
-
-const direct =
-getImageUrl(
-data.image ||
-data.topicImage ||
-firstImage(data.images)
-);
-
-if(direct){
-
-loadImageWithFallback(
-box,
-direct,
-data.title ||
-currentAnalysis?.topic ||
-"Yaşayan Defter"
-);
-
-return;
-}
-
-loadWikimediaImage(
-currentAnalysis?.topic ||
-data.title ||
-data.query
-)
-.then(url=>{
-
-if(url){
-
-loadImageWithFallback(
-box,
-url,
-data.title || "Yaşayan Defter"
-);
-
-}else{
-
-showNoImage(box);
-
-}
-
-});
-
+    const box = $("topicImageBox");
+    if (!box) return;
+    // Only current, server-ranked candidates can become the hero.
+    const direct = firstImage(data.images);
+    box.replaceChildren();
+    box.dataset.mediaShape = "";
+    box._imageRequest = (box._imageRequest || 0) + 1;
+    if (direct) loadImageWithFallback(box, direct, data.title || data.query || "");
+    else showNoImage(box);
 }
 
 /* =========================================================
@@ -1466,50 +1443,17 @@ return window.ResultRenderers && window.ResultRenderers.safeUrl
 }
 
 function loadImageWithFallback(box,url,alt){
-
-const img = new Image();
-
-img.onload = function(){
-
-box.innerHTML = "";
-
-img.alt = alt;
-img.loading = "lazy";
-
-box.appendChild(img);
-
-};
-
-img.onerror = function(){
-
-const topic =
-currentAnalysis?.topic ||
-currentResearch?.title ||
-"";
-
-loadWikimediaImage(topic)
-.then(fallback=>{
-
-if(fallback){
-
-loadImageWithFallback(
-box,
-fallback,
-alt
-);
-
-}else{
-
-showNoImage(box);
-
-}
-
-});
-
-};
-
-img.src = url;
-
+    const request = box._imageRequest;
+    const img = new Image();
+    img.onload = function(){
+        if (box._imageRequest !== request) return;
+        img.alt = alt;
+        box.replaceChildren(img);
+    };
+    img.onerror = function(){
+        if (box._imageRequest === request) showNoImage(box);
+    };
+    img.src = url;
 }
 
 function showNoImage(box){
@@ -1808,13 +1752,13 @@ Array.isArray(images)
         typeof item === "string"
         ? ""
         : safeText(
-            item.title ||
+            item.caption || item.title ||
             item.name ||
             item.caption
         ),
     description: typeof item === "string" ? "" : safeText(item.description),
     sourceName: typeof item === "string" ? "" : safeText(item.sourceName || item.source),
-    sourceUrl: typeof item === "string" ? "" : (window.ResultRenderers?.safeUrl(item.sourceUrl || "") || ""),
+    sourceUrl: typeof item === "string" ? "" : (window.ResultRenderers?.safeUrl(item.sourceUrl || item.url || "") || ""),
     license: typeof item === "string" ? "Belirtilmemiş" : safeText(item.license || "Belirtilmemiş"),
     attribution: typeof item === "string" ? "" : safeText(item.attribution),
     visualType: typeof item === "string" ? "UNKNOWN" : safeText(item.visualType || "UNKNOWN"),
@@ -1976,6 +1920,7 @@ function ensureProQuizSettings() {
         select.id = id;
         select.setAttribute("aria-label", label);
         values.forEach(([value, name]) => { const option = document.createElement("option"); option.value = value; option.textContent = name; select.appendChild(option); });
+        select.value = id === "quizProDifficulty" ? "medium" : values[0][0];
         wrap.appendChild(select);
         settings.appendChild(wrap);
     });
@@ -2008,6 +1953,13 @@ function proQuizNormalize(value) {
 
 function renderProQuiz(quiz, data, restart = false) {
     ensureProQuizSettings();
+    // A new research preview owns its defaults; settings from a previous
+    // research must not silently request a different question pool.
+    if (!quiz.attemptId) {
+        if ($("quizProDifficulty")) $("quizProDifficulty").value = quiz.difficulty || "medium";
+        if ($("quizProCount")) $("quizProCount").value = String(quiz.requestedCount || 5);
+        if ($("quizProType")) $("quizProType").value = quiz.type || "multiple-choice";
+    }
     activeProQuiz = quiz;
     if (restart) {
         activeProQuizIndex = 0;
@@ -2097,6 +2049,13 @@ async function completeProQuiz() {
     const question = $("quizQuestion"); const options = $("quizOptions"); const result = $("quizResult");
     question.textContent = "Quiz sonucu"; options.replaceChildren(); result.replaceChildren(); result.className = "quiz-result good";
     const summaryText = document.createElement("p"); summaryText.textContent = `${summary.correct} doğru · ${wrong} yanlış · ${skipped} atlandı · Başarı: %${summary.percentage}`; result.appendChild(summaryText);
+    const review = activeProQuizAnswers.filter(item => item && !item.correct);
+    if (review.length) {
+        const heading = document.createElement("strong"); heading.textContent = "Yanlış ve atlanan sorular"; result.appendChild(heading);
+        const list = document.createElement("ul");
+        review.forEach(item => { const li = document.createElement("li"); li.textContent = `${quizText(item.question?.prompt)} — ${quizText(item.explanation)}`; list.appendChild(li); });
+        result.appendChild(list);
+    }
     if (Array.isArray(summary.weakConcepts) && summary.weakConcepts.length) { const heading = document.createElement("strong"); heading.textContent = "Tekrar önerileri"; result.appendChild(heading); const list = document.createElement("ul"); summary.weakConcepts.slice(0, 8).forEach(concept => { const li = document.createElement("li"); li.textContent = `${concept}: Bu noktayı tekrar gözden geçirebilirsin.`; list.appendChild(li); }); result.appendChild(list); }
     const retry = document.createElement("button"); retry.type = "button"; retry.className = "quiz-pro-button"; retry.textContent = "Yanlışları yeniden çöz"; retry.disabled = !wrong && !skipped; retry.addEventListener("click", async () => { const response = await fetch(API + "/api/quiz/start", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ research: currentResearch, count: activeProQuiz.questions.length, difficulty: activeProQuiz.difficulty, type: activeProQuiz.type, retryOf: activeProQuiz.attemptId, studentId: activeStudentId() }) }); const next = await response.json(); if (response.ok && next.attempt?.questions?.length) { activeProQuiz = next.attempt; activeProQuizIndex = 0; activeProQuizAnswers = []; renderProQuizQuestion(); } }); result.appendChild(retry);
     window.dispatchEvent(new CustomEvent("learning:updated"));
@@ -3151,7 +3110,9 @@ currentAnalysis?.topic ||
 "Ana kaynak",
 data.url ||
 data.sourceUrl,
-data.engine || "Brain Engine"
+data.sourceDetails?.find(item => item.url === (data.url || data.sourceUrl))?.name ||
+(data.articles || []).find(item => item.url === (data.url || data.sourceUrl))?.source ||
+(() => { try { return new URL(data.url || data.sourceUrl).hostname; } catch (_) { return "Kaynak"; } })()
 );
 
 if(Array.isArray(data.sources)){
