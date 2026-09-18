@@ -10,7 +10,7 @@ const css = fs.readFileSync("assets/css/home-workspace-15-8.css", "utf8");
 
 assert.match(html, /home-visual-refinement-15-6\.css/);
 assert.match(html, /home-workspace-15-8\.css/);
-assert.equal(pkg.version, "15.7.0");
+assert.equal(pkg.version, "15.8.0");
 assert.equal(pkg.scripts["test:home-visual-refinement"], "node tests/homeVisualRefinement156.js && node tests/homeVisualRefinementBrowser.js");
 assert.match(shell, /Merakını bir sonraki çalışmana dönüştür\./);
 assert.match(shell, /Bir konu, fikir veya soru araştır…/);
