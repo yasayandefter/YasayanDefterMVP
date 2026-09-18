@@ -125,7 +125,7 @@ function dedupeFacts(facts, sources = []) {
     const fact = typeof raw === "string" ? { text: raw } : { ...(raw || {}) };
     fact.text = cleanText(fact.text, 400); if (fact.text.length < 20) continue;
     if (selected.some(existing => overlapScore(existing.text, fact.text) >= 0.78)) continue;
-    fact.sourceRefs = [...new Set([...(fact.sourceRefs || []), ...(fact.supportingSources || [])].filter(Boolean))].slice(0, 5);
+    fact.sourceRefs = [...new Set([...(fact.sourceRefs || []), ...(fact.supportingSources || [])].filter(value => /^https?:\/\//i.test(value)))].slice(0, 5);
     if (!fact.sourceRefs.length) fact.sourceRefs = sources.filter(source => overlapScore(fact.text, `${source.title} ${source.snippet || source.text || ""}`) >= 0.2).map(source => source.canonicalUrl || source.url).filter(Boolean).slice(0, 5);
     selected.push(fact); if (selected.length >= 10) break;
   }
@@ -149,7 +149,7 @@ function prepareImages(images, context) {
     .map(item => {
       const url = cleanText(item.image || item.url || item.thumburl, 2000);
       const canonical = cleanText(item.original || url, 2000).replace(/\/thumb\/(.+?)\/\d+px-[^/?]+/i, "/$1").replace(/\?.*$/, "");
-      return { ...item, image: url, imageRelevanceScore: Math.round(overlapScore(context.disambiguation.selectedSense || context.normalizedQuery, item.title || "") * 100), _key: canonical.toLowerCase() };
+      return { ...item, image: url, imageRelevanceScore: item.imageRelevanceScore ?? Math.round(overlapScore(context.disambiguation.selectedSense || context.normalizedQuery, item.title || "") * 100), _key: canonical.toLowerCase() };
     }).filter(item => item.image && /^https?:\/\//i.test(item.image) && !/logo|icon|placeholder|\.svg(?:\?|$)/i.test(`${item.title} ${item.image}`))
     .filter(item => { if (!item._key || seen.has(item._key)) return false; seen.add(item._key); return true; })
     .sort((a, b) => b.imageRelevanceScore - a.imageRelevanceScore)

@@ -1,0 +1,10 @@
+﻿const {finalize}=require('../brain/researchQuality');
+const result={title:'Psychology of religion',text:'Psychology of religion is a field.',summary:'',articles:[{title:'Psychology of religion',url:'https://en.wikipedia.org/wiki/Psychology_of_religion',text:'Psychology of religion is a field.',image:'https://upload.wikimedia.org/psi.jpg'},{title:'Yapay zekâ',url:'https://tr.wikipedia.org/wiki/Yapay_zek%C3%A2',text:'Yapay zekâ, makinelerin insan zekâsıyla ilişkilendirilen görevleri yerine getirme yeteneğidir.',image:'https://upload.wikimedia.org/ai.jpg'}],images:[{title:'psi symbol',image:'https://upload.wikimedia.org/psi.jpg'}]};
+const out=finalize(result,{query:'Yapay Zekâ',intent:'TECHNOLOGY',expansions:['yapay zeka','artificial intelligence']});
+const assert=require('node:assert/strict');
+assert.equal(out.title,'Yapay zekâ');
+assert.equal(out.articles.length,1);
+assert.ok(out.brain.category.includes('Yapay Zekâ'));
+assert.ok(out.images.every(image=>!/psi/i.test(image.title)));
+assert.ok(out.brain.facts.every(fact=>!/religion/i.test(fact)));
+console.log(JSON.stringify({title:out.title,category:out.brain.category,articles:out.articles.map(a=>a.title),images:out.images.map(i=>i.title),facts:out.brain.facts,follow:out.structuredContent.followUpQuestions},null,2));

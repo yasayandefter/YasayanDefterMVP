@@ -1375,11 +1375,12 @@ const RESEARCH_CACHE_TTL = 60 * 1000;
 async function wikipediaSearch(
   query,
   limit = 8,
-  language = "tr"
+  language = "tr",
+  exact = false
 ) {
 
   const wikiLanguage = language === "en" ? "en" : "tr";
-  const cacheKey = `${wikiLanguage}:${normalize(query)}`;
+  const cacheKey = `${wikiLanguage}:${exact}:${normalize(query)}`;
   const cached = WIKIPEDIA_CACHE.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     logger.info("cache.hit", { source: `wikipedia:${wikiLanguage}`, queryLength: String(query || "").length });
@@ -1387,7 +1388,7 @@ async function wikipediaSearch(
   }
   logger.info("cache.miss", { source: `wikipedia:${wikiLanguage}`, queryLength: String(query || "").length });
 
-  const url =
+  let url =
     `https://${wikiLanguage}.wikipedia.org/w/api.php` +
     "?action=query" +
     "&generator=search" +
@@ -1405,6 +1406,7 @@ async function wikipediaSearch(
     "&inprop=url" +
     "&format=json" +
     "&origin=*";
+  if (exact) url = url.replace(/&generator=search&gsrsearch=[^&]*&gsrnamespace=0&gsrlimit=\d+/, '&redirects=1&titles=' + encodeURIComponent(query));
   logger.info("source.request_started", {
     source: `wikipedia:${wikiLanguage}`,
     queryLength: String(query || "").length
@@ -1423,7 +1425,7 @@ async function wikipediaSearch(
           page.title
         );
 
-      if (!title) {
+      if (!title || page.missing !== undefined || !page.extract) {
         return null;
       }
 
@@ -1442,7 +1444,7 @@ async function wikipediaSearch(
 
         url:
           page.fullurl ||
-          "https://tr.wikipedia.org/wiki/" +
+          `https://${wikiLanguage}.wikipedia.org/wiki/` +
           encodeURIComponent(
             title.replace(
               / /g,
@@ -1455,7 +1457,11 @@ async function wikipediaSearch(
             ? "Wikipedia (EN)"
             : "Wikipedia",
 
-        language: wikiLanguage
+        language: wikiLanguage,
+        canonicalTitle: title,
+        // Exact lookup follows provider redirects; retain that identity
+        // evidence when the canonical title differs from the user's wording.
+        redirectedFrom: exact && normalize(title) !== normalize(query) ? query : undefined
       };
     })
     .filter(Boolean);
@@ -1597,8 +1603,8 @@ async function searchWikipediaMultiple(analysis = {}) {
   }
 
   const settled = await allSettledLimited(
-    researchQueries.slice(0, 8),
-    query => wikipediaSearch(query, 8),
+    [{query: fallbackTopic, exact: true}, ...researchQueries.slice(0, 8).map(query => ({query, exact: false}))],
+    item => wikipediaSearch(item.query, 8, "tr", item.exact),
     3
   );
 
@@ -4936,6 +4942,7 @@ app.get(
         result.freshness = { ...detection, checkedAt: null, sourceCount: 0, newestSourceAt: null };
       }
 
+      result = require('./brain/researchQuality').finalize(result, intelligence);
       result = researchIntelligence.enhanceResult(result, { ...intelligence, checkedAt: result.freshness?.checkedAt || intelligence.checkedAt });
 
       result.quizPro = detection.requiresFreshness ? null : quizSessions.publicQuizData(quizEngine.buildQuiz(result, {
@@ -5518,7 +5525,7 @@ app.post("/api/quiz/answer", async (req, res) => {
       const answer = cleanText(body.answer || "", 500); const skipped = body.skipped === true || !answer;
       const saved = await req.repositories.quiz.recordAnswer({ attemptId: body.attemptId, questionId: body.questionId, answer, skipped, isCorrect: !skipped && normalize(answer) === normalize(question.correct_option_private) });
       if (!saved) return quizApiError(res, 409, "DUPLICATE_ANSWER", "Bu soru daha önce yanıtlandı.", req.requestId);
-      return res.json({ ok: true, result: { questionId: saved.question_id, correct: saved.is_correct, skipped: saved.skipped }, requestId: req.requestId });
+      return res.json({ ok: true, result: { questionId: saved.question_id, correct: saved.is_correct, skipped: saved.skipped, explanation: `Doğru cevap: ${question.correct_option_private}` }, requestId: req.requestId });
     } catch (_) { return quizApiError(res, 503, "STORAGE_FAILED", "Quiz cevabı kaydedilemedi.", req.requestId); }
   }
   const result = quizSessions.answer(body.attemptId, body.questionId, body.answer, body.skipped === true, studentId);
@@ -5543,7 +5550,11 @@ app.post("/api/quiz/complete", async (req, res) => {
       const correct = answers.filter(item => item.is_correct).length; const total = questions.length;
       const xp = correct * 8 + (total ? 10 : 0) + (total && correct === total ? 15 : 0);
       const completed = await req.repositories.quiz.completeAttempt({ attemptId: body.attemptId, studentId, score: total ? Math.round(correct / total * 100) : 0, xpAmount: xp });
-      return res.json({ ok: true, summary: completed.attempt, duplicate: completed.duplicate, requestId: req.requestId });
+      const skipped = total - answers.filter(item => !item.skipped).length;
+      const incorrect = total - correct - skipped;
+      const wrongIds = new Set(answers.filter(item => !item.is_correct).map(item => item.question_id));
+      const weakConcepts = [...new Set(questions.filter(item => wrongIds.has(item.id)).map(item => item.concept).filter(Boolean))];
+      return res.json({ ok: true, summary: { ...completed.attempt, total, correct, incorrect, skipped, percentage: total ? Math.round(correct / total * 100) : 0, weakConcepts }, duplicate: completed.duplicate, requestId: req.requestId });
     } catch (_) { return quizApiError(res, 503, "STORAGE_FAILED", "Quiz tamamlanamadı.", req.requestId); }
   }
   const completed = quizSessions.complete(body.attemptId, studentId);

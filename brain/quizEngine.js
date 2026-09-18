@@ -1,4 +1,5 @@
 "use strict";
+const { splitSentences } = require('./sentences');
 
 const LIMITS = Object.freeze({
   maxQuestions: 10,
@@ -45,8 +46,14 @@ function normalizeQuizInput(input = {}) {
   const facts = Array.isArray(structured.keyFacts) ? structured.keyFacts : [];
   const sections = Array.isArray(structured.sections) ? structured.sections : [];
   const candidates = [];
+  if (source.researchUnavailable || structured.generatedFrom?.usedFallback) return {topic:text(source.title || source.query),candidates:[],concepts:[],seed:text(source.query)};
   const add = (value, concept = "Genel", confidence = "medium", sourceSupport = "research") => {
-    const statement = text(typeof value === "object" ? value.text || value.fact || value.content : value);
+    const raw = typeof value === "object" ? value?.text || value?.fact || value?.content : value;
+    const parts = splitSentences(text(raw, 12000));
+    if (!parts.length) return;
+    if (parts.length > 1 || parts[0] !== text(raw, 12000)) { parts.forEach(part=>add(part,concept,confidence,sourceSupport)); return; }
+    const statement = text(raw, 600);
+    if (String(raw || '').length > 600 || /…$|\.\.\.$|\b\d+\.$/.test(statement)) return;
     if (!statement || statement.length < 24 || /[.!?]$/.test(statement) === false) return;
     const normalized = key(statement);
     if (candidates.some(item => item.key === normalized)) return;
@@ -95,17 +102,22 @@ function buildExplanation(candidate, correct, wasCorrect) {
 }
 
 function buildMultipleChoiceQuestion(candidate, pool, index, seed, difficulty) {
-  const distractors = deterministicOrder(pool.filter(item => item.key !== candidate.key).map(item => item.statement), `${seed}:distractors:${index}`).slice(0, LIMITS.maxOptions - 1);
-  const options = deterministicOrder([candidate.statement, ...distractors], `${seed}:options:${index}`);
-  if (options.length < 2 || !options.some(option => key(option) === candidate.key)) return null;
+  // Complete a specific source sentence: other true facts are not false answers.
+  const words = candidate.statement.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || [];
+  const answer = words.filter(word=>word.length >= 5 && !/^(olarak|tarafından|sonra|önce|yaklaşık|birlikte|bulunmaktadır)$/i.test(word)).sort((a,b)=>b.length-a.length)[0];
+  if(!answer)return null;
+  const alternatives=[...new Set(pool.flatMap(item=>item.statement.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []))].filter(word=>word.length>=5 && key(word)!==key(answer) && !words.includes(word));
+  const distractors = deterministicOrder(alternatives, `${seed}:distractors:${index}`).slice(0, LIMITS.maxOptions - 1);
+  const options = deterministicOrder([answer, ...distractors], `${seed}:options:${index}`);
+  if (options.length < 2) return null;
   return {
     id: `quiz-${hash(`${seed}:mc:${candidate.key}:${index}`).toString(16)}`,
     type: "multiple-choice",
     difficulty,
-    prompt: `${candidate.concept} hakkında aşağıdakilerden hangisi kaynaklarda yer alan bilgidir?`,
+    prompt: `Kaynak cümlesindeki boşluğu tamamlayın: ${candidate.statement.replace(answer, '_____')}`,
     options,
-    correctAnswer: candidate.statement,
-    acceptedAnswers: [candidate.statement],
+    correctAnswer: answer,
+    acceptedAnswers: [answer],
     explanation: buildExplanation(candidate, candidate.statement, true),
     sourceFact: candidate.statement,
     concept: candidate.concept,
@@ -117,8 +129,8 @@ function buildMultipleChoiceQuestion(candidate, pool, index, seed, difficulty) {
 
 function buildTrueFalseQuestion(candidate, index, seed, difficulty) {
   const truth = index % 2 === 0;
-  const statement = truth ? candidate.statement : negatedStatement(candidate.statement);
-  if (!statement || key(statement) === candidate.key) return null;
+  const statement = truth ? candidate.statement : `“${candidate.statement}” ifadesi kaynak metindeki bilgiyle çelişir.`;
+  if (!statement) return null;
   const correctAnswer = truth ? "true" : "false";
   return {
     id: `quiz-${hash(`${seed}:tf:${candidate.key}:${index}`).toString(16)}`,
@@ -142,13 +154,16 @@ function buildQuiz(input, options = {}) {
   const difficulty = normalizeDifficulty(options.difficulty);
   const type = normalizeType(options.type);
   const requested = Math.min(LIMITS.maxQuestions, Math.max(3, Number(options.count) || 5));
-  const pool = deterministicOrder(normalized.candidates.filter(candidate => difficultyOf(candidate, normalized.candidates.indexOf(candidate)) === difficulty || difficulty === "medium"), normalized.seed);
+  const sourcePool = deterministicOrder(normalized.candidates, normalized.seed);
+  // Difficulty limits prompts, not distractor evidence. A single eligible
+  // prompt still needs alternatives from the other validated source facts.
+  const pool = sourcePool.filter(candidate => difficultyOf(candidate, normalized.candidates.indexOf(candidate)) === difficulty || difficulty === "medium");
   const questions = [];
   pool.forEach((candidate, index) => {
     if (questions.length >= requested) return;
     const question = type === "true-false"
       ? buildTrueFalseQuestion(candidate, index, normalized.seed, difficulty)
-      : buildMultipleChoiceQuestion(candidate, pool, index, normalized.seed, difficulty);
+      : buildMultipleChoiceQuestion(candidate, sourcePool, index, normalized.seed, difficulty);
     if (question && !questions.some(item => item.id === question.id)) questions.push(question);
   });
   return {

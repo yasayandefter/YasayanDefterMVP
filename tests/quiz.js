@@ -19,6 +19,14 @@ const research = {
 const easy = quiz.buildQuiz(research, { difficulty: "easy", count: 5, type: "multiple-choice" });
 const medium = quiz.buildQuiz(research, { difficulty: "medium", count: 5, type: "multiple-choice" });
 const hard = quiz.buildQuiz(research, { difficulty: "hard", count: 5, type: "multiple-choice" });
+const sparseEasy = { query: "Işık", structuredContent: { keyFacts: [
+  { text: "Işık boşlukta sabit hızla yayılır." },
+  { text: "Elektromanyetik dalgalar farklı frekanslarda yayılır ve ölçüm aygıtlarıyla incelenen çeşitli fiziksel özellikler taşır.", concept: "Dalga" },
+  { text: "Optik araştırmalarda kullanılan mercekler ışınların yönünü değiştirerek görüntülerin büyütülmesini ve odaklanmasını sağlar.", concept: "Optik" }
+] } };
+const sparseQuiz = quiz.buildQuiz(sparseEasy, { difficulty: "easy", count: 5 });
+assert.equal(sparseQuiz.questions.length, 1, "difficulty selects prompts, not the entire distractor evidence pool");
+assert.ok(sparseQuiz.questions[0].options.length >= 2);
 assert.equal(quiz.normalizeDifficulty("unknown"), "medium");
 assert.equal(quiz.normalizeType("unknown"), "multiple-choice");
 assert.ok(easy.questions.length <= 5);

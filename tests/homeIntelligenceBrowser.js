@@ -45,7 +45,7 @@ async function wait(base) {
   await navigateTo(page, "collections"); await page.evaluate(() => window.YDSmartCollections.load()); await page.locator(".collection-card").filter({ hasText: "Samsung Çalışmaları" }).waitFor();
   await navigateTo(page, "home"); await page.locator(".home-context-dismiss").first().evaluate(node => node.click()); assert.equal(await page.locator("#homeIntelligenceLive").textContent(), "Öneri bu oturum için kapatıldı.");
   for (const width of [360, 390, 768, 1024, 1366]) { await page.setViewportSize({ width, height: 900 }); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 0, "overflow " + width); }
-  await reloadTo(page, "home"); await page.locator("#homeIntelligence").waitFor();
+  await reloadTo(page, "home"); await page.evaluate(() => window.YDHomeIntelligence.load()); await page.locator("#homeIntelligence .home-context-item").first().waitFor();
   await page.getByRole("button", { name: /Çıkış yap/ }).click(); await page.locator("[data-open-login]").waitFor(); await page.waitForFunction(() => !document.querySelector("#homeIntelligence"));
   assert.deepEqual(errors, []);
   console.log("PASS  real Edge compact home intelligence, max-three continue, collection route, dismiss, refresh, public isolation and responsive matrix");
