@@ -94,13 +94,116 @@ function negatedStatement(statement) {
   if (/değil$/i.test(base)) return `${base.replace(/değil$/i, "")}dir.`;
   return `${base} değildir.`;
 }
-function falseStatement(statement) {
-  const base = statement.replace(/[.!?]+$/, "").trim();
-  if (/\bbulunmaktadır$/i.test(base)) return `${base.replace(/bulunmaktadır$/i, "bulunmamaktadır")}.`;
-  if (/\bsahiptir$/i.test(base)) return `${base.replace(/sahiptir$/i, "sahip değildir")}.`;
-  if (/\b(?:dır|dir|dur|dür|tır|tir|tur|tür)$/i.test(base)) return `${base.replace(/(?:dır|dir|dur|dür|tır|tir|tur|tür)$/i, " değildir")}.`;
-  if (/\b(?:oluşur|oluşmaktadır)$/i.test(base)) return `${base.replace(/(?:oluşur|oluşmaktadır)$/i, "oluşmaz")}.`;
-  return `Kaynaklara göre şu ifade yanlıştır: “${base}”.`;
+const NUMBER_WORDS = Object.freeze({ bir: 1, iki: 2, üç: 3, dört: 4, beş: 5, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10 });
+const ORDINAL_WORDS = Object.freeze({ birinci: 1, ikinci: 2, üçüncü: 3, dördüncü: 4, beşinci: 5, altıncı: 6, yedinci: 7, sekizinci: 8, dokuzuncu: 9, onuncu: 10 });
+
+function numberValue(value) {
+  const clean = String(value || "").toLocaleLowerCase("tr-TR").replace(/[.,]/g, "").trim();
+  return /^\d+$/.test(clean) ? Number(clean) : NUMBER_WORDS[clean] || null;
+}
+
+function findMeasurements(statement) {
+  const found = [];
+  for (const match of statement.matchAll(/\b(yüksekliği|uzunluğu|genişliği|çapı|ağırlığı)\s+(\d[\d.,]*)\s*(km|m|kg|%|derece)\b/gi)) found.push({ label: match[1], value: match[2], unit: match[3] });
+  for (const match of statement.matchAll(/\b(\d[\d.,]*)\s*(km|m|kg|%|derece)\s+(uzunluğunda|genişliğinde)\b/gi)) found.push({ label: match[3].toLocaleLowerCase("tr-TR").startsWith("geniş") ? "genişliği" : "uzunluğu", value: match[1], unit: match[2] });
+  return found;
+}
+function normalizeMeasurementValue(value) {
+  const raw = String(value || "");
+  return /^\d{1,3}(?:\.\d{3})+$/.test(raw) ? raw.replace(/\./g, "") : raw.replace(/,/g, ".");
+}
+
+function questionFromFact(candidate) {
+  const statement = candidate.statement.replace(/[.!?]+$/, "").trim();
+  const loweredStatement = statement.toLocaleLowerCase("tr-TR");
+  const ordinal = Object.entries(ORDINAL_WORDS).find(([word]) => loweredStatement.includes(word));
+  if (ordinal && /güneş sistem|gezegen/i.test(statement)) {
+    const subject = statement.split(",")[0].trim();
+    return { kind: "ordinal", prompt: `${subject}, Güneş'e yakınlık bakımından kaçıncı gezegendir?`, answer: String(ordinal[1]) };
+  }
+  const count = statement.match(/(?:^|\s)(\d+|bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz|on)\s+(?:doğal\s+)?([^,.!?]*?(?:uydu|uydusu|tane|tür))(?=\s|$|[.,!?])/i);
+  if (count) {
+    const subject = statement.split(/[,'’]/)[0].trim();
+    const answer = numberValue(count[1]);
+    if (answer !== null) {
+      const prompt = /^\d/.test(subject) ? "Bu araştırmaya göre doğal uyduların sayısı kaçtır?" : `${subject}'ın doğal uyduları kaç tanedir?`;
+      return { kind: "count", prompt, answer: String(answer) };
+    }
+  }
+  const measurement = candidate.quizMeasurement || findMeasurements(statement)[0];
+  if (measurement) {
+    const value = normalizeMeasurementValue(measurement.value);
+    const object = statement.match(new RegExp(`\\(([^,]+),\\s*${measurement.label}`, "i"))?.[1]?.trim();
+    const subject = object ? `${object} adlı yapının` : "Kaynakta belirtilen yapının";
+    return { kind: "measurement", prompt: `${subject} ${measurement.label} kaç ${measurement.unit}'dir?`, answer: `${value} ${measurement.unit}` };
+  }
+  const date = statement.match(/\b(\d{1,2}\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\s+\d{4}|\d{4})\b/);
+  if (date && /tarih|savaş|savaşı|kuruldu|seçildi|cumhuriyet|gazi|ilan/i.test(statement)) {
+    let prompt = "Bu araştırmada belirtilen tarih hangisidir?";
+    if (/gazi.*sanını aldı|mareşallik/i.test(statement)) {
+      const subject = statement.split(/[,(]/)[0].trim();
+      prompt = `${subject || "Bu kişi"} hangi tarihte gazi sanını aldı?`;
+    }
+    else if (/cumhuriyet.*ilan|ilan.*cumhuriyet/i.test(statement)) prompt = "Cumhuriyet hangi tarihte ilan edildi?";
+    else if (/^([^,(]+)\s*\(\s*\d{4}/.test(statement)) prompt = `${statement.match(/^([^,(]+)/)[1].trim()} hangi yılda doğdu?`;
+    return { kind: "date", prompt, answer: date[1] };
+  }
+  const composition = statement.match(/^(.+?)\s+(.+?)\s+(oluşur|bulunur)\s*$/i);
+  if (composition) {
+    const prompt = composition[3].toLocaleLowerCase("tr-TR") === "bulunur"
+      ? `${composition[1]} içinde ne bulunur?`
+      : `${composition[1]} nelerden oluşur?`;
+    return { kind: "property", prompt, answer: composition[2] };
+  }
+  const process = statement.match(/^(.+?\s+(?:verileri|yanıtları|soruları))\s+(.+?)\s+(saklanır|değerlendirilir|üretilir)\s*$/i);
+  if (process) {
+    const prompt = process[3].toLocaleLowerCase("tr-TR") === "saklanır"
+      ? `${process[1]} ne amaçla saklanır?`
+      : process[3].toLocaleLowerCase("tr-TR") === "değerlendirilir" ? `${process[1]} nasıl değerlendirilir?` : `${process[1]} nasıl üretilir?`;
+    return { kind: "property", prompt, answer: process[2] };
+  }
+  const comma = statement.match(/^([^,]+),\s+(.+)$/);
+  if (comma) {
+    const subject = comma[1].trim();
+    const rest = comma[2].replace(/[.!?]+$/, "").trim();
+    let prompt = "";
+    if (/ne için kullanılan|kullanılan/i.test(rest)) prompt = `${subject} ne için kullanılır?`;
+    else if (/depolanır/i.test(rest)) prompt = `${subject} nerede depolanır?`;
+    else if (/saklanır/i.test(rest)) prompt = `${subject} ne amaçla saklanır?`;
+    else if (/değerlendirilir/i.test(rest)) prompt = `${subject} nasıl değerlendirilir?`;
+    else if (/üretilir/i.test(rest)) prompt = `${subject} nasıl üretilir?`;
+    else if (/adlandırılmıştır|adlandırılır/i.test(rest)) prompt = `${subject} nasıl adlandırılmıştır?`;
+    if (prompt) return { kind: "property", prompt, answer: rest };
+  }
+  return null;
+}
+
+function expandCandidate(candidate) {
+  const matches = findMeasurements(candidate.statement);
+  if (matches.length <= 1) return [candidate];
+  return matches.map((match, index) => ({ ...candidate, key: `${candidate.key}:measurement:${index}`, quizMeasurement: match }));
+}
+
+function sameTypeOptions(fact, pool, seed, index) {
+  const parsed = questionFromFact(fact);
+  if (!parsed) return null;
+  const values = pool.map(questionFromFact).filter(Boolean).filter(item => item.kind === parsed.kind).map(item => item.answer);
+  let distractors = [...new Set(values.filter(value => key(value) !== key(parsed.answer)))];
+  if (parsed.kind === "ordinal" || parsed.kind === "count") {
+    const number = Number(parsed.answer);
+    distractors = [...new Set([...distractors, String(Math.max(1, number - 1)), String(number + 1), String(number + 2)])];
+  } else if (parsed.kind === "measurement") {
+    const match = parsed.answer.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+    if (match) {
+      const number = Number(match[1]);
+      distractors = [...new Set([...distractors, `${Math.max(0, number - 1)} ${match[2]}`, `${number + 1} ${match[2]}`, `${number + 2} ${match[2]}`])];
+    }
+  }
+  const options = deterministicOrder([parsed.answer, ...distractors], `${seed}:options:${index}`).slice(0, LIMITS.maxOptions);
+  if (!options.some(option => key(option) === key(parsed.answer))) options[options.length - 1] = parsed.answer;
+  const minimumOptions = parsed.kind === "property" ? 2 : 3;
+  if (options.length < minimumOptions || new Set(options.map(key)).size !== options.length) return null;
+  return { ...parsed, options };
 }
 
 function buildExplanation(candidate, correct, wasCorrect) {
@@ -110,27 +213,16 @@ function buildExplanation(candidate, correct, wasCorrect) {
 }
 
 function buildMultipleChoiceQuestion(candidate, pool, index, seed, difficulty) {
-  const answer = candidate.statement.replace(/[.!?]+$/, "").trim();
-  if (!answer || answer.length < 24) return null;
-  const alternatives = pool
-    .filter(item => item.key !== candidate.key)
-    .map(item => item.statement.replace(/[.!?]+$/, "").trim())
-    .filter(statement => statement && statement !== answer)
-    .map(statement => falseStatement(statement));
-  const distractors = deterministicOrder([...new Set(alternatives)], `${seed}:distractors:${index}`).slice(0, LIMITS.maxOptions - 1);
-  const options = deterministicOrder([answer, ...distractors], `${seed}:options:${index}`);
-  if (options.length < 2) return null;
-  const prompt = candidate.concept && candidate.concept !== "Genel"
-    ? `${candidate.concept} hakkında aşağıdaki ifadelerden hangisi araştırma içeriğiyle doğrudan desteklenir?`
-    : "Araştırmaya göre aşağıdaki ifadelerden hangisi doğrudur?";
+  const parsed = sameTypeOptions(candidate, pool, seed, index);
+  if (!parsed) return null;
   return {
     id: `quiz-${hash(`${seed}:mc:${candidate.key}:${index}`).toString(16)}`,
     type: "multiple-choice",
     difficulty,
-    prompt,
-    options,
-    correctAnswer: answer,
-    acceptedAnswers: [answer],
+    prompt: parsed.prompt,
+    options: parsed.options,
+    correctAnswer: parsed.answer,
+    acceptedAnswers: [parsed.answer],
     explanation: buildExplanation(candidate, candidate.statement, true),
     sourceFact: candidate.statement,
     concept: candidate.concept,
@@ -167,7 +259,7 @@ function buildQuiz(input, options = {}) {
   const difficulty = normalizeDifficulty(options.difficulty);
   const type = normalizeType(options.type);
   const requested = Math.min(LIMITS.maxQuestions, Math.max(3, Number(options.count) || 5));
-  const sourcePool = deterministicOrder(normalized.candidates, normalized.seed);
+  const sourcePool = deterministicOrder(normalized.candidates.flatMap(expandCandidate), normalized.seed);
   // Difficulty limits prompts, not distractor evidence. A single eligible
   // prompt still needs alternatives from the other validated source facts.
   const pool = sourcePool.filter(candidate => difficultyOf(candidate, normalized.candidates.indexOf(candidate)) === difficulty || difficulty === "medium");

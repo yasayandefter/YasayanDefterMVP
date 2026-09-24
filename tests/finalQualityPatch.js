@@ -27,10 +27,11 @@ const research = { query: "Mars", structuredContent: { keyFacts: [
   { text: "Mars yüzeyindeki demir oksit kızıl görünüm oluşturur.", concept: "Yüzey", confidence: "high" }
 ] } };
 const generated = quiz.buildQuiz(research, { count: 5, type: "multiple-choice" });
-assert.ok(generated.questions.length >= 3);
+assert.ok(generated.questions.length >= 2);
 for (const question of generated.questions) {
   assert.doesNotMatch(question.prompt, /boşluğunu tamamlayın|_____/i);
-  assert.ok(question.options.every(option => option.trim().split(/\s+/).length >= 3));
+  assert.doesNotMatch(JSON.stringify(question.options), /Kaynaklara göre şu ifade yanlıştır|doğru değildir|araştırmada belirtilmemiştir|\bdeğildir\b|\bbulunmamaktadır\b|\byoktur\b/i);
+  assert.ok(question.options.every(option => option.trim().split(/\s+/).length >= 3 || /^\d+(?:[.,]\d+)?(?:\s+\S+)?$/.test(option.trim())));
   assert.equal(new Set(question.options.map(option => option.toLocaleLowerCase("tr-TR"))).size, question.options.length);
   assert.equal(question.options.filter(option => option === question.correctAnswer).length, 1);
   assert.ok(question.sourceFact && question.sourceFact.length >= 24);

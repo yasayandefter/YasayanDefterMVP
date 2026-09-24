@@ -25,12 +25,11 @@ const sparseEasy = { query: "Işık", structuredContent: { keyFacts: [
   { text: "Optik araştırmalarda kullanılan mercekler ışınların yönünü değiştirerek görüntülerin büyütülmesini ve odaklanmasını sağlar.", concept: "Optik" }
 ] } };
 const sparseQuiz = quiz.buildQuiz(sparseEasy, { difficulty: "easy", count: 5 });
-assert.equal(sparseQuiz.questions.length, 1, "difficulty selects prompts, not the entire distractor evidence pool");
-assert.ok(sparseQuiz.questions[0].options.length >= 2);
+assert.equal(sparseQuiz.questions.length, 0, "unsupported semantic distractors are omitted instead of fabricated");
 assert.equal(quiz.normalizeDifficulty("unknown"), "medium");
 assert.equal(quiz.normalizeType("unknown"), "multiple-choice");
 assert.ok(easy.questions.length <= 5);
-assert.ok(medium.questions.length >= 3);
+assert.ok(medium.questions.length >= 2);
 assert.ok(hard.questions.length <= 5);
 assert.deepEqual(medium, quiz.buildQuiz(research, { difficulty: "medium", count: 5, type: "multiple-choice" }));
 for (const item of medium.questions) {
