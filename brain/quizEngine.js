@@ -94,6 +94,14 @@ function negatedStatement(statement) {
   if (/değil$/i.test(base)) return `${base.replace(/değil$/i, "")}dir.`;
   return `${base} değildir.`;
 }
+function falseStatement(statement) {
+  const base = statement.replace(/[.!?]+$/, "").trim();
+  if (/\bbulunmaktadır$/i.test(base)) return `${base.replace(/bulunmaktadır$/i, "bulunmamaktadır")}.`;
+  if (/\bsahiptir$/i.test(base)) return `${base.replace(/sahiptir$/i, "sahip değildir")}.`;
+  if (/\b(?:dır|dir|dur|dür|tır|tir|tur|tür)$/i.test(base)) return `${base.replace(/(?:dır|dir|dur|dür|tır|tir|tur|tür)$/i, " değildir")}.`;
+  if (/\b(?:oluşur|oluşmaktadır)$/i.test(base)) return `${base.replace(/(?:oluşur|oluşmaktadır)$/i, "oluşmaz")}.`;
+  return `Kaynaklara göre şu ifade yanlıştır: “${base}”.`;
+}
 
 function buildExplanation(candidate, correct, wasCorrect) {
   const prefix = wasCorrect ? "Doğru." : "Bu cevap doğru değil.";
@@ -102,19 +110,24 @@ function buildExplanation(candidate, correct, wasCorrect) {
 }
 
 function buildMultipleChoiceQuestion(candidate, pool, index, seed, difficulty) {
-  // Complete a specific source sentence: other true facts are not false answers.
-  const words = candidate.statement.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || [];
-  const answer = words.filter(word=>word.length >= 5 && !/^(olarak|tarafından|sonra|önce|yaklaşık|birlikte|bulunmaktadır)$/i.test(word)).sort((a,b)=>b.length-a.length)[0];
-  if(!answer)return null;
-  const alternatives=[...new Set(pool.flatMap(item=>item.statement.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || []))].filter(word=>word.length>=5 && key(word)!==key(answer) && !words.includes(word));
-  const distractors = deterministicOrder(alternatives, `${seed}:distractors:${index}`).slice(0, LIMITS.maxOptions - 1);
+  const answer = candidate.statement.replace(/[.!?]+$/, "").trim();
+  if (!answer || answer.length < 24) return null;
+  const alternatives = pool
+    .filter(item => item.key !== candidate.key)
+    .map(item => item.statement.replace(/[.!?]+$/, "").trim())
+    .filter(statement => statement && statement !== answer)
+    .map(statement => falseStatement(statement));
+  const distractors = deterministicOrder([...new Set(alternatives)], `${seed}:distractors:${index}`).slice(0, LIMITS.maxOptions - 1);
   const options = deterministicOrder([answer, ...distractors], `${seed}:options:${index}`);
   if (options.length < 2) return null;
+  const prompt = candidate.concept && candidate.concept !== "Genel"
+    ? `${candidate.concept} hakkında aşağıdaki ifadelerden hangisi araştırma içeriğiyle doğrudan desteklenir?`
+    : "Araştırmaya göre aşağıdaki ifadelerden hangisi doğrudur?";
   return {
     id: `quiz-${hash(`${seed}:mc:${candidate.key}:${index}`).toString(16)}`,
     type: "multiple-choice",
     difficulty,
-    prompt: `Kaynak cümlesindeki boşluğu tamamlayın: ${candidate.statement.replace(answer, '_____')}`,
+    prompt,
     options,
     correctAnswer: answer,
     acceptedAnswers: [answer],

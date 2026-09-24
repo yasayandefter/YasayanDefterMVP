@@ -29,6 +29,24 @@ function cleanCurrentText(value, maxLength = 320) {
   if (selected.length) return selected.join(" ").slice(0, maxLength).trim();
   return `${text.slice(0, Math.max(0, maxLength - 1)).replace(/[\s,;:]+$/g, "")}…`;
 }
+function detectQueryLanguage(value) {
+  const text = String(value || "");
+  if (/[çğıöşüİ]/i.test(text) || /\b(?:ve|son|güncel|gelişmeler|bugün|dünyasında|neler|oldu|için|haberleri|nedir|nasıl|hakkında)\b/i.test(text)) return "tr";
+  return "en";
+}
+function looksTurkish(value) {
+  const text = String(value || "");
+  return /[çğıöşüİ]/i.test(text) || /\b(?:ve|bir|ile|için|olan|göre|kaynak|gelişme|duyuru|araştırma|yayımlandı|raporlandı)\b/i.test(text);
+}
+function localizeCurrentText(value, options = {}) {
+  const clean = cleanCurrentText(value, options.maxLength || 320);
+  if (!clean || options.language !== "tr" || looksTurkish(clean)) return clean;
+  const title = cleanHeadline(options.title || "Güncel gelişme");
+  const date = options.publishedAt && Number.isFinite(Date.parse(options.publishedAt))
+    ? ` ${new Date(options.publishedAt).toLocaleDateString("tr-TR")} tarihinde`
+    : "";
+  return `“${title}” başlıklı güncelleme${date} kaynakta raporlandı.`;
+}
 function classifySubcategory(item) {
   const text = `${item?.title || ""} ${item?.summary || item?.text || ""}`.toLocaleLowerCase("tr-TR");
   for (const [name, pattern] of Object.entries(SUBCATEGORIES)) if (pattern.test(text)) return name;
@@ -96,4 +114,4 @@ function buildCurrentFollowUps(events) {
 function assertPlainCurrent(value) { return !HTML_LEAK.test(JSON.stringify(value)); }
 function eventReliability(event, claims = [], contradictions = []) { const eventClaims = claims.filter(claim => claim.eventId === event.id); const domains = Number(event.independentDomains) || 1; const official = (event.sources || []).filter(source => Number(source.authority) >= 95).length; const conflicted = eventClaims.some(claim => claim.contradicted) || contradictions.some(item => item.sources?.some(url => event.sourceRefs?.includes(url))); const score = Math.max(0, Math.min(100, 45 + Math.min(25, domains * 12) + Math.min(20, official * 8) - (conflicted ? 30 : 0))); return { score, label: conflicted ? "Sınırlı" : score >= 80 ? "Yüksek" : score >= 60 ? "Orta" : "Sınırlı", independentDomains: domains, officialSourceCount: official, contradicted: conflicted }; }
 
-module.exports = { NOISE, HTML_LEAK, PRESENTATION_PREFIX, cleanHeadline, cleanCurrentText, classifySubcategory, whyItMatters, qualityItem, rankDiverse, factFromEvent, buildCurrentQuiz, buildCurrentLearning, buildCurrentFollowUps, assertPlainCurrent, eventReliability };
+module.exports = { NOISE, HTML_LEAK, PRESENTATION_PREFIX, cleanHeadline, cleanCurrentText, detectQueryLanguage, looksTurkish, localizeCurrentText, classifySubcategory, whyItMatters, qualityItem, rankDiverse, factFromEvent, buildCurrentQuiz, buildCurrentLearning, buildCurrentFollowUps, assertPlainCurrent, eventReliability };

@@ -204,12 +204,14 @@ function currentFollowUps(context) {
 
 function createCurrentResult(query, current = {}, detection = {}, context) {
   const checkedAt = current.checkedAt || new Date().toISOString();
+  const language = context?.language || currentQuality.detectQueryLanguage(query);
   const accepted = prepareSources(current.items || [], { ...context, mode: "current" });
   const empty = accepted.length === 0;
   const eventByUrl = new Map((current.events || []).flatMap(event => (event.sourceRefs || []).map(url => [url, event])));
   const acceptedEvents = [...new Set(accepted.map(item => eventByUrl.get(item.url)).filter(Boolean))].slice(0, 10);
-  const safeItems = accepted.map(item => { const summary = currentQuality.cleanCurrentText(item.text || item.snippet); return { ...item, text: summary, summary, snippet: summary, publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }; });
-  const qualityEvents = (acceptedEvents.length ? acceptedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url, title: item.title, summary: item.summary, authority: item.authority }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, independentDomains: 1, crossSourceSupport: false }))).map((event, index) => ({ ...event, id: event.id || `event-${index + 1}` }));
+  const safeItems = accepted.map(item => { const summary = currentQuality.localizeCurrentText(item.text || item.snippet, { language, title: item.title, publishedAt: item.publishedAt }); return { ...item, text: summary, summary, snippet: summary, publishedAt: item.publishedAt || null, updatedAt: item.updatedAt || null }; });
+  const localizedEvents = acceptedEvents.map(event => ({ ...event, summary: currentQuality.localizeCurrentText(event.summary || event.headline, { language, title: event.headline, publishedAt: event.publishedAt }), sources: (event.sources || []).map(source => ({ ...source, summary: currentQuality.localizeCurrentText(source.summary || source.title, { language, title: source.title, publishedAt: source.publishedAt }) })) }));
+  const qualityEvents = (localizedEvents.length ? localizedEvents : safeItems.map(item => ({ headline: item.title, summary: item.summary, whyItMatters: item.whyItMatters || "", subcategory: item.subcategory || currentQuality.classifySubcategory(item), publishedAt: item.publishedAt, sourceName: item.source, sources: [{ sourceName: item.source, domain: item.domain, url: item.url, title: item.title, summary: item.summary, authority: item.authority }], sourceRefs: [item.url].filter(Boolean), sourceCount: 1, independentDomains: 1, crossSourceSupport: false }))).map((event, index) => ({ ...event, id: event.id || `event-${index + 1}` }));
   const claimResult = empty ? { claims: [], contradictions: [] } : currentClaims.buildClaims(qualityEvents);
   const families = empty ? [] : eventFamilies.buildFamilies(qualityEvents, claimResult.claims); const familyContradictions = families.flatMap(family => family.contradictions.map(item => ({ ...item, familyId: family.familyId }))); metrics.recordEventFamilies(families);
   const allContradictions = [...claimResult.contradictions, ...familyContradictions].filter((item, index, list) => list.findIndex(other => other.type === item.type && JSON.stringify(other.claimRefs || []) === JSON.stringify(item.claimRefs || [])) === index);
@@ -219,8 +221,9 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const displayEvents = families.map(family => { const members = qualityEvents.filter(event => family.eventIds.includes(event.id)); const primary = members[0]; const sources = [...new Map(members.flatMap(event => event.sources || []).map(source => [source.url, source])).values()]; const sourceRefs = sources.map(source => source.url); const independentDomains = new Set(sources.map(source => claimSignatures.normalizeDomain(source.domain)).filter(Boolean)).size; const event = { ...primary, id: family.familyId, familyId: family.familyId, sources, sourceRefs, sourceCount: sourceRefs.length, independentDomains, crossSourceSupport: independentDomains >= 2, claims: family.claims, claimRefs: family.claims.map(claim => claim.id), contradictions: family.contradictions }; event.reliability = currentQuality.eventReliability(event, family.claims, family.contradictions); return event; });
   const strongestClaims = claimResult.claims.filter(claim => !claim.contradicted).sort((a, b) => b.independentDomains - a.independentDomains || b.authority - a.authority).slice(0, 3);
   const contradictionNote = allContradictions.length ? " Bir gelişmede kaynaklar farklı bilgiler veriyor." : "";
+  const independentSourceCount = new Set(accepted.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size;
   const summary = empty ? CURRENT_EMPTY_MESSAGE : strongestClaims.length
-    ? `${displayEvents.length} güncel gelişme, ${new Set(accepted.map(item => claimSignatures.normalizeDomain(item.domain)).filter(Boolean)).size} bağımsız kaynaktan derlendi: ${strongestClaims.map(claim => claim.text).join(" ")}${contradictionNote}`
+    ? `${displayEvents.length} güncel gelişme, ${safeItems.length} kaynak yazısı ve ${independentSourceCount} bağımsız kaynaktan derlendi: ${strongestClaims.map(claim => claim.text).join(" ")}${contradictionNote}`
     : `Güncel bilgi için ${accepted.length} doğrulanabilir kaynak incelendi.${contradictionNote}`;
   const learning = empty ? { facts: [], quiz: null, flashcards: [], lesson: null, knowledgeMap: { center: query, nodes: [] } } : currentQuality.buildCurrentLearning(displayEvents, query, claimResult.claims);
   metrics.recordClaims(claimResult.claims, claimResult.contradictions, learning.quiz);
@@ -229,7 +232,7 @@ function createCurrentResult(query, current = {}, detection = {}, context) {
   const followUps = empty ? currentFollowUps(context) : currentQuality.buildCurrentFollowUps(displayEvents);
   return {
     ok: true, query, originalQuery: query, normalizedQuery: context.normalizedQuery, title: query,
-    mode: "current", researchMode: "current", currentState: empty ? "CURRENT_EMPTY" : "CURRENT_VERIFIED", currentSourceCount: safeItems.length, checkedAt, intent: context.intent,
+    mode: "current", researchMode: "current", currentState: empty ? "CURRENT_EMPTY" : "CURRENT_VERIFIED", currentSourceCount: safeItems.length, checkedAt, intent: context.intent, language,
     analysis: { original: query, originalQuestion: query, normalizedQuestion: context.normalizedQuery, type: "güncel", intent: context.intent, topic: query, subject: query, keywords: context.searchTerms, researchQueries: context.expansions, relatedTopics: [] },
     summary, text: summary, image: "", url: "", articles: safeItems, currentItems: safeItems,
     currentSources: [...new Set(safeItems.map(item => item.source).filter(Boolean))], sources: [...new Set(safeItems.map(item => item.source).filter(Boolean))],
@@ -294,7 +297,7 @@ function enhanceResult(result, context) {
 
 function buildContext(query, freshness) {
   const normalized = normalizeQuery(query); const intent = classifyIntent(query, freshness);
-  return { query: normalized.original, normalizedQuery: normalized.normalized, safeSearch: normalized.safeSearch, searchTerms: normalized.searchTerms, intent, mode: freshness?.requiresFreshness ? "current" : "standard", expansions: expandQuery(query, intent), disambiguation: disambiguate(query, intent), checkedAt: new Date().toISOString() };
+  return { query: normalized.original, normalizedQuery: normalized.normalized, safeSearch: normalized.safeSearch, searchTerms: normalized.searchTerms, intent, language: currentQuality.detectQueryLanguage(normalized.original), mode: freshness?.requiresFreshness ? "current" : "standard", expansions: expandQuery(query, intent), disambiguation: disambiguate(query, intent), checkedAt: new Date().toISOString() };
 }
 
 module.exports = { INTENTS, CURRENT_EMPTY_MESSAGE, cleanText, fold, normalizeQuery, classifyIntent, expandQuery, disambiguate, relevanceScore, prepareSources, dedupeFacts, detectContradictions, prepareImages, buildTimeline, buildComparison, sectionTitles, normalizeFollowUps, currentFollowUps, createCurrentResult, enhanceResult, buildContext };
